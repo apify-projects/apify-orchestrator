@@ -1,6 +1,6 @@
 import { log } from 'apify';
 
-import { PersistSupport, state } from './utils/persist';
+import { PersistSupport, state } from './utils/persist.js';
 
 const RUNS_KEY = 'RUNS';
 const ABORTED_RUNS_KEY = 'ABORTED_RUNS';

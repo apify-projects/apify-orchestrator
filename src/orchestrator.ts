@@ -2,7 +2,7 @@ import { Actor, ActorRun, log } from 'apify';
 
 import { abortAndTrackRun, getDefaultRunOptions, getRun, startAndTrackRun, waitAndTrackRun } from './client.js';
 import { getLogger } from './logging.js';
-import { ActorParams, RunRequest, createRequestsManager } from './run-request.js';
+import { ActorParams, RunRequest, RunRequestsManager } from './run-request.js';
 import { getRunsTracker } from './tracking.js';
 import { getAvailableMemoryGBs } from './utils/apify-api.js';
 import { PersistSupport } from './utils/persist.js';
@@ -132,7 +132,7 @@ export async function createOrchestrator(options: Partial<OrchestratorOptions> =
     const logger = getLogger(enableLogs);
     const tracker = await getRunsTracker(persistSupport, persistPrefix);
 
-    const runRequestsManager = createRequestsManager();
+    const runRequestsManager = new RunRequestsManager();
 
     // Main loop
     const mainLoopId = setInterval(async () => {
@@ -268,7 +268,7 @@ export async function createOrchestrator(options: Partial<OrchestratorOptions> =
             return false;
         }
 
-        runRequestsManager.enqueue(actorParams?.apifyToken, { runName, actorId, actorParams, onStart: [] });
+        runRequestsManager.enqueue({ runName, actorId, actorParams, onStart: [] });
         return true;
     };
 
@@ -288,10 +288,7 @@ export async function createOrchestrator(options: Partial<OrchestratorOptions> =
         }
 
         return await new Promise<ActorRun | null>((resolve) => {
-            runRequestsManager.enqueue(
-                actorParams?.apifyToken,
-                { runName, actorId, actorParams, onStart: [(run) => resolve(run)] },
-            );
+            runRequestsManager.enqueue({ runName, actorId, actorParams, onStart: [] }, (run) => resolve(run));
         });
     };
 

@@ -13,47 +13,55 @@ export interface RunRequest {
     runName: string
     actorId: string
     actorParams?: ActorParams
-    onStart: ((run: ActorRun | null) => void)[]
+    onStart: RunCallback[]
 }
 
-export function createRequestsManager() {
+type RunCallback = (run: ActorRun | null) => void
+
+export class RunRequestsManager {
     /**
      * Record of Apify tokens with their queue of run requests.
      * It is organized by token to quickly check if an account has enough memory available to run another Actor.
      * The empty string '' token represents the user running the Orchestrator.
      */
-    const runQueues: Record<string, Queue<RunRequest>> = {};
+    private runQueues: Record<string, Queue<RunRequest>> = {};
 
-    return {
-        get accountTokens() {
-            return Object.keys(runQueues);
-        },
+    get accountTokens() {
+        return Object.keys(this.runQueues);
+    }
 
-        find(targetRunName: string) {
-            for (const queue of Object.values(runQueues)) {
-                const runRequest = queue.find(({ runName }) => runName === targetRunName);
-                if (runRequest) { return runRequest; }
-            }
-            return undefined;
-        },
+    find(targetRunName: string) {
+        for (const queue of Object.values(this.runQueues)) {
+            const runRequest = queue.find(({ runName }) => runName === targetRunName);
+            if (runRequest) { return runRequest; }
+        }
+        return undefined;
+    }
 
-        enqueue(apifyToken: string | undefined, runRequest: RunRequest) {
-            if (!runQueues[apifyToken ?? '']) {
-                runQueues[apifyToken ?? ''] = new Queue<RunRequest>();
-            }
-            runQueues[apifyToken ?? ''].enqueue(runRequest);
-        },
+    enqueue(runRequest: RunRequest, ...onStart: RunCallback[]) {
+        const apifyToken = runRequest.actorParams?.apifyToken ?? '';
+        if (!this.runQueues[apifyToken]) {
+            this.runQueues[apifyToken] = new Queue<RunRequest>();
+        }
+        this.runQueues[apifyToken].enqueue({ ...runRequest, onStart });
+    }
 
-        length(apifyToken: string | undefined) {
-            return runQueues[apifyToken ?? '']?.length ?? 0;
-        },
+    addStartCallback(targetRunName: string, ...onStart: RunCallback[]) {
+        const req = this.find(targetRunName);
+        if (!req) { return false; }
+        req.onStart.push(...onStart);
+        return true;
+    }
 
-        peek(apifyToken: string | undefined) {
-            return runQueues[apifyToken ?? '']?.peek();
-        },
+    length(apifyToken: string | undefined) {
+        return this.runQueues[apifyToken ?? '']?.length ?? 0;
+    }
 
-        dequeue(apifyToken: string | undefined) {
-            return runQueues[apifyToken ?? '']?.dequeue();
-        },
-    };
+    peek(apifyToken: string | undefined) {
+        return this.runQueues[apifyToken ?? '']?.peek();
+    }
+
+    dequeue(apifyToken: string | undefined) {
+        return this.runQueues[apifyToken ?? '']?.dequeue();
+    }
 }

@@ -1,6 +1,7 @@
 import { Actor, ApifyClient } from 'apify';
 
 import { CustomLogger } from './logging.js';
+import { RunRequest } from './run-request.js';
 import { RunsTracker } from './tracking.js';
 
 const getApifyClient = (token?: string) => (token ? new ApifyClient({ token }) : Actor.apifyClient);
@@ -41,15 +42,8 @@ export async function getRun(tracker: RunsTracker, runName: string) {
     return await getApifyClient(runInfo.apifyToken).run(runInfo.runId).get() ?? null;
 }
 
-export async function startAndTrackRun(
-    logger: CustomLogger,
-    tracker: RunsTracker,
-    runName: string,
-    actorId: string,
-    actorInput?: unknown,
-    actorOptions?: ActorOptions,
-    apifyToken?: string,
-) {
+export async function startAndTrackRun(logger: CustomLogger, tracker: RunsTracker, runRequest: RunRequest) {
+    const { runName, actorId, input, options, apifyToken } = runRequest;
     const apifyClient = getApifyClient(apifyToken);
 
     // If the tracker has the runInfo, the Run was already started - maybe in a previous session.
@@ -69,18 +63,14 @@ export async function startAndTrackRun(
     }
 
     // Start a new Run and track it.
-    const run = await apifyClient.actor(actorId).start(actorInput, actorOptions);
+    const run = await apifyClient.actor(actorId).start(input, options);
     runInfo = await tracker.register(runName, run.id, run.status, apifyToken);
     logger.prfxInfo(runName, `Started Run`, { url: runInfo.runUrl });
 
     return run;
 }
 
-export async function waitAndTrackRun(
-    logger: CustomLogger,
-    tracker: RunsTracker,
-    runName: string,
-) {
+export async function waitAndTrackRun(logger: CustomLogger, tracker: RunsTracker, runName: string) {
     const runInfo = tracker.runs[runName];
     if (!runInfo) {
         logger.prfxWarn(runName, 'Tried to wait for a Run which was not found (maybe it was never enqueued/started?)');
@@ -101,11 +91,7 @@ export async function waitAndTrackRun(
     return run;
 }
 
-export async function abortAndTrackRun(
-    logger: CustomLogger,
-    tracker: RunsTracker,
-    runName: string,
-) {
+export async function abortAndTrackRun(logger: CustomLogger, tracker: RunsTracker, runName: string) {
     const runInfo = tracker.runs[runName];
     if (!runInfo) {
         logger.prfxWarn(runName, 'Tried to abort a Run which was not found in the tracker (maybe it was never started?)');

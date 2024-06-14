@@ -2,10 +2,13 @@ import { Actor, ActorRun, log } from 'apify';
 
 import { abortAndTrackRun, getDefaultRunOptions, getRun, startAndTrackRun, waitAndTrackRun } from './client.js';
 import { getLogger } from './logging.js';
-import { ActorParams, RunRequest, RunRequestsManager } from './run-request.js';
+import { RunRequest, RunRequestsManager, waitForRequest } from './run-request.js';
 import { getRunsTracker } from './tracking.js';
 import { getAvailableMemoryGBs } from './utils/apify-api.js';
+import { DatasetClientListItemOptions, DatasetItem, iteratePaginatedDataset } from './utils/dataset.js';
 import { PersistSupport } from './utils/persist.js';
+
+const MAIN_LOOP_INTERVAL_MS = 1000;
 
 export interface OrchestratorOptions {
     /**
@@ -44,71 +47,16 @@ const DEFAULT_OPTIONS: OrchestratorOptions = {
     abortAllRunsOnGracefulAbort: true,
 };
 
+export type RunRecord = Record<string, ActorRun | null>
 export interface ApifyOrchestrator {
-    /**
-     * Enqueues a Run request in the Orchestrator and returns immediately.
-     *
-     * You can check the Run's status later with its `runName`, executing:
-     *
-     * - `waitRunStart` to wait for the Run to start.
-     * - `waitRun` to wait for the Run to finish.
-     *
-     * @param runName A unique identifier for this Run.
-     * @param actorId The Actor ID on the Apify platform.
-     * @param actorParams Other Actor parameters to start the Run.
-     * @returns `true` if the Run was correctly enqueued, `false` if a Run with the same name was already enqueued.
-     */
-    enqueueRun: (runName: string, actorId: string, actorParams?: ActorParams) => boolean
-
-    /**
-     * Runs an Actor through the Orchestrator:
-     *
-     * - Checks whether enough memory is available on the account which will run the Actor, otherwise hangs until it is.
-     * - Logs information about the run's status (if enabled in the options).
-     * - Persists the run's information for debugging and to restore it in case of resurrection (if enabled in the options).
-     * - Abort all the runs started with this command on graceful abort (if enabled in the options)
-     *
-     * If use don't care about the Run object before the Run has finished, use `startAndWaitRun`, instead.
-     *
-     * @param runName A unique identifier for this Run.
-     * @param actorId The Actor ID on the Apify platform.
-     * @param actorParams Other Actor parameters to start the Run.
-     * @returns the Run object, or `null` if starting the Run failed or the orchestrator is shutting down.
-     */
-    startRun: (runName: string, actorId: string, actorParams?: ActorParams) => Promise<ActorRun | null>
-
-    /**
-     * Waits for a Run to start and return the Run object.
-     *
-     * You must call `enqueueRun` before calling this function.
-     *
-     * @param runName The unique identifier used to start the Run.
-     * @returns the Run object, `null` in case of error, e.g., if a Run was awaited before starting it.
-     */
-    waitRunStart: (runName: string) => Promise<ActorRun | null>
-
-    /**
-     * Waits for a Run to finish and return the Run object.
-     *
-     * You must call `startRun` before calling this function.
-     * If you don't care about the Run object before the Run has finished, you can use `startAndWaitRun`.
-     *
-     * @param runName The unique identifier used to start the Run.
-     * @returns the Run object, `null` in case of error, e.g., if a Run was awaited before starting it.
-     */
-    waitRun: (runName: string) => Promise<ActorRun | null>
-
-    /**
-     * Utility to start and wait a Run at once.
-     *
-     * Equals executing `startRun` and then `waitRun`.
-     *
-     * @param runName A unique identifier for this Run.
-     * @param actorId The Actor ID on the Apify platform.
-     * @param actorParams Other Actor parameters to start the Run.
-     * @returns the Run object, or `null` if starting the Run failed or the orchestrator is shutting down.
-     */
-    startAndWaitRun: (runName: string, actorId: string, actorParams?: ActorParams) => Promise<ActorRun | null>
+    enqueue: (...runRequests: RunRequest[]) => string[]
+    start: (...runRequests: RunRequest[]) => Promise<RunRecord>
+    waitStart: (...runNames: string[]) => Promise<RunRecord>
+    waitFinish: (...runNames: string[]) => Promise<RunRecord>
+    startAndWaitFinish: (...runRequests: RunRequest[]) => Promise<RunRecord>
+    iteratePaginatedOutput: <T extends DatasetItem>(
+        runRecord: RunRecord, pageSize: number, readOptions?: DatasetClientListItemOptions
+    ) => AsyncGenerator<T, void, void>
 }
 
 /**
@@ -117,17 +65,17 @@ export interface ApifyOrchestrator {
  * It is advised to instantiate only one Orchestrator at a time.
  * If using more than one with persistence enabled, pay attention to possible interference.
  *
- * @param options the global Orchestrator options
+ * @param orchestratorOptions the global Orchestrator options
  * @returns the Orchestrator object
  */
-export async function createOrchestrator(options: Partial<OrchestratorOptions> = {}): Promise<ApifyOrchestrator> {
+export async function createOrchestrator(orchestratorOptions: Partial<OrchestratorOptions> = {}): Promise<ApifyOrchestrator> {
     const {
         enableLogs,
         statsIntervalSec,
         persistSupport,
         persistPrefix,
         abortAllRunsOnGracefulAbort: abortAllRunsOnAbort,
-    } = { ...DEFAULT_OPTIONS, ...options };
+    } = { ...DEFAULT_OPTIONS, ...orchestratorOptions };
 
     const logger = getLogger(enableLogs);
     const tracker = await getRunsTracker(persistSupport, persistPrefix);
@@ -145,13 +93,13 @@ export async function createOrchestrator(options: Partial<OrchestratorOptions> =
             if (!nextRunRequest) { return; }
 
             // Check if the next Run has enough memory available
-            const availableMemoryGBs = await getAvailableMemoryGBs(nextRunRequest.actorParams?.apifyToken);
-            let requiredMemoryMBs = nextRunRequest.actorParams?.options?.memory;
+            const availableMemoryGBs = await getAvailableMemoryGBs(nextRunRequest.apifyToken);
+            let requiredMemoryMBs = nextRunRequest.options?.memory;
             if (!requiredMemoryMBs) {
                 const defaultOptions = await getDefaultRunOptions(
                     logger,
                     nextRunRequest.actorId,
-                    nextRunRequest.actorParams?.apifyToken,
+                    nextRunRequest.apifyToken,
                 );
 
                 // If the user didn't provide a memory option and the default options cannot be read,
@@ -164,25 +112,16 @@ export async function createOrchestrator(options: Partial<OrchestratorOptions> =
             if (hasEnoughMemory) {
                 const runToTrigger = runRequestsManager.dequeue(tokenKey);
                 if (!runToTrigger) { return; }
-                const { runName, actorId, actorParams } = runToTrigger;
                 try {
-                    const nextRun = await startAndTrackRun(
-                        logger,
-                        tracker,
-                        runName,
-                        actorId,
-                        actorParams?.input,
-                        actorParams?.options,
-                        actorParams?.apifyToken,
-                    );
+                    const nextRun = await startAndTrackRun(logger, tracker, runToTrigger);
                     runToTrigger.onStart.map((callback) => callback(nextRun));
                 } catch (err) {
-                    log.exception(err as Error, 'Error starting the Run', { runName });
+                    log.exception(err as Error, 'Error starting the Run', { runName: runToTrigger.runName });
                     runToTrigger.onStart.map((callback) => callback(null));
                 }
             }
         }));
-    }, 1000);
+    }, MAIN_LOOP_INTERVAL_MS);
 
     const statsId = statsIntervalSec ? setInterval(() => {
         if (Object.keys(tracker.runs).length === 0) {
@@ -247,14 +186,8 @@ export async function createOrchestrator(options: Partial<OrchestratorOptions> =
         exitOrchestrator();
     });
 
-    /**
-     * Awaits for a RunRequest to be dequeued and started.
-     */
-    const waitForRequest = async (runRequest: RunRequest) => new Promise<ActorRun | null>((resolve) => {
-        runRequest.onStart.push((run) => resolve(run));
-    });
-
-    const enqueueRun = (runName: string, actorId: string, actorParams?: ActorParams) => {
+    function enqueueRun(runRequest: RunRequest) {
+        const { runName } = runRequest;
         logger.prfxInfo(runName, 'Enqueuing run');
 
         if (tracker.runs[runName]) {
@@ -262,17 +195,27 @@ export async function createOrchestrator(options: Partial<OrchestratorOptions> =
             return false;
         }
 
-        const alreadyExistingRunRequest = runRequestsManager.find(runName);
-        if (alreadyExistingRunRequest) {
+        const existingRunRequest = runRequestsManager.find(runName);
+        if (existingRunRequest) {
             logger.prfxWarn(runName, 'This run was already enqueued');
             return false;
         }
 
-        runRequestsManager.enqueue({ runName, actorId, actorParams, onStart: [] });
+        runRequestsManager.enqueue(runRequest);
         return true;
-    };
+    }
 
-    const startRun = async (runName: string, actorId: string, actorParams?: ActorParams) => {
+    function enqueue(...runRequests: RunRequest[]) {
+        const successfullyEnqueued: string[] = [];
+        for (const runRequest of runRequests) {
+            const success = enqueueRun(runRequest);
+            if (success) { successfullyEnqueued.push(runRequest.runName); }
+        }
+        return successfullyEnqueued;
+    }
+
+    async function startRun(runRequest: RunRequest) {
+        const { runName } = runRequest;
         logger.prfxInfo(runName, 'Waiting for Run to start');
 
         const startedRun = await getRun(tracker, runName);
@@ -281,41 +224,91 @@ export async function createOrchestrator(options: Partial<OrchestratorOptions> =
             return startedRun;
         }
 
-        const runRequest = runRequestsManager.find(runName);
-        if (runRequest) {
+        const existingRunRequest = runRequestsManager.find(runName);
+        if (existingRunRequest) {
             logger.prfxInfo(runName, 'Starting a Run which was already enqueued: ignoring new parameters.');
-            return waitForRequest(runRequest);
+            return waitForRequest(existingRunRequest);
         }
 
         return await new Promise<ActorRun | null>((resolve) => {
-            runRequestsManager.enqueue({ runName, actorId, actorParams, onStart: [] }, (run) => resolve(run));
+            runRequestsManager.enqueue(runRequest, (run) => resolve(run));
         });
-    };
+    }
 
-    const waitRunStart = async (runName: string) => {
-        const runRequest = runRequestsManager.find(runName);
-        if (runRequest) { return waitForRequest(runRequest); }
+    async function start(...runRequests: RunRequest[]) {
+        const runRecord: RunRecord = {};
+        await Promise.all(runRequests.map(
+            async (runRequest) => startRun(runRequest).then((run) => { runRecord[runRequest.runName] = run; }),
+        ));
+        return runRecord;
+    }
 
-        const run = await getRun(tracker, runName);
-        if (!run) { logger.prfxWarn(runName, 'Waiting to start a Run not found.'); }
-        return run;
-    };
+    async function waitRunStart(runName: string) {
+        const existingRunRequest = runRequestsManager.find(runName);
+        if (existingRunRequest) { return waitForRequest(existingRunRequest); }
 
-    const waitRun = async (runName: string) => {
+        const existingRun = await getRun(tracker, runName);
+        if (!existingRun) { logger.prfxWarn(runName, 'Waiting to start a Run not found.'); }
+        return existingRun;
+    }
+
+    async function waitStart(...runNames: string[]) {
+        const runRecord: RunRecord = {};
+        await Promise.all(runNames.map(
+            async (runName) => waitRunStart(runName).then((run) => { runRecord[runName] = run; }),
+        ));
+        return runRecord;
+    }
+
+    async function waitRunFinish(runName: string) {
         const runRequest = runRequestsManager.find(runName);
         if (runRequest) { await waitForRequest(runRequest); }
         return await waitAndTrackRun(logger, tracker, runName);
-    };
+    }
+
+    async function waitFinish(...runNames: string[]) {
+        const runRecord: RunRecord = {};
+        await Promise.all(runNames.map(
+            async (runName) => waitRunFinish(runName).then((run) => { runRecord[runName] = run; }),
+        ));
+        return runRecord;
+    }
+
+    async function startAndWaitRunFinish(runRequest: RunRequest) {
+        const startedRun = await startRun(runRequest);
+        if (!startedRun) { return null; }
+        return await waitRunFinish(runRequest.runName);
+    }
+
+    async function startAndWaitFinish(...runRequests: RunRequest[]) {
+        const runRecord: RunRecord = {};
+        await Promise.all(runRequests.map(
+            async (runRequest) => startAndWaitRunFinish(runRequest).then((run) => { runRecord[runRequest.runName] = run; }),
+        ));
+        return runRecord;
+    }
+
+    async function* iteratePaginatedOutput<T extends DatasetItem>(
+        runRecord: RunRecord,
+        pageSize: number,
+        readOptions?: DatasetClientListItemOptions,
+    ): AsyncGenerator<T, void, void> {
+        for (const [runName, run] of Object.entries(runRecord)) {
+            if (!run) { continue; }
+            logger.prfxInfo(runName, 'Reading default dataset');
+            const datasetIterator = iteratePaginatedDataset<T>(run.defaultDatasetId, pageSize, readOptions);
+            for await (const item of datasetIterator) {
+                yield item;
+            }
+        }
+    }
 
     return {
-        enqueueRun,
-        startRun,
-        waitRunStart,
-        waitRun,
-        startAndWaitRun: async (runName: string, actorId: string, actorParams?: ActorParams) => {
-            const startedRun = await startRun(runName, actorId, actorParams);
-            if (!startedRun) { return null; }
-            return await waitRun(runName);
-        },
+        enqueue,
+        start,
+        waitStart,
+        waitFinish,
+        startAndWaitFinish,
+        iteratePaginatedOutput,
     };
 }

@@ -3,20 +3,21 @@ import { ActorRun } from 'apify';
 import { ActorOptions } from './client.js';
 import { Queue } from './utils/queue.js';
 
-export interface ActorParams {
-    input?: unknown,
-    options?: ActorOptions,
-    apifyToken?: string
-}
+export type ActorInput = Record<string, unknown>
 
 export interface RunRequest {
     runName: string
     actorId: string
-    actorParams?: ActorParams
-    onStart: RunCallback[]
+    input?: ActorInput,
+    options?: ActorOptions,
+    apifyToken?: string
 }
 
 type RunCallback = (run: ActorRun | null) => void
+
+interface RunRequestWithCallbacks extends RunRequest {
+    onStart: RunCallback[]
+}
 
 export class RunRequestsManager {
     /**
@@ -24,7 +25,7 @@ export class RunRequestsManager {
      * It is organized by token to quickly check if an account has enough memory available to run another Actor.
      * The empty string '' token represents the user running the Orchestrator.
      */
-    private runQueues: Record<string, Queue<RunRequest>> = {};
+    private runQueues: Record<string, Queue<RunRequestWithCallbacks>> = {};
 
     get accountTokens() {
         return Object.keys(this.runQueues);
@@ -39,14 +40,14 @@ export class RunRequestsManager {
     }
 
     enqueue(runRequest: RunRequest, ...onStart: RunCallback[]) {
-        const apifyToken = runRequest.actorParams?.apifyToken ?? '';
+        const apifyToken = runRequest.apifyToken ?? '';
         if (!this.runQueues[apifyToken]) {
-            this.runQueues[apifyToken] = new Queue<RunRequest>();
+            this.runQueues[apifyToken] = new Queue<RunRequestWithCallbacks>();
         }
         this.runQueues[apifyToken].enqueue({ ...runRequest, onStart });
     }
 
-    addStartCallback(targetRunName: string, ...onStart: RunCallback[]) {
+    findRequestAndRegisterCallback(targetRunName: string, ...onStart: RunCallback[]) {
         const req = this.find(targetRunName);
         if (!req) { return false; }
         req.onStart.push(...onStart);
@@ -64,4 +65,10 @@ export class RunRequestsManager {
     dequeue(apifyToken: string | undefined) {
         return this.runQueues[apifyToken ?? '']?.dequeue();
     }
+}
+
+export async function waitForRequest(runRequest: RunRequestWithCallbacks) {
+    return new Promise<ActorRun | null>((resolve) => {
+        runRequest.onStart.push(resolve);
+    });
 }

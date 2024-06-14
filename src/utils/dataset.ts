@@ -13,7 +13,7 @@ interface PaginatedList<T> {
 }
 
 // FIXME: type copied from SDK
-interface DatasetClientListItemOptions {
+export interface DatasetClientListItemOptions {
     clean?: boolean;
     desc?: boolean;
     flatten?: string[];
@@ -38,19 +38,20 @@ interface DatasetClientListItemOptions {
  * Error: Cannot create a string longer than 0x1fffffe8 characters
  * ```
  *
- * @param datasetId the dataset ID
- * @param fields the fields to load from the dataset
- * @param pageSize the size used for pagination
+ * @param datasetId the dataset ID.
+ * @param fields the fields to load from the dataset.
+ * @param pageSize the size used for pagination.
+ * @param readOptions additional options, such as the dataset fields to filter.
  */
 export async function* iteratePaginatedDataset<T extends DatasetItem>(
     datasetId: string,
     pageSize: number,
-    options?: DatasetClientListItemOptions,
+    readOptions?: DatasetClientListItemOptions,
 ): AsyncGenerator<T, void, void> {
     const dataset = Actor.apifyClient.dataset<T>(datasetId);
 
     let offset = 0;
-    let currentPage: PaginatedList<T> | undefined = await dataset.listItems({ ...options, offset, limit: pageSize });
+    let currentPage: PaginatedList<T> | undefined = await dataset.listItems({ ...readOptions, offset, limit: pageSize });
     while (currentPage.items.length > 0) {
         for (const item of currentPage.items) {
             yield item;

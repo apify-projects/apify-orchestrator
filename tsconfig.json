@@ -1,0 +1,16 @@
+{
+    "extends": "@apify/tsconfig",
+    "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "apify-orchestrator": ["src"]
+        }
+    },
+    "include": [
+        "./src/**/*"
+    ],
+    "exclude": [
+        "**/node_modules",
+        "**/dist"
+    ]
+}

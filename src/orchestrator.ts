@@ -2,7 +2,7 @@ import { Actor, ActorRun, log } from 'apify';
 
 import { abortAndTrackRun, getDefaultRunOptions, getRun, startAndTrackRun, waitAndTrackRun } from './client.js';
 import { getLogger } from './logging.js';
-import { RunRequest, RunRequestsManager, waitForRequest } from './run-request.js';
+import { ExtraInputParamsBuilder, RunRequest, RunRequestsManager, waitForRequest } from './run-request.js';
 import { getRunsTracker } from './tracking.js';
 import { getAvailableMemoryGBs } from './utils/apify-api.js';
 import { DatasetClientListItemOptions, DatasetItem, iteratePaginatedDataset } from './utils/dataset.js';
@@ -30,6 +30,12 @@ export interface OrchestratorOptions {
      * `ORCHESTRATOR-` by default. Used to persist data on the KeyValueStore.
      */
     persistPrefix: string
+
+    /**
+     * `undefined` by default.
+     * A function to make extra input parameters which are automatically added to each Run request.
+     */
+    extraInputParamsBuilder?: ExtraInputParamsBuilder
 
     /**
      * `true` by default. Abort all Runs on graceful abort of the Orchestrator.
@@ -74,13 +80,14 @@ export async function createOrchestrator(orchestratorOptions: Partial<Orchestrat
         statsIntervalSec,
         persistSupport,
         persistPrefix,
-        abortAllRunsOnGracefulAbort: abortAllRunsOnAbort,
+        extraInputParamsBuilder,
+        abortAllRunsOnGracefulAbort,
     } = { ...DEFAULT_OPTIONS, ...orchestratorOptions };
 
     const logger = getLogger(enableLogs);
     const tracker = await getRunsTracker(persistSupport, persistPrefix);
 
-    const runRequestsManager = new RunRequestsManager();
+    const runRequestsManager = new RunRequestsManager(extraInputParamsBuilder);
 
     // Main loop
     const mainLoopId = setInterval(async () => {
@@ -175,7 +182,7 @@ export async function createOrchestrator(orchestratorOptions: Partial<Orchestrat
 
     Actor.on('aborting', async () => {
         exitOrchestrator();
-        if (abortAllRunsOnAbort) {
+        if (abortAllRunsOnGracefulAbort) {
             await abortAllRuns();
         }
     });

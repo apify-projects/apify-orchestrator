@@ -13,6 +13,8 @@ export interface RunRequest {
     apifyToken?: string
 }
 
+export type ExtraInputParamsBuilder = (request?: RunRequest) => Record<string, unknown>
+
 type RunCallback = (run: ActorRun | null) => void
 
 interface RunRequestWithCallbacks extends RunRequest {
@@ -26,6 +28,11 @@ export class RunRequestsManager {
      * The empty string '' token represents the user running the Orchestrator.
      */
     private runQueues: Record<string, Queue<RunRequestWithCallbacks>> = {};
+    private extraInputParamsBuilder?: ExtraInputParamsBuilder;
+
+    constructor(extraInputParamsBuilder?: ExtraInputParamsBuilder) {
+        this.extraInputParamsBuilder = extraInputParamsBuilder;
+    }
 
     get accountTokens() {
         return Object.keys(this.runQueues);
@@ -44,6 +51,11 @@ export class RunRequestsManager {
         if (!this.runQueues[apifyToken]) {
             this.runQueues[apifyToken] = new Queue<RunRequestWithCallbacks>();
         }
+
+        if (this.extraInputParamsBuilder) {
+            runRequest.input = { ...runRequest.input, ...this.extraInputParamsBuilder(runRequest) };
+        }
+
         this.runQueues[apifyToken].enqueue({ ...runRequest, onStart });
     }
 

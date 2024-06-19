@@ -167,10 +167,6 @@ export class OrchestratorApifyClient extends ApifyClient {
         const resultRunRecord: RunRecord = {};
 
         await Promise.all(Object.entries(runRecord).map(async ([runName, run]) => {
-            if (!run) {
-                resultRunRecord[runName] = null;
-                return;
-            }
             const resultRun = await this.trackedRun(runName, run.id).waitForFinish();
             resultRunRecord[runName] = resultRun;
         }));
@@ -184,7 +180,6 @@ export class OrchestratorApifyClient extends ApifyClient {
         readOptions?: DatasetClientListItemOptions,
     ): AsyncGenerator<T, void, void> {
         for (const [runName, run] of Object.entries(runRecord)) {
-            if (!run) { continue; }
             this.customLogger.prfxInfo(runName, 'Reading default dataset');
             const datasetIterator = this.dataset<T>(run.defaultDatasetId).iteratePaginated(pageSize, readOptions);
             for await (const item of datasetIterator) {

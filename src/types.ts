@@ -38,7 +38,7 @@ export interface OrchestratorOptions {
     abortAllRunsOnGracefulAbort: boolean
 }
 
-export type RunRecord = Record<string, ActorRun | null>
+export type RunRecord = Record<string, ActorRun>
 
 export type DatasetItem = Record<string | number, unknown>
 

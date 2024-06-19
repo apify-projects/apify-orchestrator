@@ -1,11 +1,11 @@
 import { ActorCallOptions, ActorClient, ActorLastRunOptions, ActorRun, ActorStartOptions, RunClient } from 'apify-client';
 import { ApiClientSubResourceOptions } from 'apify-client/dist/base/api_client';
-import { APIFY_PAYLOAD_BYTES_LIMIT } from 'src/constants.js';
-import { splitIntoChunksWithMaxSize, strBytes } from 'src/utils/bytes.js';
 
 import { EnqueuedRequest } from './orchestrator-apify-client.js';
 import { TrackingRunClient } from './tracking-run-client.js';
+import { APIFY_PAYLOAD_BYTES_LIMIT } from '../constants.js';
 import { RunRecord, SplitRules } from '../types.js';
+import { splitIntoChunksWithMaxSize, strBytes } from '../utils/bytes.js';
 import { CustomLogger } from '../utils/logging.js';
 import { Queue } from '../utils/queue.js';
 import { RunsTracker, isRunFailStatus, isRunOkStatus } from '../utils/tracking.js';
@@ -168,7 +168,7 @@ export class QueuedActorClient extends ActorClient {
         namePrefix: string,
         sources: unknown[],
         inputGenerator: (chunk: unknown[]) => object,
-        overrideSplitRules: Partial<SplitRules>,
+        overrideSplitRules: Partial<SplitRules> = {},
         options?: ActorStartOptions,
     ): Promise<RunRecord> {
         const splitRules = { ...DEFAULT_SPLIT_RULES, ...overrideSplitRules };
@@ -191,7 +191,7 @@ export class QueuedActorClient extends ActorClient {
         namePrefix: string,
         sources: unknown[],
         inputGenerator: (chunk: unknown[]) => object,
-        overrideSplitRules: Partial<SplitRules>,
+        overrideSplitRules: Partial<SplitRules> = {},
         options?: ActorStartOptions,
     ): Promise<RunRecord> {
         const splitRules = { ...DEFAULT_SPLIT_RULES, ...overrideSplitRules };

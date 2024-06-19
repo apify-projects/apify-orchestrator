@@ -1,18 +1,22 @@
 import { ActorCallOptions, ActorClient, ActorLastRunOptions, ActorRun, ActorStartOptions, RunClient } from 'apify-client';
 
-import { EnqueuedRequest } from './orchestrator-apify-client.js';
 import { TrackingRunClient } from './tracking-run-client.js';
 import { APIFY_PAYLOAD_BYTES_LIMIT } from '../constants.js';
 import { RunsTracker, isRunFailStatus, isRunOkStatus } from '../tracker.js';
 import { RunRecord, SplitRules } from '../types.js';
 import { splitIntoChunksWithMaxSize, strBytes } from '../utils/bytes.js';
 import { CustomLogger } from '../utils/logging.js';
-import { Queue } from '../utils/queue.js';
 
 interface ActorRunRequest {
     runName: string
     input?: object
     options?: ActorStartOptions
+}
+
+export interface EnqueuedRequest {
+    runName: string
+    memoryMbytes: number
+    readyCallback: (isReady: boolean) => void
 }
 
 function mergeInputParams(input?: object, extraParams?: object): object | undefined {
@@ -55,7 +59,7 @@ function generateRunRequests(
 
 export class QueuedActorClient extends ActorClient {
     protected superClient: ActorClient;
-    protected queue: Queue<EnqueuedRequest>;
+    protected enqueue: (runRequest: EnqueuedRequest) => void;
     protected customLogger: CustomLogger;
     protected runsTracker: RunsTracker;
     protected fixedInput?: object;
@@ -65,9 +69,9 @@ export class QueuedActorClient extends ActorClient {
      */
     constructor(
         actorClient: ActorClient,
-        queue: Queue<EnqueuedRequest>,
         customLogger: CustomLogger,
         runsTracker: RunsTracker,
+        enqueue: (runRequest: EnqueuedRequest) => void,
         fixedInput?: object,
     ) {
         super({
@@ -78,9 +82,9 @@ export class QueuedActorClient extends ActorClient {
             params: actorClient.params,
         });
         this.superClient = actorClient;
-        this.queue = queue;
         this.customLogger = customLogger;
         this.runsTracker = runsTracker;
+        this.enqueue = enqueue;
         this.fixedInput = fixedInput;
     }
 
@@ -106,7 +110,7 @@ export class QueuedActorClient extends ActorClient {
         ?? 0;
 
         const isReady = await new Promise<boolean>((resolve) => {
-            this.queue.enqueue({ runName, memoryMbytes, readyCallback: resolve });
+            this.enqueue({ runName, memoryMbytes, readyCallback: resolve });
         });
 
         if (!isReady) {

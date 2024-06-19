@@ -2,7 +2,7 @@ import { Actor, ApifyClient, log } from 'apify';
 import { ApifyClientOptions, DatasetClientListItemOptions, RunClient } from 'apify-client';
 
 import { IterableDatasetClient } from './iterable-dataset-client.js';
-import { QueuedActorClient } from './queued-actor-client.js';
+import { EnqueuedRequest, QueuedActorClient } from './queued-actor-client.js';
 import { TrackingRunClient } from './tracking-run-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
 import { RunsTracker } from '../tracker.js';
@@ -10,12 +10,6 @@ import { DatasetItem, OrchestratorOptions, RunRecord } from '../types.js';
 import { getAvailableMemoryGBs } from '../utils/apify-api.js';
 import { disabledLogger, enabledLogger } from '../utils/logging.js';
 import { Queue } from '../utils/queue.js';
-
-export interface EnqueuedRequest {
-    runName: string
-    memoryMbytes: number
-    readyCallback: (isReady: boolean) => void
-}
 
 export class OrchestratorApifyClient extends ApifyClient {
     protected runRequestsQueue = new Queue<EnqueuedRequest>();
@@ -32,12 +26,21 @@ export class OrchestratorApifyClient extends ApifyClient {
         super(options);
     }
 
+    protected enqueue(runRequest: EnqueuedRequest) {
+        // Avoid blocking if the orchestrator is not running
+        if (!this.mainLoopId) {
+            runRequest.readyCallback(false);
+        }
+
+        this.runRequestsQueue.enqueue(runRequest);
+    }
+
     override actor(id: string): QueuedActorClient {
         return new QueuedActorClient(
             super.actor(id),
-            this.runRequestsQueue,
             this.customLogger,
             this.runsTracker,
+            this.enqueue,
             this.orchestratorOptions.fixedInput,
         );
     }

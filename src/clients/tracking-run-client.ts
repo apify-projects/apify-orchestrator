@@ -9,8 +9,8 @@ import {
     RunWaitForFinishOptions,
 } from 'apify-client';
 
+import { RunsTracker } from '../tracker.js';
 import { CustomLogger } from '../utils/logging.js';
-import { RunsTracker } from '../utils/tracking.js';
 
 export class TrackingRunClient extends RunClient {
     readonly runName: string;

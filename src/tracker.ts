@@ -1,6 +1,7 @@
 import { ActorRun } from 'apify-client';
 
-import { PersistSupport, State } from './persist.js';
+import { CustomLogger, disabledLogger } from './utils/logging.js';
+import { PersistSupport, State } from './utils/persist.js';
 
 const RUNS_KEY = 'RUNS';
 const FAILED_RUNS_KEY = 'FAILED_RUNS';
@@ -30,10 +31,12 @@ interface RunInfo {
 }
 
 export class RunsTracker {
+    protected customLogger = disabledLogger;
     protected currentRunsState = new State<Record<string, RunInfo>>({});
     protected failedRunsState = new State<Record<string, RunInfo[]>>({});
 
-    async sync(persistSupport: PersistSupport = 'none', persistPrefix = 'ORCHESTRATOR-') {
+    async init(customLogger: CustomLogger, persistSupport: PersistSupport = 'none', persistPrefix = 'ORCHESTRATOR-') {
+        this.customLogger = customLogger;
         await this.currentRunsState.sync(`${persistPrefix}${RUNS_KEY}`, persistSupport);
         await this.failedRunsState.sync(`${persistPrefix}${FAILED_RUNS_KEY}`, persistSupport);
     }
@@ -56,6 +59,10 @@ export class RunsTracker {
         const { id: runId, status } = run;
         const runUrl = getRunUrl(runId);
         const runInfo: RunInfo = { runId, runUrl, status };
+
+        if (this.currentRuns[runName]?.runId !== runId || this.currentRuns[runName]?.status !== status) {
+            this.customLogger.prfxInfo(runName, 'Update Run', { status, runUrl });
+        }
 
         await this.currentRunsState.update((prev) => ({ ...prev, [runName]: runInfo }));
 

@@ -5,11 +5,11 @@ import { IterableDatasetClient } from './iterable-dataset-client.js';
 import { QueuedActorClient } from './queued-actor-client.js';
 import { TrackingRunClient } from './tracking-run-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
+import { RunsTracker } from '../tracker.js';
 import { DatasetItem, OrchestratorOptions, RunRecord } from '../types.js';
 import { getAvailableMemoryGBs } from '../utils/apify-api.js';
 import { disabledLogger, enabledLogger } from '../utils/logging.js';
 import { Queue } from '../utils/queue.js';
-import { RunsTracker } from '../utils/tracking.js';
 
 export interface EnqueuedRequest {
     runName: string
@@ -38,7 +38,7 @@ export class OrchestratorApifyClient extends ApifyClient {
     }
 
     override dataset<T extends DatasetItem>(id: string): IterableDatasetClient<T> {
-        return new IterableDatasetClient<T>(super.dataset(id));
+        return new IterableDatasetClient<T>(super.dataset(id), this.customLogger);
     }
 
     override run(id: string): RunClient {
@@ -47,13 +47,19 @@ export class OrchestratorApifyClient extends ApifyClient {
     }
 
     async startOrchestrator(orchestratorOptions = {} as Partial<OrchestratorOptions>) {
+        this.customLogger.info('Starting the Apify orchestrator');
+
         this.orchestratorOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...orchestratorOptions };
 
         // Init logger
         if (this.orchestratorOptions.enableLogs) { this.customLogger = enabledLogger; }
 
         // Init tracker
-        await this.runsTracker.sync(this.orchestratorOptions.persistSupport, this.orchestratorOptions.persistPrefix);
+        await this.runsTracker.init(
+            this.customLogger,
+            this.orchestratorOptions.persistSupport,
+            this.orchestratorOptions.persistPrefix,
+        );
 
         // Main loop
         this.mainLoopId = setInterval(async () => {
@@ -62,11 +68,16 @@ export class OrchestratorApifyClient extends ApifyClient {
 
             // Check if the next Run has enough memory available
             const availableMemoryGBs = await getAvailableMemoryGBs(this.token);
-            const requiredMemoryMBs = nextRunRequest.memoryMbytes;
-            const hasEnoughMemory = availableMemoryGBs >= requiredMemoryMBs / 1024;
+            const requiredMemoryGBs = nextRunRequest.memoryMbytes / 1024;
+            const hasEnoughMemory = availableMemoryGBs >= requiredMemoryGBs;
 
             // Start the next run
             if (hasEnoughMemory) {
+                this.customLogger.prfxInfo(
+                    nextRunRequest.runName,
+                    'Starting next',
+                    { requiredMemoryGBs, availableMemoryGBs },
+                );
                 this.runRequestsQueue.dequeue()?.readyCallback(true);
             }
         }, MAIN_LOOP_INTERVAL_MS);
@@ -108,6 +119,8 @@ export class OrchestratorApifyClient extends ApifyClient {
     }
 
     stopOrchestrator() {
+        this.customLogger.info('Stopping the Apify orchestrator');
+
         // Stop the main loop
         if (this.mainLoopId) { clearInterval(this.mainLoopId); }
 
@@ -130,7 +143,7 @@ export class OrchestratorApifyClient extends ApifyClient {
     }
 
     async abortAllRuns() {
-        log.info('Aborting runs...', this.runsTracker.currentRuns);
+        log.info('Aborting runs', this.runsTracker.currentRuns);
         await Promise.all(Object.entries(this.runsTracker.currentRuns).map(async ([runName, runInfo]) => {
             try {
                 await this.trackedRun(runName, runInfo.runId).abort();

@@ -3,11 +3,11 @@ import { ActorCallOptions, ActorClient, ActorLastRunOptions, ActorRun, ActorStar
 import { EnqueuedRequest } from './orchestrator-apify-client.js';
 import { TrackingRunClient } from './tracking-run-client.js';
 import { APIFY_PAYLOAD_BYTES_LIMIT } from '../constants.js';
+import { RunsTracker, isRunFailStatus, isRunOkStatus } from '../tracker.js';
 import { RunRecord, SplitRules } from '../types.js';
 import { splitIntoChunksWithMaxSize, strBytes } from '../utils/bytes.js';
 import { CustomLogger } from '../utils/logging.js';
 import { Queue } from '../utils/queue.js';
-import { RunsTracker, isRunFailStatus, isRunOkStatus } from '../utils/tracking.js';
 
 interface ActorRunRequest {
     runName: string

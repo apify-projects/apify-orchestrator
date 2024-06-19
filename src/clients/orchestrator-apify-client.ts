@@ -41,6 +41,7 @@ export class OrchestratorApifyClient extends ApifyClient {
             this.runRequestsQueue,
             this.customLogger,
             this.runsTracker,
+            this.orchestratorOptions.fixedInput,
         );
     }
 

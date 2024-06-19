@@ -1,8 +1,8 @@
 export const strBytes = (string: string) => (new TextEncoder().encode(string)).length;
 
-export function splitIntoChunksWithMaxSize(
-    sources: unknown[],
-    inputGenerator: (sources: unknown[]) => object,
+export function splitIntoChunksWithMaxSize<T>(
+    sources: T[],
+    inputGenerator: (sources: T[]) => object,
     maxBytesSize: number,
 ): object[] {
     let parts = 1;

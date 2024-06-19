@@ -24,9 +24,9 @@ const DEFAULT_SPLIT_RULES: SplitRules = {
     respectApifyMaxPayloadSize: true,
 };
 
-function generateInputChunks(
-    sources: unknown[],
-    inputGenerator: (chunk: unknown[]) => object,
+function generateInputChunks<T>(
+    sources: T[],
+    inputGenerator: (chunk: T[]) => object,
     {
         respectApifyMaxPayloadSize,
     }: SplitRules,
@@ -164,10 +164,10 @@ export class QueuedActorClient extends ActorClient {
         return runRecord;
     }
 
-    async startBatch(
+    async startBatch<T>(
         namePrefix: string,
-        sources: unknown[],
-        inputGenerator: (chunk: unknown[]) => object,
+        sources: T[],
+        inputGenerator: (chunk: T[]) => object,
         overrideSplitRules: Partial<SplitRules> = {},
         options?: ActorStartOptions,
     ): Promise<RunRecord> {
@@ -187,10 +187,10 @@ export class QueuedActorClient extends ActorClient {
         return runRecord;
     }
 
-    async callBatch(
+    async callBatch<T>(
         namePrefix: string,
-        sources: unknown[],
-        inputGenerator: (chunk: unknown[]) => object,
+        sources: T[],
+        inputGenerator: (chunk: T[]) => object,
         overrideSplitRules: Partial<SplitRules> = {},
         options?: ActorStartOptions,
     ): Promise<RunRecord> {

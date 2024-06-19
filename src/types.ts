@@ -2,8 +2,6 @@ import { ActorRun } from 'apify-client';
 
 import { PersistSupport } from './utils/persist.js';
 
-export type RunRecord = Record<string, ActorRun | null>
-
 export interface OrchestratorOptions {
     /**
      * `true` by default.
@@ -39,6 +37,8 @@ export interface OrchestratorOptions {
      */
     abortAllRunsOnGracefulAbort: boolean
 }
+
+export type RunRecord = Record<string, ActorRun | null>
 
 export type DatasetItem = Record<string | number, unknown>
 

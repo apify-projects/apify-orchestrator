@@ -43,15 +43,7 @@ export class OrchestratorApifyClient extends ApifyClient {
 
     override run(id: string): RunClient {
         const runName = this.runsTracker.findRunName(id);
-        const runClient = super.run(id);
-        return runName
-            ? new TrackingRunClient(
-                runClient,
-                runName,
-                this.customLogger,
-                this.runsTracker,
-            )
-            : runClient;
+        return runName ? this.trackedRun(runName, id) : super.run(id);
     }
 
     async startOrchestrator(orchestratorOptions = {} as Partial<OrchestratorOptions>) {
@@ -128,15 +120,39 @@ export class OrchestratorApifyClient extends ApifyClient {
         }
     }
 
+    trackedRun(runName: string, id: string): TrackingRunClient {
+        return new TrackingRunClient(
+            super.run(id),
+            runName,
+            this.customLogger,
+            this.runsTracker,
+        );
+    }
+
     async abortAllRuns() {
         log.info('Aborting runs...', this.runsTracker.currentRuns);
         await Promise.all(Object.entries(this.runsTracker.currentRuns).map(async ([runName, runInfo]) => {
             try {
-                await this.run(runInfo.runId).abort();
+                await this.trackedRun(runName, runInfo.runId).abort();
             } catch (err) {
                 log.exception(err as Error, 'Error aborting the Run', { runName });
             }
         }));
+    }
+
+    async waitForBatchFinish(runRecord: RunRecord): Promise<RunRecord> {
+        const resultRunRecord: RunRecord = {};
+
+        await Promise.all(Object.entries(runRecord).map(async ([runName, run]) => {
+            if (!run) {
+                resultRunRecord[runName] = null;
+                return;
+            }
+            const resultRun = await this.trackedRun(runName, run.id).waitForFinish();
+            resultRunRecord[runName] = resultRun;
+        }));
+
+        return resultRunRecord;
     }
 
     async* iteratePaginatedOutput<T extends DatasetItem>(

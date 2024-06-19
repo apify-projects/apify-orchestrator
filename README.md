@@ -1,5 +1,7 @@
 # Apify Orchestrator
 
+*Last update: 2024-06-14*
+
 An opinionated library built around the `apify` and `apify-client` packages aiming at providing a nice tool for running several Actors through the Apify's client.
 
 Differently from other solutions, this library does not force you to run a fixed bunch of Actors in parallel:

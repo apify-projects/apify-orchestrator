@@ -45,19 +45,15 @@ const prfxLog: PrfxLogger = {
     prfxError: (prefix: string, msg: string, data?: AdditionalData) => { log.error(prefixMessage(prefix, msg), data); },
 };
 
-export function getLogger(enabled: boolean): CustomLogger {
-    if (!enabled) {
-        return {
-            debug: () => {},
-            info: () => {},
-            warning: () => {},
-            error: () => {},
-            prfxDebug: () => {},
-            prfxInfo: () => {},
-            prfxWarn: () => {},
-            prfxError: () => {},
-        };
-    }
+export const disabledLogger: CustomLogger = {
+    debug: () => {},
+    info: () => {},
+    warning: () => {},
+    error: () => {},
+    prfxDebug: () => {},
+    prfxInfo: () => {},
+    prfxWarn: () => {},
+    prfxError: () => {},
+};
 
-    return { ...regLog, ...prfxLog };
-}
+export const enabledLogger: CustomLogger = { ...regLog, ...prfxLog };

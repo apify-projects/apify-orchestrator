@@ -27,14 +27,6 @@ export class OrchestratorApifyClient extends ApifyClient {
     protected mainLoopId: NodeJS.Timeout | undefined;
     protected statsId: NodeJS.Timeout | undefined;
 
-    protected resourceOptions() {
-        return {
-            baseUrl: this.baseUrl,
-            apifyClient: this as ApifyClient,
-            httpClient: this.httpClient,
-        };
-    }
-
     override actor(id: string): QueuedActorClient {
         return new QueuedActorClient(
             super.actor(id),
@@ -46,7 +38,7 @@ export class OrchestratorApifyClient extends ApifyClient {
     }
 
     override dataset<T extends DatasetItem>(id: string): IterableDatasetClient<T> {
-        return new IterableDatasetClient<T>({ id, ...this.resourceOptions() });
+        return new IterableDatasetClient<T>(super.dataset(id));
     }
 
     override run(id: string): RunClient {

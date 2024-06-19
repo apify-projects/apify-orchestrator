@@ -3,6 +3,16 @@ import { DatasetClient, DatasetClientListItemOptions } from 'apify-client';
 import { DatasetItem } from '../types.js';
 
 export class IterableDatasetClient<T extends DatasetItem> extends DatasetClient<T> {
+    constructor(actorClient: DatasetClient) {
+        super({
+            baseUrl: actorClient.baseUrl,
+            apifyClient: actorClient.apifyClient,
+            httpClient: actorClient.httpClient,
+            id: actorClient.id,
+            params: actorClient.params,
+        });
+    }
+
     async* iteratePaginated(
         pageSize: number,
         readOptions?: DatasetClientListItemOptions,

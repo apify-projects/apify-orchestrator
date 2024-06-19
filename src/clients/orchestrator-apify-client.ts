@@ -1,5 +1,5 @@
 import { Actor, ApifyClient, log } from 'apify';
-import { DatasetClientListItemOptions, RunClient } from 'apify-client';
+import { ApifyClientOptions, DatasetClientListItemOptions, RunClient } from 'apify-client';
 
 import { IterableDatasetClient } from './iterable-dataset-client.js';
 import { QueuedActorClient } from './queued-actor-client.js';
@@ -26,6 +26,11 @@ export class OrchestratorApifyClient extends ApifyClient {
 
     protected mainLoopId: NodeJS.Timeout | undefined;
     protected statsId: NodeJS.Timeout | undefined;
+
+    constructor(options: ApifyClientOptions = {}) {
+        if (!options.token) { options.token = Actor.apifyClient.token; }
+        super(options);
+    }
 
     override actor(id: string): QueuedActorClient {
         return new QueuedActorClient(
@@ -73,12 +78,17 @@ export class OrchestratorApifyClient extends ApifyClient {
 
             // Start the next run
             if (hasEnoughMemory) {
-                this.customLogger.prfxInfo(
-                    nextRunRequest.runName,
-                    'Starting next',
-                    { requiredMemoryGBs, availableMemoryGBs },
-                );
-                this.runRequestsQueue.dequeue()?.readyCallback(true);
+                const runRequest = this.runRequestsQueue.dequeue();
+                if (runRequest) {
+                    this.customLogger.prfxInfo(
+                        nextRunRequest.runName,
+                        'Starting next',
+                        { requiredMemoryGBs, availableMemoryGBs, queue: this.runRequestsQueue.length },
+                    );
+                    runRequest.readyCallback(true);
+                } else {
+                    this.customLogger.error('Something wrong with the Apify orchestrator\'s queue!');
+                }
             }
         }, MAIN_LOOP_INTERVAL_MS);
 

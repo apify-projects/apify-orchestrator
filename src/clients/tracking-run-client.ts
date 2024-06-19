@@ -15,6 +15,7 @@ import { CustomLogger } from '../utils/logging.js';
 export class TrackingRunClient extends RunClient {
     readonly runName: string;
 
+    protected superClient: RunClient;
     protected customLogger: CustomLogger;
     protected runsTracker: RunsTracker;
 
@@ -32,53 +33,54 @@ export class TrackingRunClient extends RunClient {
             id: runClient.id,
             params: runClient.params,
         });
+        this.superClient = runClient;
         this.runName = runName;
         this.customLogger = customLogger;
         this.runsTracker = runsTracker;
     }
 
     override async get(options?: RunGetOptions): Promise<ActorRun | undefined> {
-        const run = await super.get(options);
+        const run = await this.superClient.get(options);
         if (run) { await this.runsTracker.updateRun(this.runName, run); }
         return run;
     }
 
     override async abort(options?: RunAbortOptions | undefined): Promise<ActorRun> {
-        const run = await super.abort(options);
+        const run = await this.superClient.abort(options);
         await this.runsTracker.updateRun(this.runName, run);
         return run;
     }
 
     override async delete(): Promise<void> {
         this.customLogger.prfxWarn(this.runName, 'Delete Run is not supported yet.');
-        await super.delete();
+        await this.superClient.delete();
     }
 
     override async metamorph(targetActorId: string, input: unknown, options?: RunMetamorphOptions | undefined): Promise<ActorRun> {
         this.customLogger.prfxWarn(this.runName, 'Metamorph Run is not supported yet.');
-        return super.metamorph(targetActorId, input, options);
+        return this.superClient.metamorph(targetActorId, input, options);
     }
 
     override async reboot(): Promise<ActorRun> {
-        const run = await super.reboot();
+        const run = await this.superClient.reboot();
         await this.runsTracker.updateRun(this.runName, run);
         return run;
     }
 
     override async update(newFields: RunUpdateOptions): Promise<ActorRun> {
-        const run = await super.update(newFields);
+        const run = await this.superClient.update(newFields);
         await this.runsTracker.updateRun(this.runName, run);
         return run;
     }
 
     override async resurrect(options?: RunResurrectOptions): Promise<ActorRun> {
-        const run = await super.resurrect(options);
+        const run = await this.superClient.resurrect(options);
         await this.runsTracker.updateRun(this.runName, run);
         return run;
     }
 
     override async waitForFinish(options?: RunWaitForFinishOptions): Promise<ActorRun> {
-        const run = await super.waitForFinish(options);
+        const run = await this.superClient.waitForFinish(options);
         await this.runsTracker.updateRun(this.runName, run);
         return run;
     }

@@ -54,6 +54,7 @@ function generateRunRequests(
 }
 
 export class QueuedActorClient extends ActorClient {
+    protected superClient: ActorClient;
     protected queue: Queue<EnqueuedRequest>;
     protected customLogger: CustomLogger;
     protected runsTracker: RunsTracker;
@@ -76,6 +77,7 @@ export class QueuedActorClient extends ActorClient {
             id: actorClient.id,
             params: actorClient.params,
         });
+        this.superClient = actorClient;
         this.queue = queue;
         this.customLogger = customLogger;
         this.runsTracker = runsTracker;
@@ -117,13 +119,26 @@ export class QueuedActorClient extends ActorClient {
 
         // If the Run exists and has not failed, use it
         if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
+            this.customLogger.prfxInfo(
+                runName,
+                'Found existing Run: checking it',
+                { runId: existingRunInfo.runId },
+            );
             const runClient = this.generateRunOrchestratorClient(runName, existingRunInfo.runId);
             const run = await runClient.get();
-            if (run) { return run; } // Return the existing Run, if available, otherwise start a new one
+            // Return the existing Run, if available, otherwise start a new one
+            if (run) {
+                return run;
+            }
+            this.customLogger.prfxInfo(
+                runName,
+                'Cannot retrieve existing Run: starting a new one',
+                { runId: existingRunInfo.runId },
+            );
         }
 
         await this.awaitClientToBeReady(runName, options?.memory);
-        const run = await super.start(mergeInputParams(input, this.fixedInput), options);
+        const run = await this.superClient.start(mergeInputParams(input, this.fixedInput), options);
         const runInfo = await this.runsTracker.updateRun(runName, run);
         this.customLogger.prfxInfo(runName, `Started Run`, { url: runInfo.runUrl });
         return run;
@@ -134,12 +149,17 @@ export class QueuedActorClient extends ActorClient {
 
         // If the Run exists and has not failed, use it
         if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
+            this.customLogger.prfxInfo(
+                runName,
+                'Found existing Run: not starting a new one',
+                { runId: existingRunInfo.runId },
+            );
             const runClient = this.generateRunOrchestratorClient(runName, existingRunInfo.runId);
             return runClient.waitForFinish(); // Wait for the existing Run to finish
         }
 
         await this.awaitClientToBeReady(runName, options?.memory);
-        const run = await super.call(mergeInputParams(input, this.fixedInput), options);
+        const run = await this.superClient.call(mergeInputParams(input, this.fixedInput), options);
         const runInfo = await this.runsTracker.updateRun(runName, run);
         if (isRunFailStatus(run.status)) {
             this.customLogger.prfxWarn(runName, 'Run failed', { status: run.status, url: runInfo.runUrl });
@@ -150,7 +170,7 @@ export class QueuedActorClient extends ActorClient {
     }
 
     override lastRun(options?: ActorLastRunOptions): RunClient {
-        const runClient = super.lastRun(options);
+        const runClient = this.superClient.lastRun(options);
         if (runClient.id) {
             const runName = this.runsTracker.findRunName(runClient.id);
             if (runName) {
@@ -164,8 +184,7 @@ export class QueuedActorClient extends ActorClient {
         const runRecord: RunRecord = {};
         await Promise.all(runRequests.map(
             async ({ runName, input, options }) => this.start(runName, mergeInputParams(input, this.fixedInput), options)
-                .then((run) => { runRecord[runName] = run; })
-                .catch(() => { runRecord[runName] = null; }),
+                .then((run) => { runRecord[runName] = run; }),
         ));
         return runRecord;
     }
@@ -187,8 +206,7 @@ export class QueuedActorClient extends ActorClient {
         const runRecord: RunRecord = {};
         await Promise.all(runRequests.map(
             async ({ runName, input, options }) => this.call(runName, mergeInputParams(input, this.fixedInput), options)
-                .then((run) => { runRecord[runName] = run; })
-                .catch(() => { runRecord[runName] = null; }),
+                .then((run) => { runRecord[runName] = run; }),
         ));
         return runRecord;
     }

@@ -1,5 +1,5 @@
 export class Queue<T> {
-    private data: T[] = [];
+    protected data: T[] = [];
 
     enqueue(...items: T[]) {
         this.data.push(...items);

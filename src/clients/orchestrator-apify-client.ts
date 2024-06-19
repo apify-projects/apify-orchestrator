@@ -37,7 +37,7 @@ export class OrchestratorApifyClient extends ApifyClient {
 
     override actor(id: string): QueuedActorClient {
         return new QueuedActorClient(
-            { id, ...this.resourceOptions() },
+            super.actor(id),
             this.runRequestsQueue,
             this.customLogger,
             this.runsTracker,
@@ -51,14 +51,15 @@ export class OrchestratorApifyClient extends ApifyClient {
 
     override run(id: string): RunClient {
         const runName = this.runsTracker.findRunName(id);
+        const runClient = super.run(id);
         return runName
             ? new TrackingRunClient(
-                { id, ...this.resourceOptions() },
+                runClient,
                 runName,
                 this.customLogger,
                 this.runsTracker,
             )
-            : super.run(id);
+            : runClient;
     }
 
     async startOrchestrator(orchestratorOptions = {} as Partial<OrchestratorOptions>) {
@@ -139,13 +140,7 @@ export class OrchestratorApifyClient extends ApifyClient {
         log.info('Aborting runs...', this.runsTracker.currentRuns);
         await Promise.all(Object.entries(this.runsTracker.currentRuns).map(async ([runName, runInfo]) => {
             try {
-                const runClient = new TrackingRunClient(
-                    { id: runInfo.runId, ...this.resourceOptions() },
-                    runName,
-                    this.customLogger,
-                    this.runsTracker,
-                );
-                await runClient.abort();
+                await this.run(runInfo.runId).abort();
             } catch (err) {
                 log.exception(err as Error, 'Error aborting the Run', { runName });
             }

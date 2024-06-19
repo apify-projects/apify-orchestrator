@@ -1,5 +1,4 @@
 import { ActorCallOptions, ActorClient, ActorLastRunOptions, ActorRun, ActorStartOptions, RunClient } from 'apify-client';
-import { ApiClientSubResourceOptions } from 'apify-client/dist/base/api_client';
 
 import { EnqueuedRequest } from './orchestrator-apify-client.js';
 import { TrackingRunClient } from './tracking-run-client.js';
@@ -64,13 +63,19 @@ export class QueuedActorClient extends ActorClient {
      * @hidden
      */
     constructor(
-        resourceOptions: ApiClientSubResourceOptions,
+        actorClient: ActorClient,
         queue: Queue<EnqueuedRequest>,
         customLogger: CustomLogger,
         runsTracker: RunsTracker,
         fixedInput?: object,
     ) {
-        super(resourceOptions);
+        super({
+            baseUrl: actorClient.baseUrl,
+            apifyClient: actorClient.apifyClient,
+            httpClient: actorClient.httpClient,
+            id: actorClient.id,
+            params: actorClient.params,
+        });
         this.queue = queue;
         this.customLogger = customLogger;
         this.runsTracker = runsTracker;
@@ -78,12 +83,13 @@ export class QueuedActorClient extends ActorClient {
     }
 
     protected generateRunOrchestratorClient(runName: string, runId: string, options?: ActorLastRunOptions) {
+        const runClient = new RunClient(this._subResourceOptions({
+            id: runId,
+            params: this._params(options),
+            resourcePath: 'runs',
+        }));
         return new TrackingRunClient(
-            this._subResourceOptions({
-                id: runId,
-                params: this._params(options),
-                resourcePath: 'runs',
-            }),
+            runClient,
             runName,
             this.customLogger,
             this.runsTracker,

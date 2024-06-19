@@ -8,7 +8,6 @@ import {
     RunUpdateOptions,
     RunWaitForFinishOptions,
 } from 'apify-client';
-import { ApiClientOptionsWithOptionalResourcePath } from 'apify-client/dist/base/api_client';
 
 import { CustomLogger } from '../utils/logging.js';
 import { RunsTracker } from '../utils/tracking.js';
@@ -20,12 +19,19 @@ export class TrackingRunClient extends RunClient {
     protected runsTracker: RunsTracker;
 
     constructor(
-        options: ApiClientOptionsWithOptionalResourcePath,
+        runClient: RunClient,
         runName: string,
         customLogger: CustomLogger,
         runsTracker: RunsTracker,
     ) {
-        super(options);
+        super({
+            baseUrl: runClient.baseUrl,
+            resourcePath: runClient.resourcePath,
+            apifyClient: runClient.apifyClient,
+            httpClient: runClient.httpClient,
+            id: runClient.id,
+            params: runClient.params,
+        });
         this.runName = runName;
         this.customLogger = customLogger;
         this.runsTracker = runsTracker;

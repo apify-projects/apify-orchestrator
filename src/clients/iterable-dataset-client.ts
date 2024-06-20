@@ -25,6 +25,7 @@ export class IterableDatasetClient<T extends DatasetItem> extends DatasetClient<
 
         let offset = 0;
         let currentPage = await this.listItems({ ...readOptions, offset, limit: pageSize });
+        let totalItems = currentPage.items.length;
         while (currentPage.items.length > 0) {
             for (const item of currentPage.items) {
                 yield item;
@@ -32,6 +33,9 @@ export class IterableDatasetClient<T extends DatasetItem> extends DatasetClient<
 
             offset += pageSize;
             currentPage = await this.listItems({ offset, limit: pageSize });
+            totalItems += currentPage.items.length;
         }
+
+        this.customLogger.info('Finished reading dataset', { totalItems, url: this.url });
     }
 }

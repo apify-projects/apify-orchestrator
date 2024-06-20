@@ -27,12 +27,12 @@ export class OrchestratorApifyClient extends ApifyClient {
     }
 
     protected enqueue(runRequest: EnqueuedRequest) {
-        // Avoid blocking if the orchestrator is not running
-        if (!this.mainLoopId) {
+        if (this.mainLoopId !== undefined) {
+            this.runRequestsQueue.enqueue(runRequest);
+        } else {
+            // Avoid blocking if the orchestrator is not running
             runRequest.readyCallback(false);
         }
-
-        this.runRequestsQueue.enqueue(runRequest);
     }
 
     override actor(id: string): QueuedActorClient {
@@ -40,7 +40,7 @@ export class OrchestratorApifyClient extends ApifyClient {
             super.actor(id),
             this.customLogger,
             this.runsTracker,
-            this.enqueue,
+            this.enqueue.bind(this),
             this.orchestratorOptions.fixedInput,
         );
     }
@@ -135,10 +135,16 @@ export class OrchestratorApifyClient extends ApifyClient {
         this.customLogger.info('Stopping the Apify orchestrator');
 
         // Stop the main loop
-        if (this.mainLoopId) { clearInterval(this.mainLoopId); }
+        if (this.mainLoopId) {
+            clearInterval(this.mainLoopId);
+            this.mainLoopId = undefined;
+        }
 
         // Stop the stats logger
-        if (this.statsId) { clearInterval(this.statsId); }
+        if (this.statsId) {
+            clearInterval(this.statsId);
+            this.statsId = undefined;
+        }
 
         // Empty the queues and unlock all the callers waiting
         while (this.runRequestsQueue.length > 0) {

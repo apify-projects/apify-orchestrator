@@ -55,7 +55,7 @@ export class OrchestratorApifyClient extends ApifyClient {
     }
 
     async startOrchestrator(orchestratorOptions = {} as Partial<OrchestratorOptions>) {
-        this.customLogger.info('Starting the Apify orchestrator');
+        this.customLogger.info('Starting Apify orchestrator');
 
         this.orchestratorOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...orchestratorOptions };
 
@@ -132,7 +132,7 @@ export class OrchestratorApifyClient extends ApifyClient {
     }
 
     stopOrchestrator() {
-        this.customLogger.info('Stopping the Apify orchestrator');
+        this.customLogger.info('Stopping Apify orchestrator');
 
         // Stop the main loop
         if (this.mainLoopId) {
@@ -183,6 +183,17 @@ export class OrchestratorApifyClient extends ApifyClient {
         return resultRunRecord;
     }
 
+    async* iteratePaginatedDataset<T extends DatasetItem>(
+        datasetId: string,
+        pageSize: number,
+        readOptions?: DatasetClientListItemOptions,
+    ): AsyncGenerator<T, void, void> {
+        const datasetIterator = this.dataset<T>(datasetId).iteratePaginated(pageSize, readOptions);
+        for await (const item of datasetIterator) {
+            yield item;
+        }
+    }
+
     async* iteratePaginatedOutput<T extends DatasetItem>(
         runRecord: RunRecord,
         pageSize: number,
@@ -190,7 +201,7 @@ export class OrchestratorApifyClient extends ApifyClient {
     ): AsyncGenerator<T, void, void> {
         for (const [runName, run] of Object.entries(runRecord)) {
             this.customLogger.prfxInfo(runName, 'Reading default dataset');
-            const datasetIterator = this.dataset<T>(run.defaultDatasetId).iteratePaginated(pageSize, readOptions);
+            const datasetIterator = this.iteratePaginatedDataset<T>(run.defaultDatasetId, pageSize, readOptions);
             for await (const item of datasetIterator) {
                 yield item;
             }

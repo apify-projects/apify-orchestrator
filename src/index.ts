@@ -2,7 +2,7 @@
  * This is temporarily a "copy-paste" kind of library.
  * Maybe, someday it will become a proper library or part of the SDK, who knows?
  */
-export const version = '2024-06-19';
+export const version = '2024-06-21';
 
 export { OrchestratorApifyClient } from './clients/orchestrator-apify-client.js';
 export { QueuedActorClient } from './clients/queued-actor-client.js';

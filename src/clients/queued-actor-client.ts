@@ -2,7 +2,7 @@ import { ActorCallOptions, ActorClient, ActorLastRunOptions, ActorRun, ActorStar
 
 import { TrackingRunClient } from './tracking-run-client.js';
 import { APIFY_PAYLOAD_BYTES_LIMIT } from '../constants.js';
-import { RunsTracker, isRunFailStatus, isRunOkStatus } from '../tracker.js';
+import { RunsTracker, isRunOkStatus } from '../tracker.js';
 import { RunRecord, SplitRules } from '../types.js';
 import { splitIntoChunksWithMaxSize, strBytes } from '../utils/bytes.js';
 import { CustomLogger } from '../utils/logging.js';
@@ -15,8 +15,11 @@ interface ActorRunRequest {
 
 export interface EnqueuedRequest {
     runName: string
-    memoryMbytes: number
-    readyCallback: (isReady: boolean) => void
+    defaultMemoryMbytes: () => Promise<number | undefined>
+    startRun: (input?: unknown, options?: ActorStartOptions) => Promise<ActorRun>
+    startCallbacks: ((run: ActorRun | undefined) => void)[]
+    input?: object
+    options?: ActorStartOptions
 }
 
 function mergeInputParams(input?: object, extraParams?: object): object | undefined {
@@ -59,7 +62,7 @@ function generateRunRequests(
 
 export class QueuedActorClient extends ActorClient {
     protected superClient: ActorClient;
-    protected enqueue: (runRequest: EnqueuedRequest) => void;
+    protected enqueueFunction: (runRequest: EnqueuedRequest) => void;
     protected customLogger: CustomLogger;
     protected runsTracker: RunsTracker;
     protected fixedInput?: object;
@@ -71,7 +74,7 @@ export class QueuedActorClient extends ActorClient {
         actorClient: ActorClient,
         customLogger: CustomLogger,
         runsTracker: RunsTracker,
-        enqueue: (runRequest: EnqueuedRequest) => void,
+        enqueueFunction: (runRequest: EnqueuedRequest) => void,
         fixedInput?: object,
     ) {
         super({
@@ -84,14 +87,14 @@ export class QueuedActorClient extends ActorClient {
         this.superClient = actorClient;
         this.customLogger = customLogger;
         this.runsTracker = runsTracker;
-        this.enqueue = enqueue;
+        this.enqueueFunction = enqueueFunction;
         this.fixedInput = fixedInput;
     }
 
-    protected generateRunOrchestratorClient(runName: string, runId: string, options?: ActorLastRunOptions) {
+    protected generateRunOrchestratorClient(runName: string, runId: string) {
         const runClient = new RunClient(this._subResourceOptions({
             id: runId,
-            params: this._params(options),
+            params: this._params(),
             resourcePath: 'runs',
         }));
         return new TrackingRunClient(
@@ -102,20 +105,41 @@ export class QueuedActorClient extends ActorClient {
         );
     }
 
-    protected async awaitClientToBeReady(runName: string, requestMbytes?: number) {
-        // Compute necessary memory for this Run
-        const memoryMbytes = requestMbytes
-        ?? (await this.get())?.defaultRunOptions.memoryMbytes
-        // If the user didn't provide a memory option and the default options cannot be read, set the requirement to zero
-        ?? 0;
+    protected generateRunRequests<T>(
+        namePrefix: string,
+        sources: T[],
+        inputGenerator: (chunk: T[]) => object,
+        overrideSplitRules: Partial<SplitRules> = {},
+        options?: ActorStartOptions,
+    ) {
+        const splitRules = { ...DEFAULT_SPLIT_RULES, ...overrideSplitRules };
+        const inputChunks = generateInputChunks(sources, inputGenerator, splitRules, this.fixedInput);
+        return generateRunRequests(namePrefix, inputChunks, options);
+    }
 
-        const isReady = await new Promise<boolean>((resolve) => {
-            this.enqueue({ runName, memoryMbytes, readyCallback: resolve });
+    protected async defaultMemoryMbytes() {
+        return (await this.get())?.defaultRunOptions.memoryMbytes;
+    }
+
+    protected async enqueueAndWaitForStart(runName: string, input?: object, options?: ActorStartOptions): Promise<ActorRun> {
+        const run = await new Promise<ActorRun | undefined>((resolve) => {
+            this.enqueueFunction({
+                runName,
+                defaultMemoryMbytes: this.defaultMemoryMbytes.bind(this),
+                startRun: this.superClient.start.bind(this.superClient),
+                startCallbacks: [resolve],
+                input,
+                options,
+            });
+
+            this.customLogger.prfxInfo(runName, 'Waiting for start');
         });
 
-        if (!isReady) {
-            throw new Error(`Client not ready to run: ${runName} (${this.id}). Maybe the orchestrator was stopped?`);
+        if (!run) {
+            throw new Error(`Client not ready to run: ${runName} (${this.id}). Have you called "startOrchestrator"?`);
         }
+
+        return run;
     }
 
     override async start(runName: string, input?: object, options?: ActorStartOptions): Promise<ActorRun> {
@@ -141,36 +165,13 @@ export class QueuedActorClient extends ActorClient {
             );
         }
 
-        await this.awaitClientToBeReady(runName, options?.memory);
-        const run = await this.superClient.start(mergeInputParams(input, this.fixedInput), options);
-        const runInfo = await this.runsTracker.updateRun(runName, run);
-        this.customLogger.prfxInfo(runName, `Started Run`, { url: runInfo.runUrl });
-        return run;
+        return this.enqueueAndWaitForStart(runName, input, options);
     }
 
-    override async call(runName: string, input?: object, options?: ActorCallOptions): Promise<ActorRun> {
-        const existingRunInfo = this.runsTracker.currentRuns[runName];
-
-        // If the Run exists and has not failed, use it
-        if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
-            this.customLogger.prfxInfo(
-                runName,
-                'Found existing Run: not starting a new one',
-                { runId: existingRunInfo.runId },
-            );
-            const runClient = this.generateRunOrchestratorClient(runName, existingRunInfo.runId);
-            return runClient.waitForFinish(); // Wait for the existing Run to finish
-        }
-
-        await this.awaitClientToBeReady(runName, options?.memory);
-        const run = await this.superClient.call(mergeInputParams(input, this.fixedInput), options);
-        const runInfo = await this.runsTracker.updateRun(runName, run);
-        if (isRunFailStatus(run.status)) {
-            this.customLogger.prfxWarn(runName, 'Run failed', { status: run.status, url: runInfo.runUrl });
-        } else {
-            this.customLogger.prfxInfo(runName, `Run finished`, { status: run.status, url: runInfo.runUrl });
-        }
-        return run;
+    override async call(runName: string, input?: object, options: ActorCallOptions = {}): Promise<ActorRun> {
+        const startedRun = await this.start(runName, input, options);
+        const { waitSecs } = options;
+        return this.generateRunOrchestratorClient(runName, startedRun.id).waitForFinish({ waitSecs });
     }
 
     override lastRun(options?: ActorLastRunOptions): RunClient {
@@ -178,10 +179,36 @@ export class QueuedActorClient extends ActorClient {
         if (runClient.id) {
             const runName = this.runsTracker.findRunName(runClient.id);
             if (runName) {
-                return this.generateRunOrchestratorClient(runName, runClient.id, options);
+                return this.generateRunOrchestratorClient(runName, runClient.id);
             }
         }
         return runClient;
+    }
+
+    enqueue(...runRequests: ActorRunRequest[]) {
+        for (const { runName, input, options } of runRequests) {
+            this.enqueueFunction({
+                runName,
+                defaultMemoryMbytes: this.defaultMemoryMbytes.bind(this),
+                startRun: this.superClient.start.bind(this.superClient),
+                startCallbacks: [],
+                input,
+                options,
+            });
+        }
+        return runRequests.map(({ runName }) => runName);
+    }
+
+    enqueueBatch<T>(
+        namePrefix: string,
+        sources: T[],
+        inputGenerator: (chunk: T[]) => object,
+        overrideSplitRules: Partial<SplitRules> = {},
+        options?: ActorStartOptions,
+    ) {
+        return this.enqueue(
+            ...this.generateRunRequests(namePrefix, sources, inputGenerator, overrideSplitRules, options),
+        );
     }
 
     async startRuns(...runRequests: ActorRunRequest[]): Promise<RunRecord> {
@@ -200,10 +227,9 @@ export class QueuedActorClient extends ActorClient {
         overrideSplitRules: Partial<SplitRules> = {},
         options?: ActorStartOptions,
     ): Promise<RunRecord> {
-        const splitRules = { ...DEFAULT_SPLIT_RULES, ...overrideSplitRules };
-        const inputChunks = generateInputChunks(sources, inputGenerator, splitRules, this.fixedInput);
-        const runRequests = generateRunRequests(namePrefix, inputChunks, options);
-        return this.startRuns(...runRequests);
+        return this.startRuns(
+            ...this.generateRunRequests(namePrefix, sources, inputGenerator, overrideSplitRules, options),
+        );
     }
 
     async callRuns(...runRequests: ActorRunRequest[]): Promise<RunRecord> {
@@ -222,9 +248,8 @@ export class QueuedActorClient extends ActorClient {
         overrideSplitRules: Partial<SplitRules> = {},
         options?: ActorStartOptions,
     ): Promise<RunRecord> {
-        const splitRules = { ...DEFAULT_SPLIT_RULES, ...overrideSplitRules };
-        const inputChunks = generateInputChunks(sources, inputGenerator, splitRules, this.fixedInput);
-        const runRequests = generateRunRequests(namePrefix, inputChunks, options);
-        return this.callRuns(...runRequests);
+        return this.callRuns(
+            ...this.generateRunRequests(namePrefix, sources, inputGenerator, overrideSplitRules, options),
+        );
     }
 }

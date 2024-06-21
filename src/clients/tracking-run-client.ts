@@ -80,6 +80,7 @@ export class TrackingRunClient extends RunClient {
     }
 
     override async waitForFinish(options?: RunWaitForFinishOptions): Promise<ActorRun> {
+        this.customLogger.prfxInfo(this.runName, 'Waiting for finish', { url: this.url });
         const run = await this.superClient.waitForFinish(options);
         await this.runsTracker.updateRun(this.runName, run);
         return run;

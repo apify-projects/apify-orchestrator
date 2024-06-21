@@ -61,7 +61,7 @@ export class RunsTracker {
         const runInfo: RunInfo = { runId, runUrl, status };
 
         if (this.currentRuns[runName]?.runId !== runId || this.currentRuns[runName]?.status !== status) {
-            this.customLogger.prfxInfo(runName, 'Update Run', { status, runUrl });
+            this.customLogger.prfxInfo(runName, 'Update Run', { status, url: runUrl });
         }
 
         await this.currentRunsState.update((prev) => ({ ...prev, [runName]: runInfo }));

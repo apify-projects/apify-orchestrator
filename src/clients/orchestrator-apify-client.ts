@@ -1,5 +1,5 @@
 import { Actor, ApifyClient, log } from 'apify';
-import { ApifyClientOptions, DatasetClientListItemOptions, RunClient } from 'apify-client';
+import { ActorRun, ApifyClientOptions, DatasetClientListItemOptions, RunClient } from 'apify-client';
 
 import { IterableDatasetClient } from './iterable-dataset-client.js';
 import { EnqueuedRequest, QueuedActorClient } from './queued-actor-client.js';
@@ -9,10 +9,11 @@ import { RunsTracker } from '../tracker.js';
 import { DatasetItem, OrchestratorOptions, RunRecord } from '../types.js';
 import { getAvailableMemoryGBs } from '../utils/apify-api.js';
 import { disabledLogger, enabledLogger } from '../utils/logging.js';
+import { Mutex } from '../utils/mutex.js';
 import { Queue } from '../utils/queue.js';
 
 export class OrchestratorApifyClient extends ApifyClient {
-    protected runRequestsQueue = new Queue<EnqueuedRequest>();
+    protected runRequestsQueue = new Mutex(new Queue<EnqueuedRequest>());
     protected runsTracker = new RunsTracker();
     protected customLogger = disabledLogger;
 
@@ -26,13 +27,55 @@ export class OrchestratorApifyClient extends ApifyClient {
         super(options);
     }
 
-    protected enqueue(runRequest: EnqueuedRequest) {
+    protected trackedRun(runName: string, id: string) {
+        return new TrackingRunClient(
+            super.run(id),
+            runName,
+            this.customLogger,
+            this.runsTracker,
+        );
+    }
+
+    protected async enqueue(runRequest: EnqueuedRequest) {
         if (this.mainLoopId !== undefined) {
-            this.runRequestsQueue.enqueue(runRequest);
+            this.customLogger.prfxInfo(runRequest.runName, 'Enqueuing Run request');
+            await this.runRequestsQueue.lock(async (queue) => queue.enqueue(runRequest));
         } else {
             // Avoid blocking if the orchestrator is not running
-            runRequest.readyCallback(false);
+            runRequest.startCallbacks.map((callback) => callback(undefined));
         }
+    }
+
+    protected async findAndWaitForRunRequest(runName: string): Promise<ActorRun | undefined> {
+        let result: ActorRun | undefined;
+
+        let startPromise: Promise<ActorRun | undefined> | undefined;
+        await this.runRequestsQueue.lock((queue) => {
+            const runRequest = queue.find((req) => req.runName === runName);
+            if (runRequest) {
+                startPromise = new Promise<ActorRun | undefined>((resolve) => {
+                    runRequest.startCallbacks.push(resolve);
+                });
+            }
+        });
+
+        if (startPromise) {
+            const run = await startPromise;
+            if (!run) {
+                throw new Error(`Client not ready to run: ${runName}. Have you called "startOrchestrator"?`);
+            }
+            result = run;
+        }
+
+        return result;
+    }
+
+    protected findStartedRun(runName: string): TrackingRunClient | undefined {
+        const startedRunInfo = this.runsTracker.currentRuns[runName];
+        if (startedRunInfo) {
+            return this.trackedRun(runName, startedRunInfo.runId);
+        }
+        return undefined;
     }
 
     override actor(id: string): QueuedActorClient {
@@ -55,12 +98,12 @@ export class OrchestratorApifyClient extends ApifyClient {
     }
 
     async startOrchestrator(orchestratorOptions = {} as Partial<OrchestratorOptions>) {
-        this.customLogger.info('Starting Apify orchestrator');
-
-        this.orchestratorOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...orchestratorOptions };
-
         // Init logger
         if (this.orchestratorOptions.enableLogs) { this.customLogger = enabledLogger; }
+        this.customLogger.info('Starting Apify orchestrator');
+
+        // Set option from user preferences, or default
+        this.orchestratorOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...orchestratorOptions };
 
         // Init tracker
         await this.runsTracker.init(
@@ -71,28 +114,40 @@ export class OrchestratorApifyClient extends ApifyClient {
 
         // Main loop
         this.mainLoopId = setInterval(async () => {
-            const nextRunRequest = this.runRequestsQueue.peek();
-            if (!nextRunRequest) { return; }
+            // Skip iteration if the queue is locked
+            if (this.runRequestsQueue.isLocked) { return; }
 
-            // Check if the next Run has enough memory available
-            const availableMemoryGBs = await getAvailableMemoryGBs(this.token);
-            const requiredMemoryGBs = nextRunRequest.memoryMbytes / 1024;
-            const hasEnoughMemory = availableMemoryGBs >= requiredMemoryGBs;
+            await this.runRequestsQueue.lock(async (queue) => {
+                const nextRunRequest = queue.peek();
+                if (!nextRunRequest) { return; }
 
-            // Start the next run
-            if (hasEnoughMemory) {
-                const runRequest = this.runRequestsQueue.dequeue();
-                if (runRequest) {
-                    this.customLogger.prfxInfo(
-                        nextRunRequest.runName,
-                        'Starting next',
-                        { requiredMemoryGBs, availableMemoryGBs, queue: this.runRequestsQueue.length },
-                    );
-                    runRequest.readyCallback(true);
-                } else {
-                    this.customLogger.error('Something wrong with the Apify orchestrator\'s queue!');
+                // Check if the next Run has enough memory available
+                const availableMemoryGBs = await getAvailableMemoryGBs(this.token);
+                const requiredMemoryMBs = nextRunRequest.options?.memory
+                    ?? await nextRunRequest.defaultMemoryMbytes()
+                    // If no information about memory is available, set the requirement to zero.
+                    ?? 0;
+                const requiredMemoryGBs = requiredMemoryMBs / 1024;
+                const hasEnoughMemory = availableMemoryGBs >= requiredMemoryGBs;
+
+                // Start the next run
+                if (hasEnoughMemory) {
+                    const runRequest = queue.dequeue();
+                    if (runRequest) {
+                        const { runName, input, options } = runRequest;
+                        this.customLogger.prfxInfo(
+                            runName,
+                            'Starting next',
+                            { requiredMemoryGBs, availableMemoryGBs, queue: queue.length },
+                        );
+                        const run = await runRequest.startRun(input, options);
+                        await this.runsTracker.updateRun(runName, run);
+                        runRequest.startCallbacks.map((callback) => callback(run));
+                    } else {
+                        this.customLogger.error('Something wrong with the Apify orchestrator\'s queue!');
+                    }
                 }
-            }
+            });
         }, MAIN_LOOP_INTERVAL_MS);
 
         this.statsId = this.orchestratorOptions.statsIntervalSec ? setInterval(() => {
@@ -118,20 +173,20 @@ export class OrchestratorApifyClient extends ApifyClient {
         }, this.orchestratorOptions.statsIntervalSec * 1000) : undefined;
 
         Actor.on('aborting', async () => {
-            this.stopOrchestrator();
+            await this.stopOrchestrator();
             if (this.orchestratorOptions.abortAllRunsOnGracefulAbort) {
                 await this.abortAllRuns();
             }
         });
-        Actor.on('exit', () => {
-            this.stopOrchestrator();
+        Actor.on('exit', async () => {
+            await this.stopOrchestrator();
         });
-        Actor.on('migrating', () => {
-            this.stopOrchestrator();
+        Actor.on('migrating', async () => {
+            await this.stopOrchestrator();
         });
     }
 
-    stopOrchestrator() {
+    async stopOrchestrator() {
         this.customLogger.info('Stopping Apify orchestrator');
 
         // Stop the main loop
@@ -147,18 +202,58 @@ export class OrchestratorApifyClient extends ApifyClient {
         }
 
         // Empty the queues and unlock all the callers waiting
-        while (this.runRequestsQueue.length > 0) {
-            this.runRequestsQueue.dequeue()?.readyCallback(false);
-        }
+        await this.runRequestsQueue.lock(async (queue) => {
+            while (queue.length > 0) {
+                queue.dequeue()?.startCallbacks.map((callback) => callback(undefined));
+            }
+        });
     }
 
-    trackedRun(runName: string, id: string): TrackingRunClient {
-        return new TrackingRunClient(
-            super.run(id),
-            runName,
-            this.customLogger,
-            this.runsTracker,
-        );
+    async runByName(runName: string): Promise<TrackingRunClient | undefined> {
+        let id: string | undefined;
+
+        const run = await this.findAndWaitForRunRequest(runName);
+        if (run) { id = run.id; }
+
+        const startedRunClient = this.findStartedRun(runName);
+        if (startedRunClient) { id = startedRunClient.id; }
+
+        if (!id) { return undefined; }
+
+        return this.trackedRun(runName, id);
+    }
+
+    async actorRunByName(runName: string): Promise<ActorRun | undefined> {
+        const run = await this.findAndWaitForRunRequest(runName);
+        if (run) { return run; }
+
+        const runClient = this.findStartedRun(runName);
+        if (runClient) { return runClient.get(); }
+
+        return undefined;
+    }
+
+    async runRecord(...runNames: string[]): Promise<RunRecord> {
+        const runRecord: RunRecord = {};
+        await Promise.all(runNames.map(async (runName) => {
+            const run = await this.actorRunByName(runName);
+            if (run) { runRecord[runName] = run; }
+        }));
+        return runRecord;
+    }
+
+    async waitForBatchFinish(batch: RunRecord | string[]): Promise<RunRecord> {
+        const runRecord = Array.isArray(batch) ? await this.runRecord(...batch) : batch;
+        this.customLogger.info('Waiting for batch', { runNames: Object.keys(runRecord) });
+
+        const resultRunRecord: RunRecord = {};
+
+        await Promise.all(Object.entries(runRecord).map(async ([runName, run]) => {
+            const resultRun = await this.trackedRun(runName, run.id).waitForFinish();
+            resultRunRecord[runName] = resultRun;
+        }));
+
+        return resultRunRecord;
     }
 
     async abortAllRuns() {
@@ -170,17 +265,6 @@ export class OrchestratorApifyClient extends ApifyClient {
                 log.exception(err as Error, 'Error aborting the Run', { runName });
             }
         }));
-    }
-
-    async waitForBatchFinish(runRecord: RunRecord): Promise<RunRecord> {
-        const resultRunRecord: RunRecord = {};
-
-        await Promise.all(Object.entries(runRecord).map(async ([runName, run]) => {
-            const resultRun = await this.trackedRun(runName, run.id).waitForFinish();
-            resultRunRecord[runName] = resultRun;
-        }));
-
-        return resultRunRecord;
     }
 
     async* iteratePaginatedDataset<T extends DatasetItem>(

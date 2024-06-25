@@ -22,6 +22,9 @@ export interface EnqueuedRequest {
     options?: ActorStartOptions
 }
 
+type EnqueueFunction = (runRequest: EnqueuedRequest) => TrackingRunClient | undefined
+type ForcedEnqueueFunction = (runRequest: EnqueuedRequest) => undefined
+
 function mergeInputParams(input?: object, extraParams?: object): object | undefined {
     return (input && extraParams) ? { ...input, ...extraParams } : input;
 }
@@ -62,7 +65,8 @@ function generateRunRequests(
 
 export class QueuedActorClient extends ActorClient {
     protected superClient: ActorClient;
-    protected enqueueFunction: (runRequest: EnqueuedRequest) => void;
+    protected enqueueFunction: EnqueueFunction;
+    protected forcedEnqueueFunction: ForcedEnqueueFunction;
     protected customLogger: CustomLogger;
     protected runsTracker: RunsTracker;
     protected fixedInput?: object;
@@ -74,7 +78,8 @@ export class QueuedActorClient extends ActorClient {
         actorClient: ActorClient,
         customLogger: CustomLogger,
         runsTracker: RunsTracker,
-        enqueueFunction: (runRequest: EnqueuedRequest) => void,
+        enqueueFunction: EnqueueFunction,
+        forcedEnqueueFunction: ForcedEnqueueFunction,
         fixedInput?: object,
     ) {
         super({
@@ -88,6 +93,7 @@ export class QueuedActorClient extends ActorClient {
         this.customLogger = customLogger;
         this.runsTracker = runsTracker;
         this.enqueueFunction = enqueueFunction;
+        this.forcedEnqueueFunction = forcedEnqueueFunction;
         this.fixedInput = fixedInput;
     }
 
@@ -122,18 +128,37 @@ export class QueuedActorClient extends ActorClient {
     }
 
     protected async enqueueAndWaitForStart(runName: string, input?: object, options?: ActorStartOptions): Promise<ActorRun> {
-        const run = await new Promise<ActorRun | undefined>((resolve) => {
-            this.enqueueFunction({
-                runName,
-                defaultMemoryMbytes: this.defaultMemoryMbytes.bind(this),
-                startRun: this.superClient.start.bind(this.superClient),
-                startCallbacks: [resolve],
-                input,
-                options,
-            });
+        const runParams = {
+            runName,
+            defaultMemoryMbytes: this.defaultMemoryMbytes.bind(this),
+            startRun: this.superClient.start.bind(this.superClient),
+            input,
+            options,
+        };
 
-            this.customLogger.prfxInfo(runName, 'Waiting for start');
+        let existingRunClient: TrackingRunClient | undefined;
+        let run = await new Promise<ActorRun | undefined>((resolve) => {
+            existingRunClient = this.enqueueFunction({
+                ...runParams,
+                startCallbacks: [resolve],
+            });
+            if (existingRunClient) { resolve(undefined); }
         });
+
+        if (!run && existingRunClient) {
+            run = await existingRunClient.get();
+
+            // If it was not possible to retrieve the Run from the client, force enqueuing a new Run.
+            if (!run) {
+                run = await new Promise<ActorRun | undefined>((resolve) => {
+                    existingRunClient = this.forcedEnqueueFunction({
+                        ...runParams,
+                        startCallbacks: [resolve],
+                    });
+                    if (existingRunClient) { resolve(undefined); }
+                });
+            }
+        }
 
         if (!run) {
             throw new Error(`Client not ready to run: ${runName} (${this.id}). Have you called "startOrchestrator"?`);

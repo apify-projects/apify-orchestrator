@@ -5,15 +5,14 @@ import { IterableDatasetClient } from './iterable-dataset-client.js';
 import { EnqueuedRequest, QueuedActorClient } from './queued-actor-client.js';
 import { TrackingRunClient } from './tracking-run-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
-import { RunsTracker } from '../tracker.js';
+import { RunsTracker, isRunOkStatus } from '../tracker.js';
 import { DatasetItem, OrchestratorOptions, RunRecord } from '../types.js';
 import { getAvailableMemoryGBs } from '../utils/apify-api.js';
 import { disabledLogger, enabledLogger } from '../utils/logging.js';
-import { Mutex } from '../utils/mutex.js';
 import { Queue } from '../utils/queue.js';
 
 export class OrchestratorApifyClient extends ApifyClient {
-    protected runRequestsQueue = new Mutex(new Queue<EnqueuedRequest>());
+    protected runRequestsQueue = new Queue<EnqueuedRequest>();
     protected runsTracker = new RunsTracker();
     protected customLogger = disabledLogger;
 
@@ -36,28 +35,46 @@ export class OrchestratorApifyClient extends ApifyClient {
         );
     }
 
-    protected async enqueue(runRequest: EnqueuedRequest) {
+    protected enqueue(runRequest: EnqueuedRequest, force: true): undefined
+    protected enqueue(runRequest: EnqueuedRequest, force: false): TrackingRunClient | undefined
+    protected enqueue(runRequest: EnqueuedRequest, force = false): TrackingRunClient | undefined {
+        const { runName } = runRequest;
+
+        if (!force) {
+            const existingRunInfo = this.runsTracker.currentRuns[runName];
+
+            // If the Run exists and has not failed, keep it
+            if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
+                this.customLogger.prfxInfo(
+                    runName,
+                    'Found existing Run: checking it',
+                    { runId: existingRunInfo.runId },
+                );
+                return this.trackedRun(runName, existingRunInfo.runId);
+            }
+        }
+
         if (this.mainLoopId !== undefined) {
             this.customLogger.prfxInfo(runRequest.runName, 'Enqueuing Run request');
-            await this.runRequestsQueue.lock(async (queue) => queue.enqueue(runRequest));
+            this.runRequestsQueue.enqueue(runRequest);
         } else {
             // Avoid blocking if the orchestrator is not running
             runRequest.startCallbacks.map((callback) => callback(undefined));
         }
+
+        return undefined;
     }
 
     protected async findAndWaitForRunRequest(runName: string): Promise<ActorRun | undefined> {
         let result: ActorRun | undefined;
 
         let startPromise: Promise<ActorRun | undefined> | undefined;
-        await this.runRequestsQueue.lock((queue) => {
-            const runRequest = queue.find((req) => req.runName === runName);
-            if (runRequest) {
-                startPromise = new Promise<ActorRun | undefined>((resolve) => {
-                    runRequest.startCallbacks.push(resolve);
-                });
-            }
-        });
+        const runRequest = this.runRequestsQueue.find((req) => req.runName === runName);
+        if (runRequest) {
+            startPromise = new Promise<ActorRun | undefined>((resolve) => {
+                runRequest.startCallbacks.push(resolve);
+            });
+        }
 
         if (startPromise) {
             const run = await startPromise;
@@ -83,7 +100,8 @@ export class OrchestratorApifyClient extends ApifyClient {
             super.actor(id),
             this.customLogger,
             this.runsTracker,
-            this.enqueue.bind(this),
+            (runRequest) => this.enqueue(runRequest, false),
+            (runRequest) => this.enqueue(runRequest, true),
             this.orchestratorOptions.fixedInput,
         );
     }
@@ -112,43 +130,47 @@ export class OrchestratorApifyClient extends ApifyClient {
             this.orchestratorOptions.persistPrefix,
         );
 
+        // Do not allow more than one main loop operation to execute at once.
+        let mainLoopLock = false;
+        const withMainLoopLock = (op: () => Promise<void>) => async () => {
+            if (mainLoopLock) { return; }
+            mainLoopLock = true;
+            await op();
+            mainLoopLock = false;
+        };
+
         // Main loop
-        this.mainLoopId = setInterval(async () => {
-            // Skip iteration if the queue is locked
-            if (this.runRequestsQueue.isLocked) { return; }
+        this.mainLoopId = setInterval(withMainLoopLock(async () => {
+            const nextRunRequest = this.runRequestsQueue.peek();
+            if (!nextRunRequest) { return; }
 
-            await this.runRequestsQueue.lock(async (queue) => {
-                const nextRunRequest = queue.peek();
-                if (!nextRunRequest) { return; }
-
-                // Check if the next Run has enough memory available
-                const availableMemoryGBs = await getAvailableMemoryGBs(this.token);
-                const requiredMemoryMBs = nextRunRequest.options?.memory
+            // Check if the next Run has enough memory available
+            const availableMemoryGBs = await getAvailableMemoryGBs(this.token);
+            const requiredMemoryMBs = nextRunRequest.options?.memory
                     ?? await nextRunRequest.defaultMemoryMbytes()
                     // If no information about memory is available, set the requirement to zero.
                     ?? 0;
-                const requiredMemoryGBs = requiredMemoryMBs / 1024;
-                const hasEnoughMemory = availableMemoryGBs >= requiredMemoryGBs;
+            const requiredMemoryGBs = requiredMemoryMBs / 1024;
+            const hasEnoughMemory = availableMemoryGBs >= requiredMemoryGBs;
 
-                // Start the next run
-                if (hasEnoughMemory) {
-                    const runRequest = queue.dequeue();
-                    if (runRequest) {
-                        const { runName, input, options } = runRequest;
-                        this.customLogger.prfxInfo(
-                            runName,
-                            'Starting next',
-                            { requiredMemoryGBs, availableMemoryGBs, queue: queue.length },
-                        );
-                        const run = await runRequest.startRun(input, options);
-                        await this.runsTracker.updateRun(runName, run);
-                        runRequest.startCallbacks.map((callback) => callback(run));
-                    } else {
-                        this.customLogger.error('Something wrong with the Apify orchestrator\'s queue!');
-                    }
+            // Start the next run
+            if (hasEnoughMemory) {
+                const runRequest = this.runRequestsQueue.dequeue();
+                if (runRequest) {
+                    const { runName, input, options } = runRequest;
+                    this.customLogger.prfxInfo(
+                        runName,
+                        'Starting next',
+                        { requiredMemoryGBs, availableMemoryGBs, queue: this.runRequestsQueue.length },
+                    );
+                    const run = await runRequest.startRun(input, options);
+                    await this.runsTracker.updateRun(runName, run);
+                    runRequest.startCallbacks.map((callback) => callback(run));
+                } else {
+                    this.customLogger.error('Something wrong with the Apify orchestrator\'s queue!');
                 }
-            });
-        }, MAIN_LOOP_INTERVAL_MS);
+            }
+        }), MAIN_LOOP_INTERVAL_MS);
 
         this.statsId = this.orchestratorOptions.statsIntervalSec ? setInterval(() => {
             if (Object.keys(this.runsTracker.currentRuns).length === 0) {
@@ -202,11 +224,9 @@ export class OrchestratorApifyClient extends ApifyClient {
         }
 
         // Empty the queues and unlock all the callers waiting
-        await this.runRequestsQueue.lock(async (queue) => {
-            while (queue.length > 0) {
-                queue.dequeue()?.startCallbacks.map((callback) => callback(undefined));
-            }
-        });
+        while (this.runRequestsQueue.length > 0) {
+            this.runRequestsQueue.dequeue()?.startCallbacks.map((callback) => callback(undefined));
+        }
     }
 
     async runByName(runName: string): Promise<TrackingRunClient | undefined> {

@@ -1,7 +1,7 @@
 import { DatasetClient } from 'apify-client';
-import { CustomLogger } from 'src/utils/logging.js';
 
 import { DatasetItem, IterableDatasetClient, IterateOptions } from '../types.js';
+import { CustomLogger } from '../utils/logging.js';
 
 export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> implements IterableDatasetClient<T> {
     protected customLogger: CustomLogger;

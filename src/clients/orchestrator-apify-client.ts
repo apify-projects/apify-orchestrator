@@ -1,7 +1,7 @@
-import { Actor, ApifyClient, log } from 'apify';
-import { ActorRun, ApifyClientOptions, DatasetClientListItemOptions, RunClient } from 'apify-client';
+import { Actor, ApifyClient, Dataset, log } from 'apify';
+import { ActorRun, ApifyClientOptions, DatasetClient, RunClient } from 'apify-client';
 
-import { IterableDatasetClient } from './iterable-dataset-client.js';
+import { IterableDatasetClient, IterateOptions } from './iterable-dataset-client.js';
 import { EnqueuedRequest, QueuedActorClient } from './queued-actor-client.js';
 import { TrackingRunClient } from './tracking-run-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
@@ -287,25 +287,34 @@ export class OrchestratorApifyClient extends ApifyClient {
         }));
     }
 
-    async* iteratePaginatedDataset<T extends DatasetItem>(
-        datasetId: string,
-        pageSize: number,
-        readOptions?: DatasetClientListItemOptions,
+    async* iterateDataset<T extends DatasetItem>(
+        dataset: Dataset<T>,
+        options: IterateOptions,
     ): AsyncGenerator<T, void, void> {
-        const datasetIterator = this.dataset<T>(datasetId).iteratePaginated(pageSize, readOptions);
+        const datasetIterator = new IterableDatasetClient<T>(dataset.client as DatasetClient<T>, this.customLogger)
+            .iterate(options);
         for await (const item of datasetIterator) {
             yield item;
         }
     }
 
-    async* iteratePaginatedOutput<T extends DatasetItem>(
+    async* iterateDatasetFromId<T extends DatasetItem>(
+        datasetId: string,
+        options: IterateOptions,
+    ): AsyncGenerator<T, void, void> {
+        const datasetIterator = this.dataset<T>(datasetId).iterate(options);
+        for await (const item of datasetIterator) {
+            yield item;
+        }
+    }
+
+    async* iterateOutput<T extends DatasetItem>(
         runRecord: RunRecord,
-        pageSize: number,
-        readOptions?: DatasetClientListItemOptions,
+        options: IterateOptions,
     ): AsyncGenerator<T, void, void> {
         for (const [runName, run] of Object.entries(runRecord)) {
             this.customLogger.prfxInfo(runName, 'Reading default dataset');
-            const datasetIterator = this.iteratePaginatedDataset<T>(run.defaultDatasetId, pageSize, readOptions);
+            const datasetIterator = this.iterateDatasetFromId<T>(run.defaultDatasetId, options);
             for await (const item of datasetIterator) {
                 yield item;
             }

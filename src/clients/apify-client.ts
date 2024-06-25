@@ -1,9 +1,9 @@
 import { Actor, ApifyClient, Dataset, log } from 'apify';
 import { ActorRun, ApifyClientOptions, DatasetClient, RunClient } from 'apify-client';
 
+import { EnqueuedRequest, ExtActorClient } from './actor-client.js';
 import { ExtDatasetClient } from './dataset-client.js';
-import { EnqueuedRequest, ExtActorClient } from './queued-actor-client.js';
-import { ExtRunClient } from './tracking-run-client.js';
+import { ExtRunClient } from './run-client.js';
 import { MAIN_LOOP_INTERVAL_MS } from '../constants.js';
 import { RunsTracker, isRunOkStatus } from '../tracker.js';
 import { DatasetItem, IterateOptions, RunRecord, ScheduledApifyClient } from '../types.js';
@@ -133,7 +133,7 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
     }
 
     async startScheduler() {
-        this.customLogger.info('Starting Apify client\' scheduler', { clientName: this.clientName });
+        this.customLogger.info('Starting Apify client\'s scheduler', { clientName: this.clientName });
 
         // Do not allow more than one main loop operation to execute at once.
         let mainLoopLock = false;
@@ -214,7 +214,7 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
     }
 
     async stopScheduler() {
-        this.customLogger.info('Stopping Apify client\' scheduler', { clientName: this.clientName });
+        this.customLogger.info('Stopping Apify client\'s scheduler', { clientName: this.clientName });
 
         // Stop the main loop
         if (this.mainLoopId) {

@@ -1,6 +1,6 @@
 import { ActorCallOptions, ActorClient, ActorLastRunOptions, ActorRun, ActorStartOptions, RunClient } from 'apify-client';
 
-import { ExtRunClient } from './tracking-run-client.js';
+import { ExtRunClient } from './run-client.js';
 import { APIFY_PAYLOAD_BYTES_LIMIT } from '../constants.js';
 import { RunsTracker, isRunOkStatus } from '../tracker.js';
 import { ActorRunRequest, QueuedActorClient, RunRecord, SplitRules, TrackedRunClient } from '../types.js';

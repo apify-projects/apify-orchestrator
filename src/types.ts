@@ -1,6 +1,15 @@
-import { ActorRun } from 'apify-client';
+import {
+    ActorClient,
+    ActorRun,
+    ActorStartOptions,
+    ApifyClient,
+    ApifyClientOptions,
+    DatasetClient,
+    DatasetClientListItemOptions,
+    RunClient,
+} from 'apify-client';
 
-import { PersistSupport } from './utils/persist.js';
+export type PersistSupport = 'kvs' | 'none'
 
 export interface OrchestratorOptions {
     /**
@@ -38,10 +47,80 @@ export interface OrchestratorOptions {
     abortAllRunsOnGracefulAbort: boolean
 }
 
+export type ScheduledClientOptions = ApifyClientOptions & {
+    name?: string
+}
+
+export interface ActorRunRequest {
+    runName: string
+    input?: object
+    options?: ActorStartOptions
+}
+
 export type RunRecord = Record<string, ActorRun>
 
 export type DatasetItem = Record<string | number, unknown>
 
+export type IterateOptions = DatasetClientListItemOptions & {
+    pageSize?: number
+}
+
 export interface SplitRules {
     respectApifyMaxPayloadSize?: boolean
+}
+
+export interface IterableDatasetClient<T extends DatasetItem> extends DatasetClient<T> {
+    iterate: (options: IterateOptions) => AsyncGenerator<T, void, void>
+}
+
+export interface TrackedRunClient extends RunClient {}
+
+export interface QueuedActorClient extends ActorClient {
+    enqueue: (...runRequests: ActorRunRequest[]) => string[]
+
+    enqueueBatch: <T>(
+        namePrefix: string,
+        sources: T[],
+        inputGenerator: (chunk: T[]) => object,
+        overrideSplitRules?: Partial<SplitRules>,
+        options?: ActorStartOptions,
+    ) => string[]
+
+    startRuns: (...runRequests: ActorRunRequest[]) => Promise<RunRecord>
+
+    startBatch: <T>(
+        namePrefix: string,
+        sources: T[],
+        inputGenerator: (chunk: T[]) => object,
+        overrideSplitRules?: Partial<SplitRules>,
+        options?: ActorStartOptions,
+    ) => Promise<RunRecord>
+
+    callRuns: (...runRequests: ActorRunRequest[]) => Promise<RunRecord>
+
+    callBatch: <T>(
+        namePrefix: string,
+        sources: T[],
+        inputGenerator: (chunk: T[]) => object,
+        overrideSplitRules?: Partial<SplitRules>,
+        options?: ActorStartOptions,
+    ) => Promise<RunRecord>
+}
+
+export interface ScheduledApifyClient extends ApifyClient {
+    // Overrides
+    actor: (id: string) => QueuedActorClient
+    dataset: <T extends DatasetItem>(id: string) => IterableDatasetClient<T>
+
+    runByName: (name: string) => Promise<TrackedRunClient | undefined>
+
+    actorRunByName: (name: string) => Promise<ActorRun | undefined>
+
+    runRecord: (...runNames: string[]) => Promise<RunRecord>
+
+    waitForBatchFinish: (batch: RunRecord | string[]) => Promise<RunRecord>
+
+    abortAllRuns: () => Promise<void>
+
+    iterateOutput: <T extends DatasetItem>(runRecord: RunRecord, options: IterateOptions) => AsyncGenerator<T, void, void>
 }

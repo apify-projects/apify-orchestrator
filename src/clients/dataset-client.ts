@@ -1,13 +1,9 @@
-import { DatasetClient, DatasetClientListItemOptions } from 'apify-client';
+import { DatasetClient } from 'apify-client';
 import { CustomLogger } from 'src/utils/logging.js';
 
-import { DatasetItem } from '../types.js';
+import { DatasetItem, IterableDatasetClient, IterateOptions } from '../types.js';
 
-export type IterateOptions = DatasetClientListItemOptions & {
-    pageSize?: number
-}
-
-export class IterableDatasetClient<T extends DatasetItem> extends DatasetClient<T> {
+export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> implements IterableDatasetClient<T> {
     protected customLogger: CustomLogger;
     protected superClient: DatasetClient<T>;
 

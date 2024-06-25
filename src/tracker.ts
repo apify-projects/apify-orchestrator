@@ -1,7 +1,8 @@
 import { ActorRun } from 'apify-client';
 
+import { PersistSupport } from './types.js';
 import { CustomLogger, disabledLogger } from './utils/logging.js';
-import { PersistSupport, State } from './utils/persist.js';
+import { State } from './utils/persist.js';
 
 const RUNS_KEY = 'RUNS';
 const FAILED_RUNS_KEY = 'FAILED_RUNS';

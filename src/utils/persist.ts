@@ -1,6 +1,6 @@
 import { Actor } from 'apify';
 
-export type PersistSupport = 'kvs' | 'none'
+import { PersistSupport } from '../types.js';
 
 type Updater<T> = T | ((prev: T) => T)
 

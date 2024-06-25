@@ -1,17 +1,11 @@
 import { ActorCallOptions, ActorClient, ActorLastRunOptions, ActorRun, ActorStartOptions, RunClient } from 'apify-client';
 
-import { TrackingRunClient } from './tracking-run-client.js';
+import { ExtRunClient } from './tracking-run-client.js';
 import { APIFY_PAYLOAD_BYTES_LIMIT } from '../constants.js';
 import { RunsTracker, isRunOkStatus } from '../tracker.js';
-import { RunRecord, SplitRules } from '../types.js';
+import { ActorRunRequest, QueuedActorClient, RunRecord, SplitRules, TrackedRunClient } from '../types.js';
 import { splitIntoChunksWithMaxSize, strBytes } from '../utils/bytes.js';
 import { CustomLogger } from '../utils/logging.js';
-
-interface ActorRunRequest {
-    runName: string
-    input?: object
-    options?: ActorStartOptions
-}
 
 export interface EnqueuedRequest {
     runName: string
@@ -22,7 +16,7 @@ export interface EnqueuedRequest {
     options?: ActorStartOptions
 }
 
-type EnqueueFunction = (runRequest: EnqueuedRequest) => TrackingRunClient | undefined
+type EnqueueFunction = (runRequest: EnqueuedRequest) => TrackedRunClient | undefined
 type ForcedEnqueueFunction = (runRequest: EnqueuedRequest) => undefined
 
 function mergeInputParams(input?: object, extraParams?: object): object | undefined {
@@ -63,7 +57,7 @@ function generateRunRequests(
     });
 }
 
-export class QueuedActorClient extends ActorClient {
+export class ExtActorClient extends ActorClient implements QueuedActorClient {
     protected superClient: ActorClient;
     protected enqueueFunction: EnqueueFunction;
     protected forcedEnqueueFunction: ForcedEnqueueFunction;
@@ -103,7 +97,7 @@ export class QueuedActorClient extends ActorClient {
             params: this._params(),
             resourcePath: 'runs',
         }));
-        return new TrackingRunClient(
+        return new ExtRunClient(
             runClient,
             runName,
             this.customLogger,
@@ -136,7 +130,7 @@ export class QueuedActorClient extends ActorClient {
             options,
         };
 
-        let existingRunClient: TrackingRunClient | undefined;
+        let existingRunClient: TrackedRunClient | undefined;
         let run = await new Promise<ActorRun | undefined>((resolve) => {
             existingRunClient = this.enqueueFunction({
                 ...runParams,

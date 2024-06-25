@@ -10,9 +10,10 @@ import {
 } from 'apify-client';
 
 import { RunsTracker } from '../tracker.js';
+import { TrackedRunClient } from '../types.js';
 import { CustomLogger } from '../utils/logging.js';
 
-export class TrackingRunClient extends RunClient {
+export class ExtRunClient extends RunClient implements TrackedRunClient {
     readonly runName: string;
 
     protected superClient: RunClient;

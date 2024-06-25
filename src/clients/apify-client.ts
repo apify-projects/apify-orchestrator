@@ -1,33 +1,50 @@
 import { Actor, ApifyClient, Dataset, log } from 'apify';
 import { ActorRun, ApifyClientOptions, DatasetClient, RunClient } from 'apify-client';
 
-import { IterableDatasetClient, IterateOptions } from './iterable-dataset-client.js';
-import { EnqueuedRequest, QueuedActorClient } from './queued-actor-client.js';
-import { TrackingRunClient } from './tracking-run-client.js';
-import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
+import { ExtDatasetClient } from './dataset-client.js';
+import { EnqueuedRequest, ExtActorClient } from './queued-actor-client.js';
+import { ExtRunClient } from './tracking-run-client.js';
+import { MAIN_LOOP_INTERVAL_MS } from '../constants.js';
 import { RunsTracker, isRunOkStatus } from '../tracker.js';
-import { DatasetItem, OrchestratorOptions, RunRecord } from '../types.js';
+import { DatasetItem, IterateOptions, RunRecord, ScheduledApifyClient } from '../types.js';
 import { getAvailableMemoryGBs } from '../utils/apify-api.js';
-import { disabledLogger, enabledLogger } from '../utils/logging.js';
+import { CustomLogger } from '../utils/logging.js';
 import { Queue } from '../utils/queue.js';
 
-export class OrchestratorApifyClient extends ApifyClient {
+export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient {
     protected runRequestsQueue = new Queue<EnqueuedRequest>();
-    protected runsTracker = new RunsTracker();
-    protected customLogger = disabledLogger;
 
-    protected orchestratorOptions = DEFAULT_ORCHESTRATOR_OPTIONS;
+    protected clientName: string;
+    protected customLogger: CustomLogger;
+    protected runsTracker: RunsTracker;
+    protected fixedInput: object | undefined;
+    protected statIntervalSecs: number | undefined;
+    protected abortAllRunsOnGracefulAbort: boolean;
 
     protected mainLoopId: NodeJS.Timeout | undefined;
     protected statsId: NodeJS.Timeout | undefined;
 
-    constructor(options: ApifyClientOptions = {}) {
+    constructor(
+        clientName: string,
+        customLogger: CustomLogger,
+        runsTracker: RunsTracker,
+        fixedInput: object | undefined,
+        statsIntervalSec: number | undefined,
+        abortAllRunsOnGracefulAbort: boolean,
+        options: ApifyClientOptions = {},
+    ) {
         if (!options.token) { options.token = Actor.apifyClient.token; }
         super(options);
+        this.clientName = clientName;
+        this.customLogger = customLogger;
+        this.runsTracker = runsTracker;
+        this.fixedInput = fixedInput;
+        this.statIntervalSecs = statsIntervalSec;
+        this.abortAllRunsOnGracefulAbort = abortAllRunsOnGracefulAbort;
     }
 
     protected trackedRun(runName: string, id: string) {
-        return new TrackingRunClient(
+        return new ExtRunClient(
             super.run(id),
             runName,
             this.customLogger,
@@ -36,8 +53,8 @@ export class OrchestratorApifyClient extends ApifyClient {
     }
 
     protected enqueue(runRequest: EnqueuedRequest, force: true): undefined
-    protected enqueue(runRequest: EnqueuedRequest, force: false): TrackingRunClient | undefined
-    protected enqueue(runRequest: EnqueuedRequest, force = false): TrackingRunClient | undefined {
+    protected enqueue(runRequest: EnqueuedRequest, force: false): ExtRunClient | undefined
+    protected enqueue(runRequest: EnqueuedRequest, force = false): ExtRunClient | undefined {
         const { runName } = runRequest;
 
         if (!force) {
@@ -87,7 +104,7 @@ export class OrchestratorApifyClient extends ApifyClient {
         return result;
     }
 
-    protected findStartedRun(runName: string): TrackingRunClient | undefined {
+    protected findStartedRun(runName: string): ExtRunClient | undefined {
         const startedRunInfo = this.runsTracker.currentRuns[runName];
         if (startedRunInfo) {
             return this.trackedRun(runName, startedRunInfo.runId);
@@ -95,19 +112,19 @@ export class OrchestratorApifyClient extends ApifyClient {
         return undefined;
     }
 
-    override actor(id: string): QueuedActorClient {
-        return new QueuedActorClient(
+    override actor(id: string): ExtActorClient {
+        return new ExtActorClient(
             super.actor(id),
             this.customLogger,
             this.runsTracker,
             (runRequest) => this.enqueue(runRequest, false),
             (runRequest) => this.enqueue(runRequest, true),
-            this.orchestratorOptions.fixedInput,
+            this.fixedInput,
         );
     }
 
-    override dataset<T extends DatasetItem>(id: string): IterableDatasetClient<T> {
-        return new IterableDatasetClient<T>(super.dataset(id), this.customLogger);
+    override dataset<T extends DatasetItem>(id: string): ExtDatasetClient<T> {
+        return new ExtDatasetClient<T>(super.dataset(id), this.customLogger);
     }
 
     override run(id: string): RunClient {
@@ -115,20 +132,8 @@ export class OrchestratorApifyClient extends ApifyClient {
         return runName ? this.trackedRun(runName, id) : super.run(id);
     }
 
-    async startOrchestrator(orchestratorOptions = {} as Partial<OrchestratorOptions>) {
-        // Init logger
-        if (this.orchestratorOptions.enableLogs) { this.customLogger = enabledLogger; }
-        this.customLogger.info('Starting Apify orchestrator');
-
-        // Set option from user preferences, or default
-        this.orchestratorOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...orchestratorOptions };
-
-        // Init tracker
-        await this.runsTracker.init(
-            this.customLogger,
-            this.orchestratorOptions.persistSupport,
-            this.orchestratorOptions.persistPrefix,
-        );
+    async startScheduler() {
+        this.customLogger.info('Starting Apify client\' scheduler', { clientName: this.clientName });
 
         // Do not allow more than one main loop operation to execute at once.
         let mainLoopLock = false;
@@ -172,7 +177,7 @@ export class OrchestratorApifyClient extends ApifyClient {
             }
         }), MAIN_LOOP_INTERVAL_MS);
 
-        this.statsId = this.orchestratorOptions.statsIntervalSec ? setInterval(() => {
+        this.statsId = this.statIntervalSecs ? setInterval(() => {
             if (Object.keys(this.runsTracker.currentRuns).length === 0) {
                 log.info('ORchestrator report: no Runs yet');
                 return;
@@ -192,24 +197,24 @@ export class OrchestratorApifyClient extends ApifyClient {
                 .join('\n');
 
             log.info(`Orchestrator report:\n${formattedReport}`);
-        }, this.orchestratorOptions.statsIntervalSec * 1000) : undefined;
+        }, this.statIntervalSecs * 1000) : undefined;
 
         Actor.on('aborting', async () => {
-            await this.stopOrchestrator();
-            if (this.orchestratorOptions.abortAllRunsOnGracefulAbort) {
+            await this.stopScheduler();
+            if (this.abortAllRunsOnGracefulAbort) {
                 await this.abortAllRuns();
             }
         });
         Actor.on('exit', async () => {
-            await this.stopOrchestrator();
+            await this.stopScheduler();
         });
         Actor.on('migrating', async () => {
-            await this.stopOrchestrator();
+            await this.stopScheduler();
         });
     }
 
-    async stopOrchestrator() {
-        this.customLogger.info('Stopping Apify orchestrator');
+    async stopScheduler() {
+        this.customLogger.info('Stopping Apify client\' scheduler', { clientName: this.clientName });
 
         // Stop the main loop
         if (this.mainLoopId) {
@@ -229,7 +234,7 @@ export class OrchestratorApifyClient extends ApifyClient {
         }
     }
 
-    async runByName(runName: string): Promise<TrackingRunClient | undefined> {
+    async runByName(runName: string): Promise<ExtRunClient | undefined> {
         let id: string | undefined;
 
         const run = await this.findAndWaitForRunRequest(runName);
@@ -291,18 +296,8 @@ export class OrchestratorApifyClient extends ApifyClient {
         dataset: Dataset<T>,
         options: IterateOptions,
     ): AsyncGenerator<T, void, void> {
-        const datasetIterator = new IterableDatasetClient<T>(dataset.client as DatasetClient<T>, this.customLogger)
+        const datasetIterator = new ExtDatasetClient<T>(dataset.client as DatasetClient<T>, this.customLogger)
             .iterate(options);
-        for await (const item of datasetIterator) {
-            yield item;
-        }
-    }
-
-    async* iterateDatasetFromId<T extends DatasetItem>(
-        datasetId: string,
-        options: IterateOptions,
-    ): AsyncGenerator<T, void, void> {
-        const datasetIterator = this.dataset<T>(datasetId).iterate(options);
         for await (const item of datasetIterator) {
             yield item;
         }
@@ -314,7 +309,7 @@ export class OrchestratorApifyClient extends ApifyClient {
     ): AsyncGenerator<T, void, void> {
         for (const [runName, run] of Object.entries(runRecord)) {
             this.customLogger.prfxInfo(runName, 'Reading default dataset');
-            const datasetIterator = this.iterateDatasetFromId<T>(run.defaultDatasetId, options);
+            const datasetIterator = this.dataset<T>(run.defaultDatasetId).iterate(options);
             for await (const item of datasetIterator) {
                 yield item;
             }

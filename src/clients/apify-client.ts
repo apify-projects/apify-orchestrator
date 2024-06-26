@@ -1,5 +1,5 @@
-import { Actor, ApifyClient, Dataset, log } from 'apify';
-import { ActorRun, ApifyClientOptions, DatasetClient, RunClient } from 'apify-client';
+import { Actor, ApifyClient, log } from 'apify';
+import { ActorRun, ApifyClientOptions, RunClient } from 'apify-client';
 
 import { EnqueuedRequest, ExtActorClient } from './actor-client.js';
 import { ExtDatasetClient } from './dataset-client.js';
@@ -290,17 +290,6 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
                 log.exception(err as Error, 'Error aborting the Run', { runName });
             }
         }));
-    }
-
-    async* iterateDataset<T extends DatasetItem>(
-        dataset: Dataset<T>,
-        options: IterateOptions,
-    ): AsyncGenerator<T, void, void> {
-        const datasetIterator = new ExtDatasetClient<T>(dataset.client as DatasetClient<T>, this.customLogger)
-            .iterate(options);
-        for await (const item of datasetIterator) {
-            yield item;
-        }
     }
 
     async* iterateOutput<T extends DatasetItem>(

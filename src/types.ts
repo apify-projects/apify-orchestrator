@@ -124,7 +124,7 @@ export interface ActorRunRequest {
 export type RunRecord = Record<string, ActorRun>
 
 export function isRunRecord(runRecordOrActorRun: RunRecord | ActorRun): runRecordOrActorRun is RunRecord {
-    return Object.values(runRecordOrActorRun).every((run) => 'defaultDatasetId' in run);
+    return Object.values(runRecordOrActorRun).every((run) => typeof run === 'object' && 'defaultDatasetId' in run);
 }
 
 export type DatasetItem = Record<string | number, unknown>

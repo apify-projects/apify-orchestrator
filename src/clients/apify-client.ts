@@ -168,9 +168,14 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
                         'Starting next',
                         { requiredMemoryGBs, availableMemoryGBs, queue: this.runRequestsQueue.length },
                     );
-                    const run = await runRequest.startRun(input, options);
-                    await this.runsTracker.updateRun(runName, run);
-                    runRequest.startCallbacks.map((callback) => callback(run));
+                    try {
+                        const run = await runRequest.startRun(input, options);
+                        await this.runsTracker.updateRun(runName, run);
+                        runRequest.startCallbacks.map((callback) => callback(run));
+                    } catch (e) {
+                        this.customLogger.prfxError(runName, 'Failed to start Run', { message: (e as Error)?.message });
+                        runRequest.startCallbacks.map((callback) => callback(undefined));
+                    }
                 } else {
                     this.customLogger.error('Something wrong with the Apify orchestrator\'s queue!');
                 }

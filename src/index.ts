@@ -12,7 +12,7 @@ import { RunsTracker } from './tracker.js';
 import { DatasetItem, IterateOptions, OrchestratorOptions, ScheduledApifyClient, ScheduledClientOptions } from './types.js';
 import { CustomLogger, disabledLogger, enabledLogger } from './utils/logging.js';
 
-export const version = '2024-06-26';
+export const version = '2024-06-27';
 
 export * from './types.js';
 

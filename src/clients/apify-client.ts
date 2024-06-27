@@ -96,7 +96,7 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
         if (startPromise) {
             const run = await startPromise;
             if (!run) {
-                throw new Error(`Client not ready to run: ${runName}. Have you called "startOrchestrator"?`);
+                throw new Error(`Error starting Run: ${runName}.`);
             }
             result = run;
         }

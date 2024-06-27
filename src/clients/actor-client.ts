@@ -155,7 +155,7 @@ export class ExtActorClient extends ActorClient implements QueuedActorClient {
         }
 
         if (!run) {
-            throw new Error(`Client not ready to run: ${runName} (${this.id}). Have you called "startOrchestrator"?`);
+            throw new Error(`Error starting Run: ${runName} (${this.id}).`);
         }
 
         return run;

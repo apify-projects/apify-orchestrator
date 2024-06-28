@@ -21,16 +21,16 @@ Each approach has its pros and cons.
 
 ## Main features
 
-Most of the following features are opt-in: you can use just the ones that you need.
+Most of the following features are opt-in: you can use just the ones you need.
 
 - Automatic **memory management**: start a Run when there is enough memory available on the selected account.
+
+- Store the Runs in progress in the Key Value Store and **resume** them after a resurrection, avoiding starting a new, redundant Run.
 
 - Abort all the Runs in progress, triggered by the orchestrator, when the latter is gracefully aborted *(opt-in)*.\
   In this way, you have at your disposal a **kill switch** to stop all the Runs at once, for instance, to keep scraping costs under control.
 
-- Store the Runs in progress in the Key Value Store and **resume** them after a resurrection, avoiding starting a new, redundant Run.
-
-- Avoid to incur in errors due to **Apify API limits**.
+- Avoid to incur in errors due to **too large strings**, e.g., due to JavaScript or Apify API limits.
 
 - Log all the events that occur (a Run starts, finishes, fails...) in a format that is **easy to read and debug**.
 
@@ -57,7 +57,8 @@ npm install apify apify-client crawlee
 
 ## Quick-start
 
-Normally, to call an Actor you would use the Apify client. This is how to do it **without** this library:
+Normally, to call an Actor you would use the Apify client.
+This is one way to do it **without** the Orchestrator library:
 
 ```js
 import { Actor } from 'apify';
@@ -96,14 +97,14 @@ const orchestrator = new Orchestrator({
 });
 
 // Create a new client: you can optionally give it a name
-const client = await orchestrator.apifyClient({ name: 'MAIN-CLIENT', token });
+const client = await orchestrator.apifyClient({ name: 'MY-CLIENT', token });
 
 // Generate the Actor's input
 const urls = ['...', '...', ...];
 const actorInput = { startUrls: urls.map((url) => ({ url })) };
 
 // Call an Actor, creating a new Run, an wait for it to finish
-const run = await client.actor(actorId).call('my-job', actorInput); // here we are giving a name to this Run!
+const run = await client.actor(actorId).call('my-job', actorInput); // here you can give a name to this Run!
 
 // Read the default dataset
 const itemList = await client.dataset(run.defaultDatasetId).listItems({ skipEmpty: true });
@@ -115,10 +116,10 @@ for (const item of itemList.items) {
 ```
 
 The two codes are very similar, but there are already a few advantages to using the Orchestrator:
-we can benefit from logs and regular reports, and the status of the Run is saved into the Key Value Store under the key
-`ORCHESTRATOR-MAIN-CLIENT-RUNS` with the name `my-job`, so if the Orchestrator times out, we can resurrect it, and it
-will wait for the same Run we started initially.
-Moreover, if we gracefully abort the orchestrator while the external Run is in progress, the latter will also be aborted.
+you can benefit from logs and regular reports, and the status of the Run is saved into the Key Value Store under the key
+`ORCHESTRATOR-MY-CLIENT-RUNS` with the name `my-job`, so if the Orchestrator times out, you can resurrect it, and it
+will wait for the same Run you started initially.
+Moreover, if you gracefully abort the orchestrator while the external Run is in progress, the latter will also be aborted.
 
 ## Avoiding size limits
 
@@ -134,7 +135,7 @@ Status code 413: the POST payload is too large (limit: 9437184 bytes, actual len
 Error: Cannot create a string longer than 0x1fffffe8 characters
 ```
 
-To avoid both those cases, we can fix the previous code in this way:
+To avoid both those cases, you can fix the previous code in this way:
 
 ```js
 import { Orchestrator } from './orchestrator/index.js'
@@ -149,10 +150,10 @@ const orchestrator = new Orchestrator({
 });
 
 // Create a new client: you can optionally give it a name
-const client = await orchestrator.apifyClient({ name: 'MAIN-CLIENT', token });
+const client = await orchestrator.apifyClient({ name: 'MY-CLIENT', token });
 
 // These are the sources for the Actor's input
-const urls = ['...', '...', ...];
+const sourceUrls = ['...', '...', ...];
 
 // A function to generate the input, from the sources
 const inputGenerator = (urls) => ({ startUrls: urls.map((url) => ({ url }))});
@@ -160,7 +161,7 @@ const inputGenerator = (urls) => ({ startUrls: urls.map((url) => ({ url }))});
 // Automatically split the input in multiple parts, if necessary, and start multiple Runs
 const runRecord = await client.actor(actorId).callBatch(
     'my-job',                             // the Run/batch name (if multiple Runs are triggered, it will become a prefix)
-    urls,                                 // an array used to generate the input
+    sourceUrls,                           // an array used to generate the input
     inputGenerator,                       // a function to generate the input
     { respectApifyMaxPayloadSize: true }, // tell the Orchestrator to split the input respecting the API limit
 );
@@ -196,6 +197,7 @@ Finally, if you want to split the input yourself, you can do it like this:
 const input1 = { ... }
 const input2 = { ... }
 
+// Use callRuns instead of callBatch, and provide the names and the inputs yourself
 const runRecord = await client.actor(actorId).callRuns(
     { runName: 'my-job-a', input: input1 },
     { runName: 'my-job-b', input: input2 },
@@ -220,8 +222,8 @@ for await (const item of datasetIterator) {
 ## How to abort all the external Runs on timeout or normal abort
 
 You can use the [Children Run Killer](https://github.com/apify-projects/triangle/tree/master/children-run-killer).
-You will need to set it up on your Organization or personal account.
 
+You will need to set it up on your Organization or personal account.
 Then, you can create an Orchestrator with the following settings:
 
 ```js
@@ -243,9 +245,12 @@ const orchestrator = new Orchestrator({
 
 The parameters defined in `fixedInput` will be added to *all* the Runs triggered using the orchestrator object.
 
-## API reference
+## Orchestrator API
 
-See [this file](./src/types.ts).
+Each client provided by this library extends its corresponding client from `apify-client`, e.g., `ScheduledApifyClient`
+extends `ApifyClient`, and you can use any method from its super-class.
+
+For additional information, see [this file](./src/types.ts).
 
 ## Limitations and future improvements
 

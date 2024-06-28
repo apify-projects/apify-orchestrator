@@ -2,14 +2,14 @@
 
 *Last update: 2024-06-28*
 
-An opinionated library built around `apify` and `apify-client`, aiming at providing a nice tool for calling several external Actors in the same Run and gather their results.
+An opinionated library built around `apify` and `apify-client`, aiming at providing a nice tool for calling several external Actors in the same Run and gathering their results.
 
 Differently from other solutions, this library does not force you to run a fixed bunch of Actors in parallel:
 instead, it allows you to trigger one or more new Runs from everywhere in your code, at any moment, giving you maximum flexibility.
 
 ## Disclaimer!
 
-This is a proof of concept, meaning that it could be removed (or moved somewhere else) in any moment.
+This is a proof of concept, meaning that it could be removed (or moved somewhere else) at any moment.
 
 Ideally, I would like to make this tool easily available for everyone in one of these ways:
 
@@ -28,11 +28,11 @@ Most of the following features are opt-in: you can use just the ones that you ne
 - Abort all the Runs in progress, triggered by the orchestrator, when the latter is gracefully aborted *(opt-in)*.\
   In this way, you have at your disposal a **kill switch** to stop all the Runs at once, for instance, to keep scraping costs under control.
 
-- Store the Runs in progress in the Key Value Store and **resume** them after a resurrection, avoiding to start a new, redundant Run.
+- Store the Runs in progress in the Key Value Store and **resume** them after a resurrection, avoiding starting a new, redundant Run.
 
 - Avoid to incur in errors due to **Apify API limits**.
 
-- Log all the events that occur (a Run starts, finishes, fails...) in a format **easy to read and debug**.
+- Log all the events that occur (a Run starts, finishes, fails...) in a format that is **easy to read and debug**.
 
 - Periodically log a **report** listing the Runs and their status.
 
@@ -45,7 +45,7 @@ mkdir PATH_TO_MY_PROJECT/src/orchestrator
 cp -r src/* PATH_TO_MY_PROJECT/src/orchestrator/
 ```
 
-The dependencies of this libraries are:
+The dependencies of these libraries are:
 
 - `apify`
 - `apify-client`
@@ -114,22 +114,22 @@ for (const item of itemList.items) {
 }
 ```
 
-The two codes are very similar, but there are already a few advantages using the Orchestrator:
+The two codes are very similar, but there are already a few advantages to using the Orchestrator:
 we can benefit from logs and regular reports, and the status of the Run is saved into the Key Value Store under the key
-`ORCHESTRATOR-MAIN-CLIENT-RUNS` with the name `my-job`, so, if the Orchestrator times out, we can resurrect it and it
+`ORCHESTRATOR-MAIN-CLIENT-RUNS` with the name `my-job`, so if the Orchestrator times out, we can resurrect it, and it
 will wait for the same Run we started initially.
-Moreover, if we gracefully abort the orchestrator while the external Run is in progress, also the latter will be aborted.
+Moreover, if we gracefully abort the orchestrator while the external Run is in progress, the latter will also be aborted.
 
 ## Avoiding size limits
 
 There are two occasions when you could exceed some limit:
 
-1. when starting a Run and providing an input which is too large, exceeding the API limit:
+1. when starting a Run and providing an input that is too large, exceeding the API limit:
 ```
 Status code 413: the POST payload is too large (limit: 9437184 bytes, actual length: 9453568 bytes)
 ```
 
-2. when you try to read a dataset which is too large, all at once, exceeding the JavaScript string limit.
+2. when you try to read a dataset that is too large all at once, exceeding the JavaScript string limit.
 ```
 Error: Cannot create a string longer than 0x1fffffe8 characters
 ```
@@ -253,4 +253,4 @@ See [this file](./src/types.ts).
 - Set a limit for the number of concurrent Runs
 - Implement other split input options
 - Improve the report
-- Add the number of items currently in the dataset in the report
+- Add the number of items currently in the dataset to the report

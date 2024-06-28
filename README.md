@@ -1,13 +1,13 @@
 # Apify Orchestrator
 
-*Last update: 2024-06-14*
+*Last update: 2024-06-28*
 
-An opinionated library built around the `apify` and `apify-client` packages aiming at providing a nice tool for running several Actors through the Apify's client.
+An opinionated library built around `apify` and `apify-client`, aiming at providing a nice tool for calling several external Actors in the same Run and gather their results.
 
 Differently from other solutions, this library does not force you to run a fixed bunch of Actors in parallel:
-instead, it allows you to trigger one or more new Runs from everywhere in your code, at any moment.
+instead, it allows you to trigger one or more new Runs from everywhere in your code, at any moment, giving you maximum flexibility.
 
-## Disclaimer
+## Disclaimer!
 
 This is a proof of concept, meaning that it could be removed (or moved somewhere else) in any moment.
 
@@ -19,196 +19,233 @@ Ideally, I would like to make this tool easily available for everyone in one of 
 
 Each approach has its pros and cons.
 
-## How to use it?
-
-For the time being, you can copy the content of `src` into a directory in your project of your choice.
-
-The dependencies of this libraries are:
-
-- `apify`
-- `crawlee` (for `got-scraping`)
-
-```bash
-npm install apify crawlee
-```
-
 ## Main features
 
-Most of the following features are opt-in. You can use just the ones that you need.
+Most of the following features are opt-in: you can use just the ones that you need.
 
-- Memory management: ask the orchestrator to run as many Actors in parallel as you want. It will enqueue the requests, and start the Runs when the account will have **enough free memory**.
+- Automatic **memory management**: start a Run when there is enough memory available on the selected account.
 
-- Delegate the Runs to other accounts, providing their **Apify token**. You can provide a token for each Run you start. If you don't provide any, the Run will happen on the same account as the orchestrator.
+- Abort all the Runs in progress, triggered by the orchestrator, when the latter is gracefully aborted *(opt-in)*.\
+  In this way, you have at your disposal a **kill switch** to stop all the Runs at once, for instance, to keep scraping costs under control.
+
+- Store the Runs in progress in the Key Value Store and **resume** them after a resurrection, avoiding to start a new, redundant Run.
+
+- Avoid to incur in errors due to **Apify API limits**.
 
 - Log all the events that occur (a Run starts, finishes, fails...) in a format **easy to read and debug**.
 
 - Periodically log a **report** listing the Runs and their status.
 
-- Abort all the Runs in progress, triggered by the orchestrator, when the latter is gracefully aborted *(opt-in)*.\
-  In this way, you have at your disposal a **kill switch** to stop all the Runs at once, for instance, to keep scraping costs under control.
+## Installation
 
-- Keep the references the triggered Runs upon resurrections, storing the Runs' status in the Key Value Store. This means that, if the orchestrator is aborted and then resurrected (and you did not enable the kill switch), a new Run won't be triggered, and the old one will be reused, instead.
+For the time being, you can copy the content of `src` into a directory in your project of your choice.
 
-- Split an Actor's input in more parts, and trigger a different Run for each one, to speed up operations or to avoid Apify API's errors.
+```bash
+mkdir PATH_TO_MY_PROJECT/src/orchestrator
+cp -r src/* PATH_TO_MY_PROJECT/src/orchestrator/
+```
 
-- **Process the results** produced by each Run using pagination, to avoid Apify API's errors.
+The dependencies of this libraries are:
 
-## Main concepts and examples
+- `apify`
+- `apify-client`
+- `crawlee` (for `got-scraping`)
 
-First you should create an ApifyOrchestrator object.
-You can define some global options, which will be described in detail later:
+```bash
+npm install apify apify-client crawlee
+```
+
+## Quick-start
+
+Normally, to call an Actor you would use the Apify client. This is how to do it **without** this library:
 
 ```js
-const orchestrator = await createOrchestrator({
+import { Actor } from 'apify';
+
+// Create a client
+const client = Actor.newClient({ token });
+
+// Generate the Actor's input
+const urls = ['...', '...', ...];
+const actorInput = { startUrls: urls.map((url) => ({ url })) };
+
+// Call an Actor, creating a new Run, an wait for it to finish
+const run = await client.actor(actorId).call(actorInput);
+
+// Read the default dataset
+const itemList = await client.dataset(run.defaultDatasetId).listItems();
+
+// Process the items
+for (const item of itemList.items) {
+    console.log(item.value);
+}
+```
+
+With the Orchestrator library:
+
+```js
+import { Orchestrator } from './orchestrator/index.js'
+
+// Create the main orchestrator object and pass some options
+const orchestrator = new Orchestrator({
     enableLogs: true,
     statsIntervalSec: 300,
     persistSupport: 'kvs',
     persistPrefix: 'ORCHESTRATOR-',
     abortAllRunsOnGracefulAbort: true,
 });
+
+// Create a new client: you can optionally give it a name
+const client = await orchestrator.apifyClient({ name: 'MAIN-CLIENT', token });
+
+// Generate the Actor's input
+const urls = ['...', '...', ...];
+const actorInput = { startUrls: urls.map((url) => ({ url })) };
+
+// Call an Actor, creating a new Run, an wait for it to finish
+const run = await client.actor(actorId).call('my-job', actorInput); // here we are giving a name to this Run!
+
+// Read the default dataset
+const itemList = await client.dataset(run.defaultDatasetId).listItems({ skipEmpty: true });
+
+// Process the items
+for (const item of itemList.items) {
+    console.log(item.value);
+}
 ```
 
-Then, to trigger a new Run, you should create a `RunRequest` object:
+The two codes are very similar, but there are already a few advantages using the Orchestrator:
+we can benefit from logs and regular reports, and the status of the Run is saved into the Key Value Store under the key
+`ORCHESTRATOR-MAIN-CLIENT-RUNS` with the name `my-job`, so, if the Orchestrator times out, we can resurrect it and it
+will wait for the same Run we started initially.
+Moreover, if we gracefully abort the orchestrator while the external Run is in progress, also the latter will be aborted.
+
+## Avoiding size limits
+
+There are two occasions when you could exceed some limit:
+
+1. when starting a Run and providing an input which is too large, exceeding the API limit:
+```
+Status code 413: the POST payload is too large (limit: 9437184 bytes, actual length: 9453568 bytes)
+```
+
+2. when you try to read a dataset which is too large, all at once, exceeding the JavaScript string limit.
+```
+Error: Cannot create a string longer than 0x1fffffe8 characters
+```
+
+To avoid both those cases, we can fix the previous code in this way:
 
 ```js
-const runRequest = {
-    runName: 'google-search-run', // used internally, and in the logs, to identify this Run
-    actorId: 'apify/google-search-scraper',
-    input: {
-        queries: ['apify', 'crawlee', 'cheerio'].join('\n'),
+import { Orchestrator } from './orchestrator/index.js'
+
+// Create the main orchestrator object and pass some options
+const orchestrator = new Orchestrator({
+    enableLogs: true,
+    statsIntervalSec: 300,
+    persistSupport: 'kvs',
+    persistPrefix: 'ORCHESTRATOR-',
+    abortAllRunsOnGracefulAbort: true,
+});
+
+// Create a new client: you can optionally give it a name
+const client = await orchestrator.apifyClient({ name: 'MAIN-CLIENT', token });
+
+// These are the sources for the Actor's input
+const urls = ['...', '...', ...];
+
+// A function to generate the input, from the sources
+const inputGenerator = (urls) => ({ startUrls: urls.map((url) => ({ url }))});
+
+// Automatically split the input in multiple parts, if necessary, and start multiple Runs
+const runRecord = await client.actor(actorId).callBatch(
+    'my-job',                             // the Run/batch name (if multiple Runs are triggered, it will become a prefix)
+    urls,                                 // an array used to generate the input
+    inputGenerator,                       // a function to generate the input
+    { respectApifyMaxPayloadSize: true }, // tell the Orchestrator to split the input respecting the API limit
+);
+
+// Create an iterator for reading the default dataset
+const datasetIterator = client.iterateOutput(runRecord, {
+    pageSize: 100,   // define a page size to use pagination and avoid exceeding the string limit
+    skipEmpty: true, // you can use the same options used with dataset.listItems
+})
+
+// Process the items
+for await (const item of datasetIterator) {
+    console.log(item.value);
+}
+```
+
+Notice that `runRecord` is an object of this kind:
+
+```js
+{
+    'my-job-1': [object ActorRun],
+    'my-job-2': [object ActorRun],
+    ...
+}
+```
+
+Also, notice the `for await` at the end: it is due to the fact that `datasetIterator` is an [`AsyncGenerator`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator),
+which fetches the first 100 items, iterates over them, then fetches another 100, and so on.
+
+Finally, if you want to split the input yourself, you can do it like this:
+
+```js
+const input1 = { ... }
+const input2 = { ... }
+
+const runRecord = await client.actor(actorId).callRuns(
+    { runName: 'my-job-a', input: input1 },
+    { runName: 'my-job-b', input: input2 },
+);
+```
+
+## How to iterate a locally generated dataset
+
+```js
+const myDataset = await Actor.openDataset('my-named-dataset');
+await myDataset.push(aVeryLargeArray)
+
+// Create an iterator using the ad-hoc Orchestrator method
+const datasetIterator = orchestrator.iterateDataset(myDataset, { pageSize: 100 });
+
+// Process the items
+for await (const item of datasetIterator) {
+    console.log(item.value);
+}
+```
+
+## How to abort all the external Runs on timeout or normal abort
+
+You can use the [Children Run Killer](https://github.com/apify-projects/triangle/tree/master/children-run-killer).
+You will need to set it up on your Organization or personal account.
+
+Then, you can create an Orchestrator with the following settings:
+
+```js
+import { Actor } from 'apify';
+
+import { Orchestrator } from './orchestrator/index.js'
+
+const CHILDREN_RUN_KILLER_INPUT_PARAMS = {
+    __watchedRun: {
+        parentRunId: Actor.getEnv().actorRunId,
+        apifyUserId: Actor.getEnv().userId,
     },
-    options: {
-        timeout: 600,
-    },
-    apifyToken: '***',
 };
-```
 
-### Trigger a Run and wait for it to finish
-
-```js
-const runRecord = await orchestrator.startAndWaitFinish(runRequest);
-
-// On finish
-console.log(runRecord); // { "google-search-run": [object ActorRun] }
-
-// If any API error occurred
-console.log(runRecord); // { "google-search-run": null }
-```
-
-### Enqueue a Run synchronously and wait for it to finish later
-
-```js
-const report = orchestrator.enqueue(runRequest)
-
-// Check if the run request was correctly enqueued
-console.log(report) // { "google-search-run": true }
-
-// Do some stuff...
-
-const runRecord = await orchestrator.waitFinish(runRequest.runName);
-```
-
-### Wait for a run to start, print its ID, then wait for it to finish
-
-```js
-const startedRunRecord = await orchestrator.start(runRequest);
-
-console.log(startedRunRecord[runRequest.runName].runId);
-
-const finishedRunRecord = await orchestrator.waitFinish(runRequest.runName)
-```
-
-### Generate several input chunks, and start a Run for each one
-
-TODO: say why
-
-```js
-// A very, very long input array
-const sourceArray = ['apify', 'crawlee', 'cheerio', ..., 'playwright', 'puppeteer', 'scraping', ...];
-
-// A function which generates some input from a portion of the array
-const inputGenerator = (sourceArray) => ({ queries: sourceArray.join('\n') });
-
-// The rules for splitting the input
-const rules = { respectApifyPayloadLimit: true };
-
-// Generate the input chunks
-const inputChunks = generateInputChunks(sourceArray, inputGenerator, rules);
-
-console.log(inputChunks.length); // 3
-
-// A master RunRequest to start from (there is no input here: it will be filled later)
-const masterRunRequest = {
-    runName: 'google-search-run',
-    actorId: 'apify/google-search-scraper',
-    options: {
-        timeout: 600,
-    },
-    apifyToken: '***',
-}
-
-// Generate the requests, one for each input chunk
-const runRequests = generateRunRequests(masterRunRequest, inputChunks);
-
-console.log(runRequests.length); // 3
-
-// A different input was added to each request
-console.log(runRequests[0].input); // { queries: 'apify\ncrawlee\ncheerio...' }
-console.log(runRequests[1].input); // { queries: 'playwright\npuppeteer\nscraping...' }
-console.log(runRequests[2].input); // { queries: '...' }
-
-// Will wait for all the Runs to complete
-const runRecord = await orchestrator.startAndWaitFinish(...runRequests);
-
-console.log(JSON.stringify(runRecord, null, 2));
-> {
->   "google-search-run-1/3": [object ActorRun],
->   "google-search-run-2/3": [object ActorRun],
->   "google-search-run-3/3": [object ActorRun],
-> }
-```
-
-### Iterate over the results (even across different Runs!), using pagination
-
-```js
-const runRecord = await orchestrator.startAndWaitFinish(...runRequests);
-
-console.log(Object.keys(runRecord).length) // 3
-
-const pageSize = 100;
-const datasetOptions = { fields: ['id', 'name', 'date'] }
-
-const resultsIterator = orchestrator.iteratePaginatedResults(runRecord, pageSize, datasetOptions);
-
-for await (const item of resultsIterator) {
-    const { id, name, date } = item;
-    // Do some stuff...
-}
-```
-
-### Use the [Children Run Killer](https://github.com/apify-projects/triangle/tree/master/children-run-killer)
-
-Thanks to the following global option, each Run will have some extra input parameters, which will allow the Children Run Killer to identify the orchestrator and abort the Runs in case the latter crashes.
-
-```js
-const orchestrator = createOrchestrator({
-    extraInputParamsBuilder: () => ({
-        __watchedRun: {
-            parentRunId: Actor.getEnv().actorRunId,
-            apifyUserId: Actor.getEnv().userId,
-        },
-    }),
+const orchestrator = new Orchestrator({
+    fixedInput: CHILDREN_RUN_KILLER_INPUT_PARAMS,
 });
 ```
 
+The parameters defined in `fixedInput` will be added to *all* the Runs triggered using the orchestrator object.
+
 ## API reference
 
-TODO: API
-
-## Orchestrator options
-
-TODO: options
+See [this file](./src/types.ts).
 
 ## Limitations and future improvements
 

@@ -9,17 +9,24 @@ import { ExtApifyClient } from './clients/apify-client.js';
 import { ExtDatasetClient } from './clients/dataset-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS } from './constants.js';
 import { RunsTracker } from './tracker.js';
-import { DatasetItem, IterateOptions, OrchestratorOptions, ScheduledApifyClient, ScheduledClientOptions } from './types.js';
+import {
+    ApifyOrchestrator,
+    DatasetItem,
+    IterateOptions,
+    OrchestratorOptions,
+    ScheduledApifyClient,
+    ScheduledClientOptions,
+} from './types.js';
 import { CustomLogger, disabledLogger, enabledLogger } from './utils/logging.js';
 
-export const version = '2024-06-27';
+export const version = '2024-06-28';
 
 export * from './types.js';
 
 // Use a singleton counter shared among all Orchestrator instances.
 let clientsCounter = 0;
 
-export class Orchestrator {
+export class Orchestrator implements ApifyOrchestrator {
     protected options: OrchestratorOptions;
     protected customLogger: CustomLogger;
 
@@ -28,7 +35,7 @@ export class Orchestrator {
         this.customLogger = this.options.enableLogs ? enabledLogger : disabledLogger;
     }
 
-    apifyClient = async (options: ScheduledClientOptions = {}): Promise<ScheduledApifyClient> => {
+    async apifyClient(options: ScheduledClientOptions = {}): Promise<ScheduledApifyClient> {
         const { name, ...apifyClientOptions } = options;
 
         clientsCounter++;
@@ -51,7 +58,7 @@ export class Orchestrator {
         await client.startScheduler();
 
         return client;
-    };
+    }
 
     async* iterateDataset<T extends DatasetItem>(
         dataset: Dataset<T>,

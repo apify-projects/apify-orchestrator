@@ -1,6 +1,8 @@
 # Apify Orchestrator
 
-*Last update: 2024-06-28*
+**0.1.0**
+
+*Last update: 2024-07-08*
 
 An opinionated library built around `apify` and `apify-client`, aiming at providing a nice tool for calling several external Actors in the same Run and gathering their results.
 
@@ -244,6 +246,23 @@ const orchestrator = new Orchestrator({
 ```
 
 The parameters defined in `fixedInput` will be added to *all* the Runs triggered using the orchestrator object.
+
+## How to hide sensible information from the user
+
+Sensible information, such as Run IDs, can be logged or stored into the Key Value Store,
+depending on the Orchestrator's configuration.
+If you would like to keep using logs and persistance, but you want to hide such information, set these options:
+
+```js
+import { Orchestrator } from './orchestrator/index.js'
+
+const orchestrator = new Orchestrator({
+    enableLogs: true,
+    hideSensibleInformation: true, // will hide information such as Run IDs from logs
+    persistSupport: 'kvs', // will enable persistance-related features, such as managing resurrections
+    persistEncryptionKey: 'my-secret-key', // will make data written by the Orchestrator into the Key Value Store encrypted
+});
+```
 
 ## Orchestrator API
 

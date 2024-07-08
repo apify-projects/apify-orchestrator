@@ -1,5 +1,6 @@
-import { Actor } from 'apify';
+import { Actor, KeyValueStore } from 'apify';
 
+import { openEncryptedKeyValueStore } from './key-value-store.js';
 import { PersistSupport } from '../types.js';
 
 type Updater<T> = T | ((prev: T) => T)
@@ -10,7 +11,7 @@ function isCallback<T>(maybeFunction: Updater<T>): maybeFunction is ((prev: T) =
 
 export class State<T> {
     protected key: string | undefined;
-    protected persistSupport: PersistSupport = 'none';
+    protected kvStore: KeyValueStore | undefined;
 
     protected memoryValue: T;
 
@@ -18,13 +19,27 @@ export class State<T> {
         this.memoryValue = defaultValue;
     }
 
-    async sync(key: string, persistSupport: PersistSupport = 'none') {
+    /**
+     * @returns the exit of the sync operation.
+     */
+    async sync(key: string, persistSupport: PersistSupport = 'none', encryptionKey?: string): Promise<boolean> {
         this.key = key;
-        this.persistSupport = persistSupport;
-        const storedValue = await Actor.getValue<T>(this.key);
-        if (storedValue) this.memoryValue = storedValue;
-        else {
-            await Actor.setValue(this.key, this.memoryValue);
+        if (persistSupport === 'none') { return true; }
+        const kvStore = encryptionKey
+            ? await openEncryptedKeyValueStore(encryptionKey)
+            : await Actor.openKeyValueStore();
+        this.kvStore = kvStore;
+        try {
+            const storedValue = await kvStore.getValue<T>(this.key);
+            if (storedValue) {
+                this.memoryValue = storedValue;
+            } else {
+                await kvStore.setValue(this.key, this.memoryValue);
+            }
+            return true;
+        } catch {
+            await kvStore.setValue(this.key, this.memoryValue);
+            return false;
         }
     }
 
@@ -33,8 +48,8 @@ export class State<T> {
     async update(upd: Updater<T>) {
         if (isCallback(upd)) this.memoryValue = upd(this.memoryValue);
         else this.memoryValue = upd;
-        if (this.key && this.persistSupport === 'kvs') {
-            await Actor.setValue(this.key, this.memoryValue);
+        if (this.key && this.kvStore) {
+            await this.kvStore.setValue(this.key, this.memoryValue);
         }
     }
 }

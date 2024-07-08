@@ -42,18 +42,31 @@ export interface OrchestratorOptions {
      * - `none`: disable persistance
      *
      * **WARNING**: persistance may leak sensible information to the user, such as external runs' IDs.
-     * Setting `persistSupport` to `none` makes sense if `hideSensibleInformation` is true.
+     * If you don't want the information in the Key Value Store to be readable to anyone having access to it,
+     * set a `persistEncryptionKey`.
      *
      * @default none
      */
     persistSupport: PersistSupport
 
     /**
-     * Used to persist data on the KeyValueStore.
+     * Used to persist data in the Key Value Store.
      *
      * @default ORCHESTRATOR-
      */
     persistPrefix: string
+
+    /**
+     * Define an encryption key if you desire to use persistence, while still hiding sensible information from the user.
+     *
+     * **WARNING**: if you want to hide sensible information, also set `hideSensibleInformation` to true,
+     * otherwise such information will be still visible through logs.
+     *
+     * To allow persistency to work correctly, the same key should be provided upon resurrection.
+     *
+     * @default undefined
+     */
+    persistEncryptionKey?: string
 
     /**
      * Some fixed input parameters to add to each Run.

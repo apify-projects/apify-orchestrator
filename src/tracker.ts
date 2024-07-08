@@ -65,10 +65,24 @@ export class RunsTracker {
     /**
      * Sync with the persisted data.
      */
-    async init(persistSupport: PersistSupport = 'none', persistPrefix = 'ORCHESTRATOR-') {
-        await this.currentRunsState.sync(`${persistPrefix}${RUNS_KEY}`, persistSupport);
+    async init(persistSupport: PersistSupport = 'none', persistPrefix = 'ORCHESTRATOR-', persistEncryptionKey?: string) {
+        let wasSyncSuccessful = await this.currentRunsState.sync(
+            `${persistPrefix}${RUNS_KEY}`,
+            persistSupport,
+            persistEncryptionKey,
+        );
         if (this.enableFailedHistory) {
-            await this.failedRunsHistoryState.sync(`${persistPrefix}${FAILED_RUNS_KEY}`, persistSupport);
+            wasSyncSuccessful = wasSyncSuccessful && await this.failedRunsHistoryState.sync(
+                `${persistPrefix}${FAILED_RUNS_KEY}`,
+                persistSupport,
+                persistEncryptionKey,
+            );
+        }
+        if (!wasSyncSuccessful) {
+            this.customLogger.error(
+                'Some error happened while syncing the Orchestrator with the chosen support',
+                { persistSupport },
+            );
         }
     }
 

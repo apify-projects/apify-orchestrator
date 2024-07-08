@@ -19,7 +19,7 @@ import {
 } from './types.js';
 import { CustomLogger } from './utils/logging.js';
 
-export const version = '0.0.2';
+export const version = '0.1.0';
 
 export * from './types.js';
 
@@ -46,7 +46,11 @@ export class Orchestrator implements ApifyOrchestrator {
             enableFailedRunsHistory,
         );
         const clientName = name ?? `CLIENT-${clientsCounter}`;
-        await runsTracker.init(this.options.persistSupport, `${this.options.persistPrefix}${clientName}-`);
+        await runsTracker.init(
+            this.options.persistSupport,
+            `${this.options.persistPrefix}${clientName}-`,
+            this.options.persistEncryptionKey,
+        );
 
         const client = new ExtApifyClient(
             clientName,

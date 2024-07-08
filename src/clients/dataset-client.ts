@@ -21,7 +21,7 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
 
     async* iterate(options: IterateOptions = {}): AsyncGenerator<T, void, void> {
         const { pageSize, ...listItemOptions } = options;
-        this.customLogger.info('Iterating Dataset', { url: this.url, pageSize });
+        this.customLogger.info('Iterating Dataset', { pageSize }, { url: this.url });
 
         let totalItems = 0;
 
@@ -45,6 +45,6 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             }
         }
 
-        this.customLogger.info('Finished reading dataset', { totalItems, url: this.url });
+        this.customLogger.info('Finished reading dataset', { totalItems }, { url: this.url });
     }
 }

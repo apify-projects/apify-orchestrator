@@ -4,7 +4,8 @@ export const MAIN_LOOP_INTERVAL_MS = 1000;
 
 export const DEFAULT_ORCHESTRATOR_OPTIONS: OrchestratorOptions = {
     enableLogs: true,
-    persistSupport: 'kvs',
+    hideSensibleInformation: true,
+    persistSupport: 'none',
     persistPrefix: 'ORCHESTRATOR-',
     abortAllRunsOnGracefulAbort: true,
 };

@@ -17,6 +17,7 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
     protected clientName: string;
     protected customLogger: CustomLogger;
     protected runsTracker: RunsTracker;
+    protected hideSensibleInformation: boolean;
     protected fixedInput: object | undefined;
     protected statIntervalSecs: number | undefined;
     protected abortAllRunsOnGracefulAbort: boolean;
@@ -31,6 +32,7 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
         fixedInput: object | undefined,
         statsIntervalSec: number | undefined,
         abortAllRunsOnGracefulAbort: boolean,
+        hideSensibleInformation: boolean,
         options: ApifyClientOptions = {},
     ) {
         if (!options.token) { options.token = Actor.apifyClient.token; }
@@ -38,6 +40,7 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
         this.clientName = clientName;
         this.customLogger = customLogger;
         this.runsTracker = runsTracker;
+        this.hideSensibleInformation = hideSensibleInformation;
         this.fixedInput = fixedInput;
         this.statIntervalSecs = statsIntervalSec;
         this.abortAllRunsOnGracefulAbort = abortAllRunsOnGracefulAbort;
@@ -58,15 +61,10 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
         const { runName } = runRequest;
 
         if (!force) {
-            const existingRunInfo = this.runsTracker.currentRuns[runName];
+            const existingRunInfo = this.runsTracker.findRunByName(runName);
 
             // If the Run exists and has not failed, keep it
             if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
-                this.customLogger.prfxInfo(
-                    runName,
-                    'Found existing Run: checking it',
-                    { runId: existingRunInfo.runId },
-                );
                 return this.trackedRun(runName, existingRunInfo.runId);
             }
         }
@@ -166,7 +164,8 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
                     this.customLogger.prfxInfo(
                         runName,
                         'Starting next',
-                        { requiredMemoryGBs, availableMemoryGBs, queue: this.runRequestsQueue.length },
+                        { queue: this.runRequestsQueue.length, requiredMemoryGBs },
+                        { availableMemoryGBs },
                     );
                     try {
                         const run = await runRequest.startRun(input, options);

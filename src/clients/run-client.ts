@@ -42,7 +42,11 @@ export class ExtRunClient extends RunClient implements TrackedRunClient {
 
     override async get(options?: RunGetOptions): Promise<ActorRun | undefined> {
         const run = await this.superClient.get(options);
-        if (run) { await this.runsTracker.updateRun(this.runName, run); }
+        if (run) {
+            await this.runsTracker.updateRun(this.runName, run);
+        } else {
+            await this.runsTracker.declareLostRun(this.runName, 'Actor client could not retrieve the Run');
+        }
         return run;
     }
 
@@ -53,12 +57,12 @@ export class ExtRunClient extends RunClient implements TrackedRunClient {
     }
 
     override async delete(): Promise<void> {
-        this.customLogger.prfxWarn(this.runName, 'Delete Run is not supported yet.');
+        this.customLogger.prfxWarn(this.runName, 'Delete Run is not supported yet in the Orchestrator.');
         await this.superClient.delete();
     }
 
     override async metamorph(targetActorId: string, input: unknown, options?: RunMetamorphOptions | undefined): Promise<ActorRun> {
-        this.customLogger.prfxWarn(this.runName, 'Metamorph Run is not supported yet.');
+        this.customLogger.prfxWarn(this.runName, 'Metamorph Run is not supported yet in the Orchestrator.');
         return this.superClient.metamorph(targetActorId, input, options);
     }
 
@@ -81,7 +85,7 @@ export class ExtRunClient extends RunClient implements TrackedRunClient {
     }
 
     override async waitForFinish(options?: RunWaitForFinishOptions): Promise<ActorRun> {
-        this.customLogger.prfxInfo(this.runName, 'Waiting for finish', { url: this.url });
+        this.customLogger.prfxInfo(this.runName, 'Waiting for finish');
         const run = await this.superClient.waitForFinish(options);
         await this.runsTracker.updateRun(this.runName, run);
         return run;

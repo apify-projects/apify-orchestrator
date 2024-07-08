@@ -14,36 +14,61 @@ import {
 
 export interface OrchestratorOptions {
     /**
-     * `true` by default.
+     * @default true
      */
     enableLogs: boolean
 
     /**
-     * `undefined` by default. If defined, the current Runs will be logged periodically.
+     * Hide sensible data from logs, such as Run IDs and URLs.
+     *
+     * **WARNING**: if you enable persistance without an encryption key,
+     * the user will be able to retrieve the hidden data from the Key Value Store.
+     *
+     * @default true
+     */
+    hideSensibleInformation: boolean
+
+    /**
+     * If defined, the current Runs will be logged periodically.
+     *
+     * @default undefined
      */
     statsIntervalSec?: number
 
     /**
-     * `kvs` by default: the orchestrator data will be persisted on the KeyValueStore. Choose `none` to disable.
+     * Which support to use for persistance:
+     *
+     * - `kvs`: Key Value Store
+     * - `none`: disable persistance
+     *
+     * **WARNING**: persistance may leak sensible information to the user, such as external runs' IDs.
+     * Setting `persistSupport` to `none` makes sense if `hideSensibleInformation` is true.
+     *
+     * @default none
      */
     persistSupport: PersistSupport
 
     /**
-     * `ORCHESTRATOR-` by default. Used to persist data on the KeyValueStore.
+     * Used to persist data on the KeyValueStore.
+     *
+     * @default ORCHESTRATOR-
      */
     persistPrefix: string
 
     /**
-     * `undefined` by default.
      * Some fixed input parameters to add to each Run.
+     *
+     * @default undefined
      */
     fixedInput?: object
 
     /**
-     * `true` by default. Abort all Runs on graceful abort of the Orchestrator.
+     * Abort all Runs started by the Orchestrator on graceful abort.
      *
      * Notice that, if disabled, a function that is waiting for a Run to finish
      * may not notice when the orchestrator is aborted and will be killed abruptly.
+     *
+     * @default true
      */
     abortAllRunsOnGracefulAbort: boolean
 }

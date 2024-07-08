@@ -162,26 +162,16 @@ export class ExtActorClient extends ActorClient implements QueuedActorClient {
     }
 
     override async start(runName: string, input?: object, options?: ActorStartOptions): Promise<ActorRun> {
-        const existingRunInfo = this.runsTracker.currentRuns[runName];
+        const existingRunInfo = this.runsTracker.findRunByName(runName);
 
         // If the Run exists and has not failed, use it
         if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
-            this.customLogger.prfxInfo(
-                runName,
-                'Found existing Run: checking it',
-                { runId: existingRunInfo.runId },
-            );
             const runClient = this.generateRunOrchestratorClient(runName, existingRunInfo.runId);
             const run = await runClient.get();
             // Return the existing Run, if available, otherwise start a new one
             if (run) {
                 return run;
             }
-            this.customLogger.prfxInfo(
-                runName,
-                'Cannot retrieve existing Run: starting a new one',
-                { runId: existingRunInfo.runId },
-            );
         }
 
         return this.enqueueAndWaitForStart(runName, input, options);

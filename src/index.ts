@@ -17,9 +17,9 @@ import {
     ScheduledApifyClient,
     ScheduledClientOptions,
 } from './types.js';
-import { CustomLogger, disabledLogger, enabledLogger } from './utils/logging.js';
+import { CustomLogger } from './utils/logging.js';
 
-export const version = '2024-06-28';
+export const version = '0.0.2';
 
 export * from './types.js';
 
@@ -32,7 +32,7 @@ export class Orchestrator implements ApifyOrchestrator {
 
     constructor(options: Partial<OrchestratorOptions> = {}) {
         this.options = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...options };
-        this.customLogger = this.options.enableLogs ? enabledLogger : disabledLogger;
+        this.customLogger = new CustomLogger(this.options.enableLogs, this.options.hideSensibleInformation);
     }
 
     async apifyClient(options: ScheduledClientOptions = {}): Promise<ScheduledApifyClient> {
@@ -40,11 +40,13 @@ export class Orchestrator implements ApifyOrchestrator {
 
         clientsCounter++;
 
-        const clientName = name ?? `CLIENT-${clientsCounter}`;
-        const runsTracker = new RunsTracker();
-        await runsTracker.init(
-            this.customLogger, this.options.persistSupport, `${this.options.persistPrefix}${clientName}-`,
+        const enableFailedRunsHistory = !this.options.hideSensibleInformation;
+        const runsTracker = new RunsTracker(
+            this.customLogger,
+            enableFailedRunsHistory,
         );
+        const clientName = name ?? `CLIENT-${clientsCounter}`;
+        await runsTracker.init(this.options.persistSupport, `${this.options.persistPrefix}${clientName}-`);
 
         const client = new ExtApifyClient(
             clientName,
@@ -53,6 +55,7 @@ export class Orchestrator implements ApifyOrchestrator {
             this.options.fixedInput,
             this.options.statsIntervalSec,
             this.options.abortAllRunsOnGracefulAbort,
+            this.options.hideSensibleInformation,
             apifyClientOptions,
         );
         await client.startScheduler();

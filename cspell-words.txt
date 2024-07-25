@@ -1,8 +1,10 @@
 apify
+cobertura
 crawlee
 dedup
 Gbytes
 Gullo
+lcov
 lukaskrivka
 Mbytes
 metamorph

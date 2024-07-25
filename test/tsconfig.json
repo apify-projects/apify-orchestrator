@@ -1,0 +1,17 @@
+{
+    "extends": "../tsconfig.json",
+    "include": [
+        "**/*",
+        "../src/**/*"
+    ],
+    "compilerOptions": {
+        "sourceMap": true,
+        "noUnusedLocals": false,
+        "noUnusedParameters": false,
+        "strictNullChecks": false,
+        "types": ["vitest/globals"],
+        "module": "Node16",
+        "moduleResolution": "Node16",
+        "resolveJsonModule": true
+    }
+}

@@ -11,7 +11,8 @@
         "dist"
     ],
     "scripts": {
-        "build": "tsc"
+        "build": "tsc",
+        "test": "vitest"
     },
     "keywords": [
         "apify",
@@ -32,7 +33,9 @@
         "@apify/eslint-config-ts": "^0.4.1",
         "@apify/tsconfig": "^0.1.0",
         "eslint": "^8.57.0",
-        "typescript": "^5.5.2"
+        "typescript": "^5.5.2",
+        "vite-tsconfig-paths": "^4.3.2",
+        "vitest": "^2.0.2"
     },
     "dependencies": {
         "apify": "^3.2.3",

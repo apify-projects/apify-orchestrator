@@ -193,7 +193,8 @@ Notice that `runRecord` is an object of this kind:
 Also, notice the `for await` at the end: it is due to the fact that `datasetIterator` is an [`AsyncGenerator`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator),
 which fetches the first 100 items, iterates over them, then fetches another 100, and so on.
 
-Finally, if you want to split the input yourself, you can do it like this:
+Be aware that, with the current implementation, input splitting may be quite slow.
+If you would prefer to split the input yourself, you can do it like this:
 
 ```js
 const input1 = { ... }

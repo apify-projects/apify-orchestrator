@@ -188,6 +188,8 @@ export interface QueuedActorClient extends ActorClient {
     /**
      * Enqueues one or more requests for new Runs, given the parameters to generate input batches.
      *
+     * WARNING: with the current implementation, input splitting may be quite slow.
+     *
      * @param namePrefix the prefix for each Run's name; if just one Run is enqueued, it is the full name
      * @param sources an array used to generate the input batches
      * @param inputGenerator the function used to generate the input batches
@@ -216,6 +218,8 @@ export interface QueuedActorClient extends ActorClient {
     /**
      * Starts one or more requests for new Runs, given the parameters to generate input batches.
      *
+     * WARNING: with the current implementation, input splitting may be quite slow.
+     *
      * @param namePrefix the prefix for each Run's name; if just one Run is started, it is the full name
      * @param sources an array used to generate the input batches
      * @param inputGenerator the function used to generate the input batches
@@ -243,6 +247,8 @@ export interface QueuedActorClient extends ActorClient {
 
     /**
      * Starts and waits for one or more requests for new Runs, given the parameters to generate input batches.
+     *
+     * WARNING: with the current implementation, input splitting may be quite slow.
      *
      * @param namePrefix the prefix for each Run's name; if just one Run is started, it is the full name
      * @param sources an array used to generate the input batches

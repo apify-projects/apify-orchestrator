@@ -19,7 +19,7 @@ import {
 } from './types.js';
 import { CustomLogger } from './utils/logging.js';
 
-export const version = '0.1.0';
+export const version = '0.1.1';
 
 export * from './types.js';
 

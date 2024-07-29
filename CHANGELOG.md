@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 - 2024-07-29
+
+### Changed
+
+- Use `fetch` instead of `gotScraping` for getting user memory
+
 ## 0.1.0 - 2024-07-08
 
 ### Changed

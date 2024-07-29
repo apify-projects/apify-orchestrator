@@ -51,7 +51,7 @@ The dependencies of these libraries are:
 
 - `apify`
 - `apify-client`
-- `crawlee` (for `got-scraping`)
+- `crawlee`
 
 ```bash
 npm install apify apify-client crawlee

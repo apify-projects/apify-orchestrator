@@ -4,7 +4,8 @@
 
 ### Changed
 
-- Use `fetch` instead of `gotScraping` for getting user memory
+- Use `fetch` instead of `gotScraping` for getting user memory.
+- Fix input split bug.
 
 ## 0.1.0 - 2024-07-08
 

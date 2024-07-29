@@ -10,7 +10,7 @@ export function splitIntoChunksWithMaxSize<T>(
 
     while (
         parts < sources.length
-        && inputs.every((input) => strBytes(JSON.stringify(input)) > maxBytesSize)
+        && inputs.some((input) => strBytes(JSON.stringify(input)) > maxBytesSize)
     ) {
         parts++;
         const size = Math.ceil(sources.length / parts);

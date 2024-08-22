@@ -12,7 +12,8 @@
     ],
     "scripts": {
         "build": "tsc",
-        "test": "vitest"
+        "test": "vitest",
+        "coverage": "vitest --coverage"
     },
     "keywords": [
         "apify",
@@ -32,6 +33,7 @@
     "devDependencies": {
         "@apify/eslint-config-ts": "^0.4.1",
         "@apify/tsconfig": "^0.1.0",
+        "@vitest/coverage-v8": "^2.0.5",
         "eslint": "^8.57.0",
         "typescript": "^5.5.2",
         "vite-tsconfig-paths": "^4.3.2",

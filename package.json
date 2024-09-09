@@ -12,6 +12,8 @@
     ],
     "scripts": {
         "build": "tsc",
+        "lint": "eslint ./src --ext .ts",
+        "lint:fix": "eslint ./src --ext .ts --fix",
         "test": "vitest",
         "coverage": "vitest --coverage"
     },
@@ -35,13 +37,13 @@
         "@apify/tsconfig": "^0.1.0",
         "@vitest/coverage-v8": "^2.0.5",
         "eslint": "^8.57.0",
-        "typescript": "^5.5.2",
+        "typescript": "^5.5.4",
         "vite-tsconfig-paths": "^4.3.2",
-        "vitest": "^2.0.2"
+        "vitest": "^2.0.5"
     },
     "dependencies": {
-        "apify": "^3.2.3",
-        "apify-client": "^2.9.3",
-        "crawlee": "^3.10.5"
+        "apify": "^3.2.5",
+        "apify-client": "^2.9.5",
+        "crawlee": "^3.11.3"
     }
 }

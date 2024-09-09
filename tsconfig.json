@@ -1,6 +1,13 @@
 {
     "extends": "@apify/tsconfig",
     "compilerOptions": {
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "target": "ES2022",
+        "outDir": "dist",
+        "noUnusedLocals": false,
+        "skipLibCheck": true,
+        "lib": ["DOM", "ES2021.String"],
         "baseUrl": ".",
         "paths": {
             "apify-orchestrator": ["src"]

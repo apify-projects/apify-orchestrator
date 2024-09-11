@@ -1,5 +1,6 @@
 apify
 cobertura
+COOLDOWN
 crawlee
 dedup
 Gbytes

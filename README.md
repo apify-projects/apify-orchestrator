@@ -1,8 +1,8 @@
 # Apify Orchestrator
 
-**0.1.1**
+**0.2.0**
 
-*Last update: 2024-07-29*
+*Last README update: 2024-09-10*
 
 An opinionated library built around `apify` and `apify-client`, aiming at providing a nice tool for calling several external Actors in the same Run and gathering their results.
 
@@ -25,7 +25,7 @@ Each approach has its pros and cons.
 
 Most of the following features are opt-in: you can use just the ones you need.
 
-- Automatic **memory management**: start a Run when there is enough memory available on the selected account.
+- Automatic **resources management**: start a Run when there is enough memory and Actor jobs available on the selected account.
 
 - Store the Runs in progress in the Key Value Store and **resume** them after a resurrection, avoiding starting a new, redundant Run.
 
@@ -213,8 +213,10 @@ const runRecord = await client.actor(actorId).callRuns(
 const myDataset = await Actor.openDataset('my-named-dataset');
 await myDataset.push(aVeryLargeArray)
 
+const client = await orchestrator.apifyClient();
+
 // Create an iterator using the ad-hoc Orchestrator method
-const datasetIterator = orchestrator.iterateDataset(myDataset, { pageSize: 100 });
+const datasetIterator = client.dataset(myDataset.id).iterate({ pageSize: 100 });
 
 // Process the items
 for await (const item of datasetIterator) {

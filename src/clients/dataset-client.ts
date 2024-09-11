@@ -1,13 +1,16 @@
-import { DatasetClient } from 'apify-client';
+import { ActorRun, Dataset, DatasetClient } from 'apify-client';
 
-import { DatasetItem, IterableDatasetClient, IterateOptions } from '../types.js';
+import { RunsTracker } from '../tracker.js';
+import { DatasetItem, GreedyIterateOptions, IterableDatasetClient, IterateOptions } from '../types.js';
 import { CustomLogger } from '../utils/logging.js';
 
 export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> implements IterableDatasetClient<T> {
-    protected customLogger: CustomLogger;
     protected superClient: DatasetClient<T>;
+    protected customLogger: CustomLogger;
+    protected runsTracker: RunsTracker;
+    protected enableTracking: boolean;
 
-    constructor(datasetClient: DatasetClient<T>, customLogger: CustomLogger) {
+    constructor(datasetClient: DatasetClient<T>, customLogger: CustomLogger, runsTracker: RunsTracker, enableTracking: boolean) {
         super({
             baseUrl: datasetClient.baseUrl,
             apifyClient: datasetClient.apifyClient,
@@ -17,6 +20,8 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
         });
         this.customLogger = customLogger;
         this.superClient = datasetClient;
+        this.runsTracker = runsTracker;
+        this.enableTracking = enableTracking;
     }
 
     async* iterate(options: IterateOptions = {}): AsyncGenerator<T, void, void> {
@@ -45,6 +50,73 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             }
         }
 
+        if (this.enableTracking) {
+            const dataset = await this.get();
+            const run = (dataset && dataset.actRunId) ? await this.apifyClient.run(dataset.actRunId).get() : undefined;
+            if (run && run.defaultDatasetId === dataset?.id) {
+                const runName = run ? this.runsTracker.findRunName(run.id) : undefined;
+                if (runName) { await this.runsTracker.updateItemsCount(runName, totalItems); }
+            }
+        }
+
         this.customLogger.info('Finished reading dataset', { totalItems }, { url: this.url });
+    }
+
+    async* greedyIterate(options: GreedyIterateOptions = {}): AsyncGenerator<T, void, void> {
+        const { pageSize = 100, itemsThreshold = 100, pollIntervalSecs = 10, ...listItemOptions } = options;
+        this.customLogger.info('Greedily iterating Dataset', { pageSize }, { url: this.url });
+
+        let runName: string | undefined;
+        let readItemsCount = 0;
+
+        let dataset: Dataset | undefined;
+        let run: ActorRun | undefined;
+
+        while (true) {
+            dataset = await this.get();
+            if (!dataset || !dataset.actRunId) {
+                this.customLogger.error('Error getting Dataset while iterating greedily', { id: this.id });
+                return;
+            }
+
+            run = await this.apifyClient.run(dataset.actRunId).get();
+            if (!run) {
+                this.customLogger.error('Error getting Run while iterating Dataset greedily', { id: this.id });
+                return;
+            }
+
+            if (this.enableTracking && run.defaultDatasetId === dataset.id) {
+                if (!runName) {
+                    runName = this.runsTracker.findRunName(run.id);
+                }
+                if (runName) {
+                    await this.runsTracker.updateRun(runName, run);
+                    await this.runsTracker.updateItemsCount(runName, dataset.itemCount);
+                }
+            }
+
+            if (run.status !== 'READY' && run.status !== 'RUNNING') {
+                break;
+            }
+
+            if (dataset.itemCount >= readItemsCount + itemsThreshold) {
+                const itemList = await this.superClient.listItems({ ...listItemOptions, offset: readItemsCount, limit: pageSize });
+                readItemsCount += itemList.count;
+                for (const item of itemList.items) {
+                    yield item;
+                }
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, pollIntervalSecs * 1000));
+        }
+
+        while (readItemsCount < dataset.itemCount) {
+            const itemList = await this.superClient.listItems({ ...listItemOptions, offset: readItemsCount, limit: pageSize });
+            if (itemList.count === 0) { break; }
+            readItemsCount += itemList.count;
+            for (const item of itemList.items) {
+                yield item;
+            }
+        }
     }
 }

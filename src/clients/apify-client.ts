@@ -4,10 +4,11 @@ import { ActorRun, ApifyClientOptions, RunClient } from 'apify-client';
 import { EnqueuedRequest, ExtActorClient } from './actor-client.js';
 import { ExtDatasetClient } from './dataset-client.js';
 import { ExtRunClient } from './run-client.js';
-import { MAIN_LOOP_INTERVAL_MS } from '../constants.js';
+import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
 import { RunsTracker, isRunOkStatus } from '../tracker.js';
-import { DatasetItem, IterateOptions, RunRecord, ScheduledApifyClient, isRunRecord } from '../types.js';
-import { getAvailableMemoryGBs } from '../utils/apify-api.js';
+import { DatasetItem, GreedyIterateOptions, IterateOptions, RunRecord, ScheduledApifyClient, isRunRecord } from '../types.js';
+import { getUserLimits } from '../utils/apify-api.js';
+import { combineAsyncIterators } from '../utils/iterators.js';
 import { CustomLogger } from '../utils/logging.js';
 import { Queue } from '../utils/queue.js';
 
@@ -18,21 +19,22 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
     protected customLogger: CustomLogger;
     protected runsTracker: RunsTracker;
     protected hideSensibleInformation: boolean;
+    protected enableDatasetTracking: boolean;
     protected fixedInput: object | undefined;
-    protected statIntervalSecs: number | undefined;
     protected abortAllRunsOnGracefulAbort: boolean;
 
     protected mainLoopId: NodeJS.Timeout | undefined;
-    protected statsId: NodeJS.Timeout | undefined;
+    protected mainLoopLock = false;
+    protected mainLoopCooldown = 0;
 
     constructor(
         clientName: string,
         customLogger: CustomLogger,
         runsTracker: RunsTracker,
         fixedInput: object | undefined,
-        statsIntervalSec: number | undefined,
         abortAllRunsOnGracefulAbort: boolean,
         hideSensibleInformation: boolean,
+        enableDatasetTracking: boolean,
         options: ApifyClientOptions = {},
     ) {
         if (!options.token) { options.token = Actor.apifyClient.token; }
@@ -41,8 +43,8 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
         this.customLogger = customLogger;
         this.runsTracker = runsTracker;
         this.hideSensibleInformation = hideSensibleInformation;
+        this.enableDatasetTracking = enableDatasetTracking;
         this.fixedInput = fixedInput;
-        this.statIntervalSecs = statsIntervalSec;
         this.abortAllRunsOnGracefulAbort = abortAllRunsOnGracefulAbort;
     }
 
@@ -122,7 +124,7 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
     }
 
     override dataset<T extends DatasetItem>(id: string): ExtDatasetClient<T> {
-        return new ExtDatasetClient<T>(super.dataset(id), this.customLogger);
+        return new ExtDatasetClient<T>(super.dataset(id), this.customLogger, this.runsTracker, this.enableDatasetTracking);
     }
 
     override run(id: string): RunClient {
@@ -130,16 +132,30 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
         return runName ? this.trackedRun(runName, id) : super.run(id);
     }
 
-    async startScheduler() {
+    // "Hidden" methods, which are not declared in the public interface.
+
+    /**
+     * For testing.
+     */
+    get isSchedulerLocked(): boolean {
+        return this.mainLoopLock;
+    }
+
+    startScheduler() {
         this.customLogger.info('Starting Apify client\'s scheduler', { clientName: this.clientName });
 
         // Do not allow more than one main loop operation to execute at once.
-        let mainLoopLock = false;
         const withMainLoopLock = (op: () => Promise<void>) => async () => {
-            if (mainLoopLock) { return; }
-            mainLoopLock = true;
+            if (this.mainLoopCooldown > 0) {
+                this.mainLoopCooldown -= MAIN_LOOP_INTERVAL_MS;
+                return;
+            }
+
+            if (this.mainLoopLock) { return; }
+
+            this.mainLoopLock = true;
             await op();
-            mainLoopLock = false;
+            this.mainLoopLock = false;
         };
 
         // Main loop
@@ -147,17 +163,21 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
             const nextRunRequest = this.runRequestsQueue.peek();
             if (!nextRunRequest) { return; }
 
-            // Check if the next Run has enough memory available
-            const availableMemoryGBs = await getAvailableMemoryGBs(this.token);
+            const userLimits = await getUserLimits(this.token);
+
             const requiredMemoryMBs = nextRunRequest.options?.memory
                     ?? await nextRunRequest.defaultMemoryMbytes()
                     // If no information about memory is available, set the requirement to zero.
                     ?? 0;
             const requiredMemoryGBs = requiredMemoryMBs / 1024;
-            const hasEnoughMemory = availableMemoryGBs >= requiredMemoryGBs;
+            const availableMemoryGBs = userLimits.maxMemoryGBs - userLimits.currentMemoryUsageGBs;
+            const availableActorJobs = userLimits.maxConcurrentActorJobs - userLimits.activeActorJobCount;
+
+            const hasEnoughMemory = availableMemoryGBs - requiredMemoryGBs > 0;
+            const canRunMoreActors = availableActorJobs > 0;
 
             // Start the next run
-            if (hasEnoughMemory) {
+            if (hasEnoughMemory && canRunMoreActors) {
                 const runRequest = this.runRequestsQueue.dequeue();
                 if (runRequest) {
                     const { runName, input, options } = runRequest;
@@ -178,30 +198,15 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
                 } else {
                     this.customLogger.error('Something wrong with the Apify orchestrator\'s queue!');
                 }
+            } else {
+                // Wait for sometime before checking again
+                this.customLogger.info(
+                    `Not enough resources: waiting ${MAIN_LOOP_COOLDOWN_MS}ms before trying again`,
+                    { availableMemoryGBs, availableActorJobs },
+                );
+                this.mainLoopCooldown = MAIN_LOOP_COOLDOWN_MS;
             }
         }), MAIN_LOOP_INTERVAL_MS);
-
-        this.statsId = this.statIntervalSecs ? setInterval(() => {
-            if (Object.keys(this.runsTracker.currentRuns).length === 0) {
-                log.info('ORchestrator report: no Runs yet');
-                return;
-            }
-
-            const report: Record<string, string[]> = {};
-
-            for (const [runName, { status }] of Object.entries(this.runsTracker.currentRuns)) {
-                if (!report[status]) {
-                    report[status] = [];
-                }
-                report[status].push(runName);
-            }
-
-            const formattedReport = Object.entries(report)
-                .map(([status, names]) => `    ${status}: ${names.join(', ')}`)
-                .join('\n');
-
-            log.info(`Orchestrator report:\n${formattedReport}`);
-        }, this.statIntervalSecs * 1000) : undefined;
 
         Actor.on('aborting', async () => {
             await this.stopScheduler();
@@ -226,17 +231,13 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
             this.mainLoopId = undefined;
         }
 
-        // Stop the stats logger
-        if (this.statsId) {
-            clearInterval(this.statsId);
-            this.statsId = undefined;
-        }
-
         // Empty the queues and unlock all the callers waiting
         while (this.runRequestsQueue.length > 0) {
             this.runRequestsQueue.dequeue()?.startCallbacks.map((callback) => callback(undefined));
         }
     }
+
+    // Public methods.
 
     async runByName(runName: string): Promise<ExtRunClient | undefined> {
         let id: string | undefined;
@@ -312,6 +313,28 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
         }
 
         const datasetIterator = this.dataset<T>(resource.defaultDatasetId).iterate(options);
+        for await (const item of datasetIterator) {
+            yield item;
+        }
+    }
+
+    async* greedyIterateOutput<T extends DatasetItem>(
+        resource: RunRecord | ActorRun,
+        options: GreedyIterateOptions,
+    ): AsyncGenerator<T, void, void> {
+        if (isRunRecord(resource)) {
+            const iterators = Object.entries(resource).map(([runName, run]) => {
+                this.customLogger.prfxInfo(runName, 'Reading default dataset');
+                return this.dataset<T>(run.defaultDatasetId).greedyIterate(options);
+            });
+            const datasetsIterator = combineAsyncIterators(iterators);
+            for await (const item of datasetsIterator) {
+                yield item;
+            }
+            return;
+        }
+
+        const datasetIterator = this.dataset<T>(resource.defaultDatasetId).greedyIterate(options);
         for await (const item of datasetIterator) {
             yield item;
         }

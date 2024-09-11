@@ -1,6 +1,6 @@
 import { ActorRun } from 'apify-client';
 
-import { PersistSupport } from './types.js';
+import { PersistSupport, RunInfo, UpdateCallback } from './types.js';
 import { CustomLogger } from './utils/logging.js';
 import { State } from './utils/persist.js';
 
@@ -12,29 +12,15 @@ const getRunUrl = (runId: string) => `https://console.apify.com/actors/runs/${ru
 const OK_STATUSES = ['READY', 'RUNNING', 'SUCCEEDED'] as const;
 const FAIL_STATUSES = ['FAILED', 'ABORTING', 'ABORTED', 'TIMING-OUT', 'TIMED-OUT'] as const;
 
-/**
- * Includes all the "OK" and "fail" statuses from the SDK.
- *
- * `LOST` is an extra "fail" status to track when the Actor client is not able to return the Run.
- */
-const STATUSES = [...OK_STATUSES, ...FAIL_STATUSES, 'LOST'] as const;
-
 type RunOkStatus = typeof OK_STATUSES[number]
 type RunFailStatus = typeof FAIL_STATUSES[number]
-type RunStatus = typeof STATUSES[number]
 
-export function isRunOkStatus(status: RunStatus): status is RunOkStatus {
+export function isRunOkStatus(status: string): status is RunOkStatus {
     return OK_STATUSES.includes(status as RunOkStatus);
 }
 
-export function isRunFailStatus(status: RunStatus): status is RunFailStatus {
+export function isRunFailStatus(status: string): status is RunFailStatus {
     return FAIL_STATUSES.includes(status as RunFailStatus);
-}
-
-interface RunInfo {
-    runId: string
-    runUrl: string
-    status: RunStatus
 }
 
 export class RunsTracker {
@@ -42,12 +28,27 @@ export class RunsTracker {
     protected enableFailedHistory: boolean;
     protected currentRunsState: State<Record<string, RunInfo>>;
     protected failedRunsHistoryState: State<Record<string, RunInfo[]>>;
+    protected updateCallback: UpdateCallback | undefined;
 
-    constructor(customLogger: CustomLogger, enableFailedHistory: boolean) {
+    constructor(
+        customLogger: CustomLogger,
+        enableFailedHistory: boolean,
+        updateCallback?: UpdateCallback,
+    ) {
         this.customLogger = customLogger;
         this.enableFailedHistory = enableFailedHistory;
         this.currentRunsState = new State<Record<string, RunInfo>>({});
         this.failedRunsHistoryState = new State<Record<string, RunInfo[]>>({});
+        this.updateCallback = updateCallback;
+    }
+
+    protected async itemsChangedCallback() {
+        if (this.updateCallback) {
+            // Pass a copy to avoid allowing direct changes to the tracker's data
+            this.updateCallback(Object.fromEntries(
+                Object.entries(this.currentRuns).map(([runName, runInfo]) => [runName, { ...runInfo }]),
+            ));
+        }
     }
 
     protected async addOrUpdateFailedRun(runName: string, runInfo: RunInfo) {
@@ -69,13 +70,13 @@ export class RunsTracker {
         let wasSyncSuccessful = await this.currentRunsState.sync(
             `${persistPrefix}${RUNS_KEY}`,
             persistSupport,
-            persistEncryptionKey,
+            persistEncryptionKey, // We need to encrypt this data because it includes Run IDs and URLs
         );
         if (this.enableFailedHistory) {
             wasSyncSuccessful = wasSyncSuccessful && await this.failedRunsHistoryState.sync(
                 `${persistPrefix}${FAILED_RUNS_KEY}`,
                 persistSupport,
-                persistEncryptionKey,
+                persistEncryptionKey, // We need to encrypt this data because it includes Run IDs and URLs
             );
         }
         if (!wasSyncSuccessful) {
@@ -84,6 +85,7 @@ export class RunsTracker {
                 { persistSupport },
             );
         }
+        await this.itemsChangedCallback();
     }
 
     get currentRuns() {
@@ -108,13 +110,13 @@ export class RunsTracker {
      * Updates the persisted status of a Run.
      */
     async updateRun(runName: string, run: ActorRun): Promise<RunInfo> {
-        const { id: runId, status } = run;
+        const { id: runId, status, startedAt } = run;
         const runUrl = getRunUrl(runId);
-        const runInfo: RunInfo = { runId, runUrl, status };
+        const itemsCount = this.currentRuns[runName]?.itemsCount ?? 0;
+        const formattedStartedAt = startedAt.toISOString();
+        const runInfo: RunInfo = { runId, runUrl, status, startedAt: formattedStartedAt, itemsCount };
 
-        if (this.currentRuns[runName]?.runId !== runId || this.currentRuns[runName]?.status !== status) {
-            this.customLogger.prfxInfo(runName, 'Update Run', { status }, { url: runUrl });
-        }
+        const itemChanged = this.currentRuns[runName]?.runId !== runId || this.currentRuns[runName]?.status !== status;
 
         await this.currentRunsState.update((prev) => ({ ...prev, [runName]: runInfo }));
 
@@ -122,11 +124,36 @@ export class RunsTracker {
             await this.addOrUpdateFailedRun(runName, runInfo);
         }
 
+        if (itemChanged) {
+            this.customLogger.prfxInfo(runName, 'Update Run', { status }, { url: runUrl });
+            await this.itemsChangedCallback();
+        }
+
+        return runInfo;
+    }
+
+    async updateItemsCount(runName: string, itemsCount: number): Promise<RunInfo | undefined> {
+        if (!this.currentRuns[runName]) {
+            this.customLogger.warning('Trying to update the item count of a Run which was not found', { runName, itemsCount });
+            return undefined;
+        }
+
+        const runInfo: RunInfo = { ...this.currentRuns[runName], itemsCount };
+
+        const itemChanged = this.currentRuns[runName].itemsCount !== itemsCount;
+
+        await this.currentRunsState.update((prev) => ({ ...prev, [runName]: runInfo }));
+
+        if (itemChanged) {
+            this.customLogger.prfxInfo(runName, 'Update Run\'s items count', { itemsCount }, { url: runInfo.runUrl });
+            await this.itemsChangedCallback();
+        }
+
         return runInfo;
     }
 
     async declareLostRun(runName: string, reason?: string) {
-        const runInfo = this.currentRunsState.value[runName];
+        const runInfo = this.currentRuns[runName];
         if (!runInfo) { return; }
         runInfo.status = 'LOST';
         this.customLogger.prfxInfo(runName, 'Lost Run', { reason }, { url: runInfo.runUrl });

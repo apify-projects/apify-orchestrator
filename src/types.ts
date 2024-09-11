@@ -1,4 +1,3 @@
-import { Dataset } from 'apify';
 import {
     ActorCallOptions,
     ActorClient,
@@ -29,11 +28,11 @@ export interface OrchestratorOptions {
     hideSensibleInformation: boolean
 
     /**
-     * If defined, the current Runs will be logged periodically.
+     * Pass a callback which is called every time the Orchestrator's status is updated.
      *
-     * @default undefined
+     * The callback takes as input a record having Run names as keys, and Run information as values.
      */
-    statsIntervalSec?: number
+    updateCallback?: UpdateCallback
 
     /**
      * Which support to use for persistance:
@@ -99,15 +98,6 @@ export interface ApifyOrchestrator {
      * @returns the `ScheduledApifyClient` object
      */
     apifyClient: (options?: ScheduledClientOptions) => Promise<ScheduledApifyClient>
-
-    /**
-     * Iterate any dataset using automatic pagination.
-     *
-     * @param dataset the `Dataset` object, e.g., `await Actor.openDataset(...)`
-     * @param options the options for the iteration, including the page size
-     * @returns an `AsyncGenerator` which iterates the items in the dataset
-     */
-    iterateDataset: <T extends DatasetItem>(dataset: Dataset<T>, options: IterateOptions) => AsyncGenerator<T, void, void>
 }
 
 export type ScheduledClientOptions = ApifyClientOptions & {
@@ -169,6 +159,18 @@ export interface ScheduledApifyClient extends ApifyClient {
      * @returns an `AsyncGenerator` which iterates the items from all the default datasets
      */
     iterateOutput: <T extends DatasetItem>(resource: ActorRun | RunRecord, options: IterateOptions) => AsyncGenerator<T, void, void>
+
+    /**
+     * Iterate the items in the default dataset of one or more Runs, without waiting for the Runs to end.
+     *
+     * It polls the Runs to know if new items have been pushed to the default dataset, and it fetches them when there are enough.
+     * It stops when the Run terminates.
+     *
+     * @param resource a single `ActorRun` or a `RunRecord`
+     * @param options the options for the iteration, including the page size and the poll interval
+     * @returns an `AsyncGenerator` which iterates the items from all the default datasets
+     */
+    greedyIterateOutput: <T extends DatasetItem>(resource: ActorRun | RunRecord, options: GreedyIterateOptions) => AsyncGenerator<T, void, void>
 }
 
 /**
@@ -290,12 +292,36 @@ export interface IterableDatasetClient<T extends DatasetItem> extends DatasetCli
     /**
      * Iterates over the items in the dataset.
      *
-     * Using the option `pageSize` will help avoiding the JavaScript's string limit when deserializing the content.
+     * The option `pageSize` will help avoiding the JavaScript's string limit when deserializing the content.
      *
      * @param options includes all the options in `DatasetClientListItemOptions` and `pageSize`
      * @returns an `AsyncGenerator` which iterates the items in the dataset
      */
     iterate: (options: IterateOptions) => AsyncGenerator<T, void, void>
+
+    /**
+     * Iterates over the items in the dataset. Fetches the items as soon as they are available
+     *
+     * The option `pageSize` will help avoiding the JavaScript's string limit when deserializing the content.
+     * The default value is 100 items.
+     *
+     * The option `itemsThreshold` will define the batch size of new items to trigger a fetch.
+     * Set to 0 to fetch any amount of new items as soon as they are available.
+     * The default value is 100 items.
+     *
+     * The option `pollIntervalSecs` allows customizing how frequently to call the API to check for new items.
+     * The default value is 10 seconds.
+     *
+     * ### Example
+     *
+     * With the default settings, this function will check every 10 seconds if at least 100 new items are available.
+     * If yes, it will read a "page" of 100 items from the dataset, then resume polling every 10 seconds.
+     * If the Run terminates, it will fetch all the remaining items using a pagination of 100 items.
+     *
+     * @param options includes all the options in `DatasetClientListItemOptions`, `pageSize`, `itemsThreshold`, and `pollIntervalSecs`
+     * @returns an `AsyncGenerator` which iterates the items in the dataset
+     */
+    greedyIterate: (options: IterateOptions) => AsyncGenerator<T, void, void>
 }
 
 /**
@@ -340,7 +366,26 @@ export function isRunRecord(runRecordOrActorRun: RunRecord | ActorRun): runRecor
 export type DatasetItem = Record<string | number, unknown>
 
 export type IterateOptions = DatasetClientListItemOptions & {
+    /**
+     * Value used for pagination. If omitted, all the items are downloaded together.
+     */
     pageSize?: number
+}
+
+export type GreedyIterateOptions = IterateOptions & {
+    /**
+     * Download new items when they are more than the specified threshold, or when the Run terminates.\
+     * If zero, the new items are downloaded as soon as they are detected.
+     *
+     * @default 100
+     */
+    itemsThreshold?: number
+    /**
+     * Check the run's status regularly at the specified interval, in seconds.
+     *
+     * @default 10
+     */
+    pollIntervalSecs?: number
 }
 
 export interface SplitRules {
@@ -348,4 +393,14 @@ export interface SplitRules {
      * Make so that each input, when serialized, is lower in size than 9,437,184 bytes.
      */
     respectApifyMaxPayloadSize?: boolean
+}
+
+export type UpdateCallback = (status: Record<string, RunInfo>) => unknown
+
+export interface RunInfo {
+    runId: string
+    runUrl: string
+    status: string
+    startedAt: string
+    itemsCount: number
 }

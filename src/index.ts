@@ -2,24 +2,19 @@
  * This is temporarily a "copy-paste" kind of library.
  * Maybe, someday it will become a proper library or part of the SDK, who knows?
 */
-import { Dataset } from 'apify';
-import { DatasetClient } from 'apify-client';
 
 import { ExtApifyClient } from './clients/apify-client.js';
-import { ExtDatasetClient } from './clients/dataset-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS } from './constants.js';
 import { RunsTracker } from './tracker.js';
 import {
     ApifyOrchestrator,
-    DatasetItem,
-    IterateOptions,
     OrchestratorOptions,
     ScheduledApifyClient,
     ScheduledClientOptions,
 } from './types.js';
 import { CustomLogger } from './utils/logging.js';
 
-export const version = '0.1.1';
+export const version = '0.2.0';
 
 export * from './types.js';
 
@@ -44,6 +39,7 @@ export class Orchestrator implements ApifyOrchestrator {
         const runsTracker = new RunsTracker(
             this.customLogger,
             enableFailedRunsHistory,
+            this.options.updateCallback,
         );
         const clientName = name ?? `CLIENT-${clientsCounter}`;
         await runsTracker.init(
@@ -57,24 +53,13 @@ export class Orchestrator implements ApifyOrchestrator {
             this.customLogger,
             runsTracker,
             this.options.fixedInput,
-            this.options.statsIntervalSec,
             this.options.abortAllRunsOnGracefulAbort,
             this.options.hideSensibleInformation,
+            !!this.options.updateCallback, // track dataset changes if the user defined a callback to run when such changes happen
             apifyClientOptions,
         );
-        await client.startScheduler();
+        client.startScheduler();
 
         return client;
-    }
-
-    async* iterateDataset<T extends DatasetItem>(
-        dataset: Dataset<T>,
-        options: IterateOptions,
-    ): AsyncGenerator<T, void, void> {
-        const datasetIterator = new ExtDatasetClient<T>(dataset.client as DatasetClient<T>, this.customLogger)
-            .iterate(options);
-        for await (const item of datasetIterator) {
-            yield item;
-        }
     }
 }

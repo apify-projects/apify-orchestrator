@@ -2,7 +2,9 @@
 
 **0.2.0**
 
-*Last README update: 2024-09-10*
+*Last README update: 2024-09-11*
+
+*TODO: finish the test suite.*
 
 An opinionated library built around `apify` and `apify-client`, aiming at providing a nice tool for calling several external Actors in the same Run and gathering their results.
 

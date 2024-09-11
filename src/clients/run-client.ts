@@ -57,11 +57,13 @@ export class ExtRunClient extends RunClient implements TrackedRunClient {
     }
 
     override async delete(): Promise<void> {
+        // TODO: implement
         this.customLogger.prfxWarn(this.runName, 'Delete Run is not supported yet in the Orchestrator.');
         await this.superClient.delete();
     }
 
     override async metamorph(targetActorId: string, input: unknown, options?: RunMetamorphOptions | undefined): Promise<ActorRun> {
+        // TODO: implement
         this.customLogger.prfxWarn(this.runName, 'Metamorph Run is not supported yet in the Orchestrator.');
         return this.superClient.metamorph(targetActorId, input, options);
     }

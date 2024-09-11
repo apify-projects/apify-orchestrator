@@ -1,8 +1,9 @@
 import { splitIntoChunksWithMaxSize, strBytes } from 'src/utils/bytes.js';
 
-describe('splitIntoChunksWithMaxSize', () => {
-    it('correctly generates input batches', () => {
-        const sources = [...Array(1000).keys()];
+describe('bytes utils', () => {
+    describe('splitIntoChunksWithMaxSize', () => {
+        it('correctly generates input batches', () => {
+            const sources = [...Array(1000).keys()];
         interface Input {
             startUrls: { url: string }[]
         }
@@ -20,5 +21,6 @@ describe('splitIntoChunksWithMaxSize', () => {
             expect(strBytes(JSON.stringify(input))).toBeLessThanOrEqual(sizeLimit);
             expect('startUrls' in input).toBeTruthy();
         }
+        });
     });
 });

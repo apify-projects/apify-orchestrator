@@ -1,7 +1,7 @@
 import { Actor } from 'apify';
 import { State } from 'src/utils/persist.js';
 
-describe('persist', () => {
+describe('persist utils', () => {
     describe('State', () => {
         const key = 'test-key';
         const initValue = 'test-init-value';

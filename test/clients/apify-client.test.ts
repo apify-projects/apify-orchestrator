@@ -1,9 +1,9 @@
-import { ActorRun, ApifyClient, DatasetClient, PaginatedList, RunClient } from 'apify-client';
+import { ActorClient, ActorRun, ApifyClient, DatasetClient, PaginatedList, RunClient } from 'apify-client';
 import { ExtActorClient } from 'src/clients/actor-client.js';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
 import { ExtDatasetClient } from 'src/clients/dataset-client.js';
 import { ExtRunClient } from 'src/clients/run-client.js';
-import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
+import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
 import { OrchestratorOptions } from 'src/index.js';
 import { RunsTracker } from 'src/tracker.js';
 import * as apifyApi from 'src/utils/apify-api.js';
@@ -19,10 +19,21 @@ describe('apify-client methods', () => {
         customLogger,
         runsTracker,
         options.fixedInput,
-        options.statsIntervalSec,
         options.abortAllRunsOnGracefulAbort,
         options.hideSensibleInformation,
+        !!options.updateCallback,
     );
+
+    const mockDate = new Date('2024-09-11T06:00:00.000Z');
+
+    const getMockRun = (id: string, status = 'READY', defaultDatasetId = 'test-dataset-id') => {
+        return {
+            id,
+            status,
+            defaultDatasetId,
+            startedAt: mockDate,
+        } as ActorRun;
+    };
 
     beforeEach(async () => {
         vi.useFakeTimers();
@@ -65,7 +76,7 @@ describe('apify-client methods', () => {
         });
 
         it('generates an extended RunClient if a run with the same ID has been tracked', async () => {
-            await runsTracker.updateRun('test-run', { id: 'test-id', status: 'READY' } as ActorRun);
+            await runsTracker.updateRun('test-run', getMockRun('test-id', 'READY'));
             const client = generateApifyClient('test-client');
             const runClient = client.run('test-id');
             expect(runClient).toBeInstanceOf(ExtRunClient);
@@ -75,25 +86,85 @@ describe('apify-client methods', () => {
     describe('startScheduler', () => {
         it('starts the scheduler and checks for available memory if the queue is non empty', async () => {
             const client = generateApifyClient('test-client');
-            await client.startScheduler();
-            const getAvailableMemorySpy = vi.spyOn(apifyApi, 'getAvailableMemoryGBs')
+            client.startScheduler();
+            const getAvailableMemorySpy = vi.spyOn(apifyApi, 'getUserLimits')
                 .mockImplementation(async () => {
-                    return 0;
+                    return {
+                        currentMemoryUsageGBs: 0,
+                        maxMemoryGBs: 0,
+                        activeActorJobCount: 0,
+                        maxConcurrentActorJobs: 0,
+                    };
                 });
             client.actor('test').enqueue({ runName: 'test' });
             expect(getAvailableMemorySpy).not.toHaveBeenCalled();
             vi.advanceTimersByTime(MAIN_LOOP_INTERVAL_MS);
             expect(getAvailableMemorySpy).toHaveBeenCalledTimes(1);
         });
+
+        it('waits for a cooldown time if there is not enough available memory', async () => {
+            const client = generateApifyClient('test-client');
+            client.startScheduler();
+            const getUserLimitsSpy = vi.spyOn(apifyApi, 'getUserLimits')
+                // With this value, the enqueued Run cannot start.
+                .mockImplementationOnce(async () => {
+                    return {
+                        currentMemoryUsageGBs: 7,
+                        maxMemoryGBs: 8,
+                        activeActorJobCount: 3,
+                        maxConcurrentActorJobs: 8,
+                    };
+                });
+            const startSpy = vi.spyOn(ActorClient.prototype, 'start');
+
+            client.actor('test').enqueue({ runName: 'test', options: { memory: 2_000 } });
+
+            // Expect the scheduler not to have been executed because the time is still.
+            expect(getUserLimitsSpy).not.toHaveBeenCalled();
+
+            vi.advanceTimersByTime(MAIN_LOOP_INTERVAL_MS);
+            await vi.waitFor(() => !client.isSchedulerLocked, 2_000);
+            expect(getUserLimitsSpy).toHaveBeenCalledTimes(1);
+            expect(startSpy).not.toHaveBeenCalled();
+
+            // Expect not to have called the API once more, because of the cooldown time.
+            vi.advanceTimersByTime(MAIN_LOOP_INTERVAL_MS);
+            await vi.waitUntil(() => !client.isSchedulerLocked, 2_000);
+            expect(getUserLimitsSpy).toHaveBeenCalledTimes(1);
+            expect(startSpy).not.toHaveBeenCalled();
+
+            // With this value, the enqueued Run will be able to start.
+            getUserLimitsSpy.mockImplementationOnce(async () => {
+                return {
+                    currentMemoryUsageGBs: 1,
+                    maxMemoryGBs: 8,
+                    activeActorJobCount: 1,
+                    maxConcurrentActorJobs: 8,
+                };
+            });
+            // Expect to call the API again after the cooldown
+            for (let i = 0; i < MAIN_LOOP_COOLDOWN_MS; i += MAIN_LOOP_INTERVAL_MS) {
+                vi.advanceTimersByTime(MAIN_LOOP_COOLDOWN_MS);
+                await vi.waitUntil(() => !client.isSchedulerLocked, 2_000);
+            }
+            await vi.waitUntil(() => !client.isSchedulerLocked, 2_000);
+            expect(getUserLimitsSpy).toHaveBeenCalledTimes(2);
+            expect(startSpy).toHaveBeenCalledTimes(1);
+        });
     });
 
     describe('stopScheduler', () => {
         it('stops the inner scheduler', async () => {
             const client = generateApifyClient('test-client');
-            await client.startScheduler();
-            const getAvailableMemorySpy = vi.spyOn(apifyApi, 'getAvailableMemoryGBs')
+            client.startScheduler();
+            const getAvailableMemorySpy = vi.spyOn(apifyApi, 'getUserLimits')
                 .mockImplementation(async () => {
-                    return 0;
+                    return {
+                        currentMemoryUsageGBs: 0,
+                        maxMemoryGBs: 0,
+                        activeActorJobCount: 0,
+                        maxConcurrentActorJobs: 0,
+                    };
                 });
             client.actor('test').enqueue({ runName: 'test' });
             expect(getAvailableMemorySpy).not.toHaveBeenCalled();
@@ -104,14 +175,14 @@ describe('apify-client methods', () => {
     });
 
     describe('runByName', () => {
-        it('generates an extended RunClient if a run with the specified name exists', async () => {
-            await runsTracker.updateRun('test-run', { id: 'test-id', status: 'READY' } as ActorRun);
+        it('generates an extended RunClient if a Run with the specified name exists', async () => {
+            await runsTracker.updateRun('test-run', getMockRun('test-id', 'READY'));
             const client = generateApifyClient('test-client');
             const runClient = await client.runByName('test-run');
             expect(runClient).toBeInstanceOf(ExtRunClient);
         });
 
-        it('returns undefined if a run with the specified name does not exists', async () => {
+        it('returns undefined if a Run with the specified name does not exists', async () => {
             const client = generateApifyClient('test-client');
             const runClient = await client.runByName('test-run');
             expect(runClient).toBe(undefined);
@@ -119,20 +190,20 @@ describe('apify-client methods', () => {
     });
 
     describe('actorRunByName', () => {
-        it('generates an ActorRun if a run with the specified name exists', async () => {
-            await runsTracker.updateRun('test-run', { id: 'test-id', status: 'READY' } as ActorRun);
+        it('generates an ActorRun if a Run with the specified name exists', async () => {
+            await runsTracker.updateRun('test-run', getMockRun('test-id', 'READY'));
             const client = generateApifyClient('test-client');
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get')
                 .mockImplementationOnce(async () => {
-                    return { id: 'test-id' } as ActorRun;
+                    return getMockRun('test-id');
                 });
             const actorRun = await client.actorRunByName('test-run');
             expect(getActorSpy).toHaveBeenCalledTimes(1);
             expect(actorRun.id).toBe('test-id');
         });
 
-        it('returns undefined if a run with the specified name exists but the Run cannot be created', async () => {
-            await runsTracker.updateRun('test-run', { id: 'test-id', status: 'READY' } as ActorRun);
+        it('returns undefined if a Run with the specified name exists but the Run cannot be created', async () => {
+            await runsTracker.updateRun('test-run', getMockRun('test-id', 'READY'));
             const client = generateApifyClient('test-client');
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get')
                 .mockImplementation(async () => {
@@ -143,7 +214,7 @@ describe('apify-client methods', () => {
             expect(actorRun).toBe(undefined);
         });
 
-        it('returns undefined if a run with the specified name does not exists', async () => {
+        it('returns undefined if a Run with the specified name does not exists', async () => {
             const client = generateApifyClient('test-client');
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get');
             const actorRun = await client.actorRunByName('test-run');
@@ -153,10 +224,10 @@ describe('apify-client methods', () => {
     });
 
     describe('runRecord', () => {
-        it('generates a RunRecord with all the existing runs when calling `runRecord`', async () => {
-            await runsTracker.updateRun('test-run-1', { id: 'test-id-1', status: 'READY' } as ActorRun);
-            await runsTracker.updateRun('test-run-2', { id: 'test-id-2', status: 'READY' } as ActorRun);
-            await runsTracker.updateRun('test-run-3', { id: 'test-id-3', status: 'READY' } as ActorRun);
+        it('generates a RunRecord with all the existing Runs when calling `runRecord`', async () => {
+            await runsTracker.updateRun('test-run-1', getMockRun('test-id-1', 'READY'));
+            await runsTracker.updateRun('test-run-2', getMockRun('test-id-2', 'READY'));
+            await runsTracker.updateRun('test-run-3', getMockRun('test-id-3', 'READY'));
             const client = generateApifyClient('test-client');
 
             let mockRunIds = [
@@ -167,7 +238,7 @@ describe('apify-client methods', () => {
             let getCounter = 0;
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get')
                 .mockImplementation(async () => {
-                    const run = { id: mockRunIds[getCounter], status: 'READY' } as ActorRun;
+                    const run = getMockRun(mockRunIds[getCounter], 'READY');
                     getCounter++;
                     if (getCounter === mockRunIds.length) { getCounter = 0; }
                     return run;
@@ -180,9 +251,9 @@ describe('apify-client methods', () => {
             );
             expect(getActorSpy).toHaveBeenCalledTimes(3);
             expect(runRecord).toEqual({
-                'test-run-1': { id: 'test-id-1', status: 'READY' },
-                'test-run-2': { id: 'test-id-2', status: 'READY' },
-                'test-run-3': { id: 'test-id-3', status: 'READY' },
+                'test-run-1': getMockRun('test-id-1', 'READY'),
+                'test-run-2': getMockRun('test-id-2', 'READY'),
+                'test-run-3': getMockRun('test-id-3', 'READY'),
             });
 
             await runsTracker.declareLostRun('test-run-2');
@@ -195,8 +266,8 @@ describe('apify-client methods', () => {
                 'test-run-2',
                 'test-run-3',
             )).toEqual({
-                'test-run-1': { id: 'test-id-1', status: 'READY' },
-                'test-run-3': { id: 'test-id-3', status: 'READY' },
+                'test-run-1': getMockRun('test-id-1', 'READY'),
+                'test-run-3': getMockRun('test-id-3', 'READY'),
             });
 
             expect(await client.runRecord(
@@ -208,7 +279,7 @@ describe('apify-client methods', () => {
     });
 
     describe('waitForBatchFinish', () => {
-        it('waits for all the runs to finish when calling `waitForBatchFinish`', async () => {
+        it('waits for all the Runs to finish when calling `waitForBatchFinish`', async () => {
             const client = generateApifyClient('test-client');
 
             const mockRunIds = [
@@ -219,7 +290,7 @@ describe('apify-client methods', () => {
             let waitCounter = 0;
             const waitForFinishSpy = vi.spyOn(RunClient.prototype, 'waitForFinish')
                 .mockImplementation(async () => {
-                    const run = { id: mockRunIds[waitCounter], status: 'SUCCEEDED' } as ActorRun;
+                    const run = getMockRun(mockRunIds[waitCounter], 'SUCCEEDED');
                     waitCounter++;
                     if (waitCounter === mockRunIds.length) { waitCounter = 0; }
                     return run;
@@ -227,41 +298,47 @@ describe('apify-client methods', () => {
             let getCounter = 0;
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get')
                 .mockImplementation(async () => {
-                    const run = { id: mockRunIds[getCounter], status: 'READY' } as ActorRun;
+                    const run = getMockRun(mockRunIds[getCounter], 'READY');
                     getCounter++;
                     if (getCounter === mockRunIds.length) { getCounter = 0; }
                     return run;
                 });
 
             const runRecord = await client.waitForBatchFinish({
-                'test-run-1': { id: mockRunIds[0], status: 'READY' } as ActorRun,
-                'test-run-2': { id: mockRunIds[1], status: 'READY' } as ActorRun,
-                'test-run-3': { id: mockRunIds[2], status: 'READY' } as ActorRun,
+                'test-run-1': getMockRun(mockRunIds[0], 'READY'),
+                'test-run-2': getMockRun(mockRunIds[1], 'READY'),
+                'test-run-3': getMockRun(mockRunIds[2], 'READY'),
             });
 
             const expectedRunRecord = {
-                'test-run-1': { id: mockRunIds[0], status: 'SUCCEEDED' } as ActorRun,
-                'test-run-2': { id: mockRunIds[1], status: 'SUCCEEDED' } as ActorRun,
-                'test-run-3': { id: mockRunIds[2], status: 'SUCCEEDED' } as ActorRun,
+                'test-run-1': getMockRun(mockRunIds[0], 'SUCCEEDED'),
+                'test-run-2': getMockRun(mockRunIds[1], 'SUCCEEDED'),
+                'test-run-3': getMockRun(mockRunIds[2], 'SUCCEEDED'),
             };
 
             expect(waitForFinishSpy).toHaveBeenCalledTimes(3);
             expect(runRecord).toEqual(expectedRunRecord);
             expect(runsTracker.currentRuns).toEqual({
                 'test-run-1': {
+                    itemsCount: 0,
                     runId: 'test-id-1',
                     runUrl: 'https://console.apify.com/actors/runs/test-id-1',
                     status: 'SUCCEEDED',
+                    startedAt: mockDate.toISOString(),
                 },
                 'test-run-2': {
+                    itemsCount: 0,
                     runId: 'test-id-2',
                     runUrl: 'https://console.apify.com/actors/runs/test-id-2',
                     status: 'SUCCEEDED',
+                    startedAt: mockDate.toISOString(),
                 },
                 'test-run-3': {
+                    itemsCount: 0,
                     runId: 'test-id-3',
                     runUrl: 'https://console.apify.com/actors/runs/test-id-3',
                     status: 'SUCCEEDED',
+                    startedAt: mockDate.toISOString(),
                 },
             });
 
@@ -278,10 +355,10 @@ describe('apify-client methods', () => {
     });
 
     describe('abortAllRuns', () => {
-        it('calls the abort function for each run in progress when calling `abortAllRuns`', async () => {
-            await runsTracker.updateRun('test-run-1', { id: 'test-id-1', status: 'READY' } as ActorRun);
-            await runsTracker.updateRun('test-run-2', { id: 'test-id-2', status: 'READY' } as ActorRun);
-            await runsTracker.updateRun('test-run-3', { id: 'test-id-3', status: 'READY' } as ActorRun);
+        it('calls the abort function for each Run in progress when calling `abortAllRuns`', async () => {
+            await runsTracker.updateRun('test-run-1', getMockRun('test-id-1', 'READY'));
+            await runsTracker.updateRun('test-run-2', getMockRun('test-id-2', 'READY'));
+            await runsTracker.updateRun('test-run-3', getMockRun('test-id-3', 'READY'));
             const client = generateApifyClient('test-client');
 
             const mockRunIds = [
@@ -292,7 +369,7 @@ describe('apify-client methods', () => {
             let abortCounter = 0;
             const abortActorSpy = vi.spyOn(RunClient.prototype, 'abort')
                 .mockImplementation(async () => {
-                    const run = { id: mockRunIds[abortCounter], status: 'ABORTED' } as ActorRun;
+                    const run = getMockRun(mockRunIds[abortCounter], 'ABORTED');
                     abortCounter++;
                     if (abortCounter === mockRunIds.length) { abortCounter = 0; }
                     return run;
@@ -305,7 +382,7 @@ describe('apify-client methods', () => {
     });
 
     describe('iterateOutput', () => {
-        it('iterates dataset items when calling `iterateOutput` with a single run', async () => {
+        it('iterates dataset items of a single Run', async () => {
         type Item = { id: number }
         const paginatedItems: Item[][] = [
             [{ id: 1 }, { id: 2 }, { id: 3 }],
@@ -328,7 +405,7 @@ describe('apify-client methods', () => {
 
         const results: Item[] = [];
         const datasetIterator = client.iterateOutput<Item>(
-            { id: 'test-id', status: 'SUCCEEDED', defaultDatasetId: 'test-dataset-id' } as ActorRun,
+            getMockRun('test-id', 'SUCCEEDED', 'test-dataset-id'),
             { pageSize: 3 },
         );
 
@@ -346,7 +423,7 @@ describe('apify-client methods', () => {
         expect(results).toEqual(paginatedItems.flat());
         });
 
-        it('iterates many datasets when calling `iterateOutput` with a RunRecord', async () => {
+        it('iterates many datasets of multiple Runs', async () => {
         type Item = { id: number }
         const paginatedItems: Item[][] = [
             [{ id: 1 }, { id: 2 }, { id: 3 }],
@@ -372,9 +449,9 @@ describe('apify-client methods', () => {
         const results: Item[] = [];
         const datasetIterator = client.iterateOutput<Item>(
             {
-                'test-run-1': { id: 'test-id-1', status: 'SUCCEEDED', defaultDatasetId: 'test-dataset-id-1' } as ActorRun,
-                'test-run-2': { id: 'test-id-2', status: 'TIMED-OUT', defaultDatasetId: 'test-dataset-id-2' } as ActorRun,
-                'test-run-3': { id: 'test-id-3', status: 'ABORTED', defaultDatasetId: 'test-dataset-id-3' } as ActorRun,
+                'test-run-1': getMockRun('test-id-1', 'SUCCEEDED', 'test-dataset-id-1'),
+                'test-run-2': getMockRun('test-id-2', 'TIMED-OUT', 'test-dataset-id-2'),
+                'test-run-3': getMockRun('test-id-3', 'ABORTED', 'test-dataset-id-3'),
             },
             { pageSize: 3 },
         );
@@ -395,6 +472,16 @@ describe('apify-client methods', () => {
         expect(listItemsSpy).toHaveBeenNthCalledWith(4, { offset: 3, limit: 3 });
         expect(listItemsSpy).toHaveBeenNthCalledWith(5, { offset: 0, limit: 3 });
         expect(results).toEqual(paginatedItems.flat());
+        });
+    });
+
+    describe('greedyIterateOutput', () => {
+        it('yields items of a single Run, as soon as one batch is available', () => {
+            // TODO: test
+        });
+
+        it('yields items of multiple Runs, as soon as one batch is available', () => {
+            // TODO: test
         });
     });
 });

@@ -1,7 +1,7 @@
 import { Actor } from 'apify';
 import { openEncryptedKeyValueStore } from 'src/utils/key-value-store.js';
 
-describe('key-value-store', () => {
+describe('key-value-store utils', () => {
     afterEach(() => {
         vi.resetAllMocks();
     });

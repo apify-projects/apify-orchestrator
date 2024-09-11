@@ -1,6 +1,6 @@
 import { Queue } from 'src/utils/queue.js';
 
-describe('queue', () => {
+describe('queue utils', () => {
     describe('Queue', () => {
         const item1 = 'test-value-1';
         const item2 = 'test-value-2';

@@ -1,7 +1,7 @@
 import { log } from 'apify';
 import { CustomLogger } from 'src/utils/logging.js';
 
-describe('logging', () => {
+describe('logging utils', () => {
     describe('CustomLogger', () => {
         afterEach(() => {
             vi.resetAllMocks();

@@ -2,21 +2,17 @@
 
 ## 0.2.0 - 2024-09-09
 
-### Breaking change
+### Breaking changes
 
-- `iterateDataset` has been removed from the main `orchestrator` object, because it needs to access its client's tracker now.
-- `statsIntervalSec` has been removed from the Orchestrator's options.
-
-### Changed
-
-- Improved periodical stats, which are now table-formatted and include the start timestamp and the default dataset's items count.
+- The method `iterateDataset` has been removed from the main `orchestrator` object, because it needs to access its client's tracker now.
+- The option `statsIntervalSec` has been removed from the Orchestrator's options, in favor of the new callback option, to allow the user to make custom statistics.
 
 ### Added
 
 - Active Actor jobs are considered along available memory before starting a new Run.
 - `greedyIterate` is a new method of `IterableDatasetClient` which allows reading items before the run has completed.
 - `greedyIterateOutput` is a new method of `ScheduledApifyClient` which uses greedy iteration to read items from the default dataset of one or more Runs.
-- `updateCallback` is a new option which allows to receive the updated orchestrator's status every time it changes.
+- `onUpdate` is a new option which allows to receive the updated orchestrator's status every time it changes.
 
 ---
 

@@ -30,7 +30,7 @@ describe('run-client', () => {
         options.fixedInput,
         options.abortAllRunsOnGracefulAbort,
         options.hideSensibleInformation,
-        !!options.updateCallback,
+        !!options.onUpdate,
     );
 
     async function generateExtRunClient(runName: string) {

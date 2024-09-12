@@ -28,24 +28,24 @@ export class RunsTracker {
     protected enableFailedHistory: boolean;
     protected currentRunsState: State<Record<string, RunInfo>>;
     protected failedRunsHistoryState: State<Record<string, RunInfo[]>>;
-    protected updateCallback: UpdateCallback | undefined;
+    protected onUpdate: UpdateCallback | undefined;
 
     constructor(
         customLogger: CustomLogger,
         enableFailedHistory: boolean,
-        updateCallback?: UpdateCallback,
+        onUpdate?: UpdateCallback,
     ) {
         this.customLogger = customLogger;
         this.enableFailedHistory = enableFailedHistory;
         this.currentRunsState = new State<Record<string, RunInfo>>({});
         this.failedRunsHistoryState = new State<Record<string, RunInfo[]>>({});
-        this.updateCallback = updateCallback;
+        this.onUpdate = onUpdate;
     }
 
     protected async itemsChangedCallback() {
-        if (this.updateCallback) {
+        if (this.onUpdate) {
             // Pass a copy to avoid allowing direct changes to the tracker's data
-            this.updateCallback(Object.fromEntries(
+            this.onUpdate(Object.fromEntries(
                 Object.entries(this.currentRuns).map(([runName, runInfo]) => [runName, { ...runInfo }]),
             ));
         }

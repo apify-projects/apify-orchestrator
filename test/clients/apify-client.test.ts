@@ -21,7 +21,7 @@ describe('apify-client methods', () => {
         options.fixedInput,
         options.abortAllRunsOnGracefulAbort,
         options.hideSensibleInformation,
-        !!options.updateCallback,
+        !!options.onUpdate,
     );
 
     const mockDate = new Date('2024-09-11T06:00:00.000Z');

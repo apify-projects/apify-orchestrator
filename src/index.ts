@@ -39,7 +39,7 @@ export class Orchestrator implements ApifyOrchestrator {
         const runsTracker = new RunsTracker(
             this.customLogger,
             enableFailedRunsHistory,
-            this.options.updateCallback,
+            this.options.onUpdate,
         );
         const clientName = name ?? `CLIENT-${clientsCounter}`;
         await runsTracker.init(
@@ -55,7 +55,7 @@ export class Orchestrator implements ApifyOrchestrator {
             this.options.fixedInput,
             this.options.abortAllRunsOnGracefulAbort,
             this.options.hideSensibleInformation,
-            !!this.options.updateCallback, // track dataset changes if the user defined a callback to run when such changes happen
+            !!this.options.onUpdate,
             apifyClientOptions,
         );
         client.startScheduler();

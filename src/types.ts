@@ -28,11 +28,11 @@ export interface OrchestratorOptions {
     hideSensibleInformation: boolean
 
     /**
-     * Pass a callback which is called every time the Orchestrator's status is updated.
+     * A callback which is called every time the Orchestrator's status is updated.
      *
      * The callback takes as input a record having Run names as keys, and Run information as values.
      */
-    updateCallback?: UpdateCallback
+    onUpdate?: UpdateCallback
 
     /**
      * Which support to use for persistance:

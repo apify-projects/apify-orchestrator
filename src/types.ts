@@ -159,18 +159,6 @@ export interface ScheduledApifyClient extends ApifyClient {
      * @returns an `AsyncGenerator` which iterates the items from all the default datasets
      */
     iterateOutput: <T extends DatasetItem>(resource: ActorRun | RunRecord, options: IterateOptions) => AsyncGenerator<T, void, void>
-
-    /**
-     * Iterate the items in the default dataset of one or more Runs, without waiting for the Runs to end.
-     *
-     * It polls the Runs to know if new items have been pushed to the default dataset, and it fetches them when there are enough.
-     * It stops when the Run terminates.
-     *
-     * @param resource a single `ActorRun` or a `RunRecord`
-     * @param options the options for the iteration, including the page size and the poll interval
-     * @returns an `AsyncGenerator` which iterates the items from all the default datasets
-     */
-    greedyIterateOutput: <T extends DatasetItem>(resource: ActorRun | RunRecord, options: GreedyIterateOptions) => AsyncGenerator<T, void, void>
 }
 
 /**
@@ -321,7 +309,7 @@ export interface IterableDatasetClient<T extends DatasetItem> extends DatasetCli
      * @param options includes all the options in `DatasetClientListItemOptions`, `pageSize`, `itemsThreshold`, and `pollIntervalSecs`
      * @returns an `AsyncGenerator` which iterates the items in the dataset
      */
-    greedyIterate: (options: IterateOptions) => AsyncGenerator<T, void, void>
+    greedyIterate: (options: GreedyIterateOptions) => AsyncGenerator<T, void, void>
 }
 
 /**

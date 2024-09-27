@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 - 2024-09-27
+
+### Breaking changes
+
+- The method `greedyIterateOutput` has been removed from the Apify client because it does not guarantee consistency across resurrection and needs reworking.
+
+### Fixes
+
+- Fixed types.
+
 ## 0.2.0 - 2024-09-09
 
 ### Breaking changes

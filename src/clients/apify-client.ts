@@ -6,9 +6,8 @@ import { ExtDatasetClient } from './dataset-client.js';
 import { ExtRunClient } from './run-client.js';
 import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
 import { RunsTracker, isRunOkStatus } from '../tracker.js';
-import { DatasetItem, GreedyIterateOptions, IterateOptions, RunRecord, ScheduledApifyClient, isRunRecord } from '../types.js';
+import { DatasetItem, IterateOptions, RunRecord, ScheduledApifyClient, isRunRecord } from '../types.js';
 import { getUserLimits } from '../utils/apify-api.js';
-import { combineAsyncIterators } from '../utils/iterators.js';
 import { CustomLogger } from '../utils/logging.js';
 import { Queue } from '../utils/queue.js';
 
@@ -313,28 +312,6 @@ export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient 
         }
 
         const datasetIterator = this.dataset<T>(resource.defaultDatasetId).iterate(options);
-        for await (const item of datasetIterator) {
-            yield item;
-        }
-    }
-
-    async* greedyIterateOutput<T extends DatasetItem>(
-        resource: RunRecord | ActorRun,
-        options: GreedyIterateOptions,
-    ): AsyncGenerator<T, void, void> {
-        if (isRunRecord(resource)) {
-            const iterators = Object.entries(resource).map(([runName, run]) => {
-                this.customLogger.prfxInfo(runName, 'Reading default dataset');
-                return this.dataset<T>(run.defaultDatasetId).greedyIterate(options);
-            });
-            const datasetsIterator = combineAsyncIterators(iterators);
-            for await (const item of datasetsIterator) {
-                yield item;
-            }
-            return;
-        }
-
-        const datasetIterator = this.dataset<T>(resource.defaultDatasetId).greedyIterate(options);
         for await (const item of datasetIterator) {
             yield item;
         }

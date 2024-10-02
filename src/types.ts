@@ -97,10 +97,10 @@ export interface ApifyOrchestrator {
      * @param options includes the options from `ApifyClientOptions` and `name`
      * @returns the `ScheduledApifyClient` object
      */
-    apifyClient: (options?: ScheduledClientOptions) => Promise<ExtendedApifyClient>
+    apifyClient: (options?: ExtendedClientOptions) => Promise<ExtendedApifyClient>
 }
 
-export type ScheduledClientOptions = ApifyClientOptions & {
+export type ExtendedClientOptions = ApifyClientOptions & {
     /**
      * Used to identify a client, for instance, when storing its Runs in the Key Value Store.
      */

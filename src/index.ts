@@ -10,7 +10,7 @@ import {
     ApifyOrchestrator,
     OrchestratorOptions,
     ExtendedApifyClient,
-    ScheduledClientOptions,
+    ExtendedClientOptions,
 } from './types.js';
 import { CustomLogger } from './utils/logging.js';
 import { makeNameUnique } from './utils/naming.js';
@@ -34,7 +34,7 @@ export class Orchestrator implements ApifyOrchestrator {
         this.customLogger = new CustomLogger(this.options.enableLogs, this.options.hideSensibleInformation);
     }
 
-    async apifyClient(options: ScheduledClientOptions = {}): Promise<ExtendedApifyClient> {
+    async apifyClient(options: ExtendedClientOptions = {}): Promise<ExtendedApifyClient> {
         const { name, ...apifyClientOptions } = options;
 
         const clientName = makeNameUnique(name ?? 'CLIENT', takenClientNames);

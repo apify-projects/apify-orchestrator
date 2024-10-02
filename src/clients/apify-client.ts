@@ -12,15 +12,15 @@ import { CustomLogger } from '../utils/logging.js';
 import { Queue } from '../utils/queue.js';
 
 export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
-    protected runRequestsQueue = new Queue<EnqueuedRequest>();
+    readonly clientName: string;
+    readonly abortAllRunsOnGracefulAbort: boolean;
+    readonly hideSensibleInformation: boolean;
+    readonly enableDatasetTracking: boolean;
+    readonly fixedInput: object | undefined; // TODO: forbid changes
 
-    protected clientName: string;
+    protected runRequestsQueue = new Queue<EnqueuedRequest>();
     protected customLogger: CustomLogger;
     protected runsTracker: RunsTracker;
-    protected hideSensibleInformation: boolean;
-    protected enableDatasetTracking: boolean;
-    protected fixedInput: object | undefined;
-    protected abortAllRunsOnGracefulAbort: boolean;
 
     protected mainLoopId: NodeJS.Timeout | undefined;
     protected mainLoopLock = false;

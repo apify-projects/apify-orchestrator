@@ -13,27 +13,32 @@ import {
     ScheduledClientOptions,
 } from './types.js';
 import { CustomLogger } from './utils/logging.js';
+import { makeNameUnique } from './utils/naming.js';
 
 export const version = '0.3.0';
 
 export * from './types.js';
 
-// Use a singleton counter shared among all Orchestrator instances.
-let clientsCounter = 0;
+const takenPersistPrefixes = new Set<string>();
+const takenClientNames = new Set<string>();
 
 export class Orchestrator implements ApifyOrchestrator {
-    protected options: OrchestratorOptions;
+    readonly options: OrchestratorOptions;
     protected customLogger: CustomLogger;
 
     constructor(options: Partial<OrchestratorOptions> = {}) {
-        this.options = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...options };
+        const fullOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...options };
+        fullOptions.persistPrefix = makeNameUnique(fullOptions.persistPrefix, takenPersistPrefixes);
+        takenPersistPrefixes.add(fullOptions.persistPrefix);
+        this.options = fullOptions;
         this.customLogger = new CustomLogger(this.options.enableLogs, this.options.hideSensibleInformation);
     }
 
     async apifyClient(options: ScheduledClientOptions = {}): Promise<ExtendedApifyClient> {
         const { name, ...apifyClientOptions } = options;
 
-        clientsCounter++;
+        const clientName = makeNameUnique(name ?? 'CLIENT', takenClientNames);
+        takenClientNames.add(clientName);
 
         const enableFailedRunsHistory = !this.options.hideSensibleInformation;
         const runsTracker = new RunsTracker(
@@ -41,7 +46,7 @@ export class Orchestrator implements ApifyOrchestrator {
             enableFailedRunsHistory,
             this.options.onUpdate,
         );
-        const clientName = name ?? `CLIENT-${clientsCounter}`;
+
         await runsTracker.init(
             this.options.persistSupport,
             `${this.options.persistPrefix}${clientName}-`,

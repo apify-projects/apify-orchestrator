@@ -113,6 +113,12 @@ export type ScheduledClientOptions = ApifyClientOptions & {
  * @extends ApifyClient
  */
 export interface ExtendedApifyClient extends ApifyClient {
+    readonly clientName: string
+    readonly abortAllRunsOnGracefulAbort: boolean
+    readonly hideSensibleInformation: boolean
+    readonly enableDatasetTracking: boolean
+    readonly fixedInput: object | undefined
+
     /**
      * @override
      */

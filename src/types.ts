@@ -97,7 +97,7 @@ export interface ApifyOrchestrator {
      * @param options includes the options from `ApifyClientOptions` and `name`
      * @returns the `ScheduledApifyClient` object
      */
-    apifyClient: (options?: ScheduledClientOptions) => Promise<ScheduledApifyClient>
+    apifyClient: (options?: ScheduledClientOptions) => Promise<ExtendedApifyClient>
 }
 
 export type ScheduledClientOptions = ApifyClientOptions & {
@@ -112,21 +112,21 @@ export type ScheduledClientOptions = ApifyClientOptions & {
  *
  * @extends ApifyClient
  */
-export interface ScheduledApifyClient extends ApifyClient {
+export interface ExtendedApifyClient extends ApifyClient {
     /**
      * @override
      */
-    actor: (id: string) => QueuedActorClient
+    actor: (id: string) => ExtendedActorClient
 
     /**
      * @override
      */
-    dataset: <T extends DatasetItem>(id: string) => IterableDatasetClient<T>
+    dataset: <T extends DatasetItem>(id: string) => ExtendedDatasetClient<T>
 
     /**
      * @returns a Run client corresponding to the given name, if it exists
      */
-    runByName: (name: string) => Promise<TrackedRunClient | undefined>
+    runByName: (name: string) => Promise<ExtendedRunClient | undefined>
 
     /**
      * @returns an ActorRun object corresponding to the given name, if it exists
@@ -166,7 +166,7 @@ export interface ScheduledApifyClient extends ApifyClient {
  *
  * @extends ActorClient
  */
-export interface QueuedActorClient extends ActorClient {
+export interface ExtendedActorClient extends ActorClient {
     /**
      * Enqueues one or more requests for new Runs, and return immediately.
      *
@@ -269,14 +269,14 @@ export interface QueuedActorClient extends ActorClient {
  *
  * @extends RunClient
  */
-export interface TrackedRunClient extends RunClient {}
+export interface ExtendedRunClient extends RunClient {}
 
 /**
  * A Dataset client allowing to iterate over the items in the dataset, automatically paginated.
  *
  * @extends DatasetClient
  */
-export interface IterableDatasetClient<T extends DatasetItem> extends DatasetClient<T> {
+export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetClient<T> {
     /**
      * Iterates over the items in the dataset.
      *

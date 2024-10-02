@@ -6,12 +6,12 @@ import { ExtDatasetClient } from './dataset-client.js';
 import { ExtRunClient } from './run-client.js';
 import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
 import { RunsTracker, isRunOkStatus } from '../tracker.js';
-import { DatasetItem, IterateOptions, RunRecord, ScheduledApifyClient, isRunRecord } from '../types.js';
+import { DatasetItem, IterateOptions, RunRecord, ExtendedApifyClient, isRunRecord } from '../types.js';
 import { getUserLimits } from '../utils/apify-api.js';
 import { CustomLogger } from '../utils/logging.js';
 import { Queue } from '../utils/queue.js';
 
-export class ExtApifyClient extends ApifyClient implements ScheduledApifyClient {
+export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     protected runRequestsQueue = new Queue<EnqueuedRequest>();
 
     protected clientName: string;

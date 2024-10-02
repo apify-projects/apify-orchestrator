@@ -9,7 +9,7 @@ import { RunsTracker } from './tracker.js';
 import {
     ApifyOrchestrator,
     OrchestratorOptions,
-    ScheduledApifyClient,
+    ExtendedApifyClient,
     ScheduledClientOptions,
 } from './types.js';
 import { CustomLogger } from './utils/logging.js';
@@ -30,7 +30,7 @@ export class Orchestrator implements ApifyOrchestrator {
         this.customLogger = new CustomLogger(this.options.enableLogs, this.options.hideSensibleInformation);
     }
 
-    async apifyClient(options: ScheduledClientOptions = {}): Promise<ScheduledApifyClient> {
+    async apifyClient(options: ScheduledClientOptions = {}): Promise<ExtendedApifyClient> {
         const { name, ...apifyClientOptions } = options;
 
         clientsCounter++;

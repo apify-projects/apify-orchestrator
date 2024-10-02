@@ -1,10 +1,10 @@
 import { ActorRun, Dataset, DatasetClient } from 'apify-client';
 
 import { RunsTracker } from '../tracker.js';
-import { DatasetItem, GreedyIterateOptions, IterableDatasetClient, IterateOptions } from '../types.js';
+import { DatasetItem, GreedyIterateOptions, ExtendedDatasetClient, IterateOptions } from '../types.js';
 import { CustomLogger } from '../utils/logging.js';
 
-export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> implements IterableDatasetClient<T> {
+export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> implements ExtendedDatasetClient<T> {
     protected superClient: DatasetClient<T>;
     protected customLogger: CustomLogger;
     protected runsTracker: RunsTracker;

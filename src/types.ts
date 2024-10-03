@@ -156,15 +156,6 @@ export interface ExtendedApifyClient extends ApifyClient {
      * Stop all the Runs in progress started from this client.
      */
     abortAllRuns: () => Promise<void>
-
-    /**
-     * Iterate the items in the default dataset of one or more Runs.
-     *
-     * @param resource a single `ActorRun` or a `RunRecord`
-     * @param options the options for the iteration, including the page size
-     * @returns an `AsyncGenerator` which iterates the items from all the default datasets
-     */
-    iterateOutput: <T extends DatasetItem>(resource: ActorRun | RunRecord, options: IterateOptions) => AsyncGenerator<T, void, void>
 }
 
 /**
@@ -337,13 +328,6 @@ export interface ActorRunRequest {
  * A record of Runs, having their names as keys and their `ActorRun` objects as values.
  */
 export type RunRecord = Record<string, ActorRun>
-
-/**
- * Helps distinguishing between a `RunRecord` and an `ActorRun` in TypeScript.
- */
-export function isRunRecord(runRecordOrActorRun: RunRecord | ActorRun): runRecordOrActorRun is RunRecord {
-    return Object.values(runRecordOrActorRun).every((run) => typeof run === 'object' && 'defaultDatasetId' in run);
-}
 
 /**
  * A generic definition of a dataset item.

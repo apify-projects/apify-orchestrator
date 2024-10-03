@@ -6,7 +6,7 @@ import { ExtDatasetClient } from './dataset-client.js';
 import { ExtRunClient } from './run-client.js';
 import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
 import { RunsTracker, isRunOkStatus } from '../tracker.js';
-import { DatasetItem, IterateOptions, RunRecord, ExtendedApifyClient, isRunRecord } from '../types.js';
+import { DatasetItem, RunRecord, ExtendedApifyClient } from '../types.js';
 import { getUserLimits } from '../utils/apify-api.js';
 import { CustomLogger } from '../utils/logging.js';
 import { Queue } from '../utils/queue.js';
@@ -294,26 +294,5 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                 log.exception(err as Error, 'Error aborting the Run', { runName });
             }
         }));
-    }
-
-    async* iterateOutput<T extends DatasetItem>(
-        resource: RunRecord | ActorRun,
-        options: IterateOptions,
-    ): AsyncGenerator<T, void, void> {
-        if (isRunRecord(resource)) {
-            for (const [runName, run] of Object.entries(resource)) {
-                this.customLogger.prfxInfo(runName, 'Reading default dataset');
-                const datasetIterator = this.dataset<T>(run.defaultDatasetId).iterate(options);
-                for await (const item of datasetIterator) {
-                    yield item;
-                }
-            }
-            return;
-        }
-
-        const datasetIterator = this.dataset<T>(resource.defaultDatasetId).iterate(options);
-        for await (const item of datasetIterator) {
-            yield item;
-        }
     }
 }

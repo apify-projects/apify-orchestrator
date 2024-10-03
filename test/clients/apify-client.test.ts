@@ -1,4 +1,4 @@
-import { ActorClient, ActorRun, ApifyClient, DatasetClient, PaginatedList, RunClient } from 'apify-client';
+import { ActorClient, ActorRun, RunClient } from 'apify-client';
 import { ExtActorClient } from 'src/clients/actor-client.js';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
 import { ExtDatasetClient } from 'src/clients/dataset-client.js';
@@ -378,110 +378,6 @@ describe('apify-client methods', () => {
             await client.abortAllRuns();
 
             expect(abortActorSpy).toHaveBeenCalledTimes(3);
-        });
-    });
-
-    describe('iterateOutput', () => {
-        it('iterates dataset items of a single Run', async () => {
-        type Item = { id: number }
-        const paginatedItems: Item[][] = [
-            [{ id: 1 }, { id: 2 }, { id: 3 }],
-            [{ id: 4 }, { id: 5 }],
-            [],
-        ];
-        let listCounter = 0;
-
-        const createDatasetSpy = vi.spyOn(ApifyClient.prototype, 'dataset');
-        const listItemsSpy = vi.spyOn(DatasetClient.prototype, 'listItems')
-            .mockImplementation(async () => {
-                const paginatedList = paginatedItems[listCounter];
-                listCounter++;
-                return {
-                    items: paginatedList,
-                } as PaginatedList<Item>;
-            });
-
-        const client = generateApifyClient('test-client');
-
-        const results: Item[] = [];
-        const datasetIterator = client.iterateOutput<Item>(
-            getMockRun('test-id', 'SUCCEEDED', 'test-dataset-id'),
-            { pageSize: 3 },
-        );
-
-        for await (const item of datasetIterator) {
-            results.push(item);
-        }
-
-        expect(createDatasetSpy).toHaveBeenCalledTimes(1);
-        expect(createDatasetSpy).toHaveBeenCalledWith('test-dataset-id');
-
-        expect(listItemsSpy).toHaveBeenCalledTimes(3);
-        expect(listItemsSpy).toHaveBeenNthCalledWith(1, { offset: 0, limit: 3 });
-        expect(listItemsSpy).toHaveBeenNthCalledWith(2, { offset: 3, limit: 3 });
-        expect(listItemsSpy).toHaveBeenNthCalledWith(3, { offset: 6, limit: 3 });
-        expect(results).toEqual(paginatedItems.flat());
-        });
-
-        it('iterates many datasets of multiple Runs', async () => {
-        type Item = { id: number }
-        const paginatedItems: Item[][] = [
-            [{ id: 1 }, { id: 2 }, { id: 3 }],
-            [],
-            [{ id: 4 }, { id: 5 }],
-            [],
-            [],
-        ];
-        let listCounter = 0;
-
-        const createDatasetSpy = vi.spyOn(ApifyClient.prototype, 'dataset');
-        const listItemsSpy = vi.spyOn(DatasetClient.prototype, 'listItems')
-            .mockImplementation(async () => {
-                const paginatedList = paginatedItems[listCounter];
-                listCounter++;
-                return {
-                    items: paginatedList,
-                } as PaginatedList<Item>;
-            });
-
-        const client = generateApifyClient('test-client');
-
-        const results: Item[] = [];
-        const datasetIterator = client.iterateOutput<Item>(
-            {
-                'test-run-1': getMockRun('test-id-1', 'SUCCEEDED', 'test-dataset-id-1'),
-                'test-run-2': getMockRun('test-id-2', 'TIMED-OUT', 'test-dataset-id-2'),
-                'test-run-3': getMockRun('test-id-3', 'ABORTED', 'test-dataset-id-3'),
-            },
-            { pageSize: 3 },
-        );
-
-        for await (const item of datasetIterator) {
-            results.push(item);
-        }
-
-        expect(createDatasetSpy).toHaveBeenCalledTimes(3);
-        expect(createDatasetSpy).toHaveBeenNthCalledWith(1, 'test-dataset-id-1');
-        expect(createDatasetSpy).toHaveBeenNthCalledWith(2, 'test-dataset-id-2');
-        expect(createDatasetSpy).toHaveBeenNthCalledWith(3, 'test-dataset-id-3');
-
-        expect(listItemsSpy).toHaveBeenCalledTimes(5);
-        expect(listItemsSpy).toHaveBeenNthCalledWith(1, { offset: 0, limit: 3 });
-        expect(listItemsSpy).toHaveBeenNthCalledWith(2, { offset: 3, limit: 3 });
-        expect(listItemsSpy).toHaveBeenNthCalledWith(3, { offset: 0, limit: 3 });
-        expect(listItemsSpy).toHaveBeenNthCalledWith(4, { offset: 3, limit: 3 });
-        expect(listItemsSpy).toHaveBeenNthCalledWith(5, { offset: 0, limit: 3 });
-        expect(results).toEqual(paginatedItems.flat());
-        });
-    });
-
-    describe('greedyIterateOutput', () => {
-        it('yields items of a single Run, as soon as one batch is available', () => {
-            // TODO: test
-        });
-
-        it('yields items of multiple Runs, as soon as one batch is available', () => {
-            // TODO: test
         });
     });
 });

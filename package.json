@@ -45,5 +45,22 @@
         "apify": "^3.2.5",
         "apify-client": "^2.9.5",
         "crawlee": "^3.11.3"
+    },
+    "cspell": {
+        "version": "0.2",
+        "ignorePaths": [],
+        "dictionaryDefinitions": [
+            {
+                "name": "custom-dictionary",
+                "path": "./.cspell/custom-dictionary.txt",
+                "addWords": true
+            }
+        ],
+        "dictionaries": [
+            "custom-dictionary"
+        ],
+        "words": [],
+        "ignoreWords": [],
+        "import": []
     }
 }

@@ -1,15 +1,37 @@
 # Apify Orchestrator
 
-**0.2.0**
-
-*Last README update: 2024-09-11*
-
-*TODO: finish the test suite.*
+**0.3.0**
 
 An opinionated library built around `apify` and `apify-client`, aiming at providing a nice tool for calling several external Actors in the same Run and gathering their results.
 
 Differently from other solutions, this library does not force you to run a fixed bunch of Actors in parallel:
 instead, it allows you to trigger one or more new Runs from everywhere in your code, at any moment, giving you maximum flexibility.
+
+## Contributing
+
+1. Please, take a look at existing issues and submit your pull requests to: https://github.com/apify-projects/apify-orchestrator.
+2. Before starting to work on some topic, make sure to create/assign the corresponding issue to yourself.
+3. Remember to bump the patch/minor/major version number:
+- at the top of this README;
+- in the `index.ts` file;
+- in the `package.json` file.
+4. This project is still to be considered in *alpha* state, and it follows the [semantic versioning](https://semver.org/) rules. This means that:
+    - the major version number is `0`;
+    - breaking changes are allowed on different minor versions.
+4. If you are working on minor features or patches, ask to merge your work directly into the `main` branch.
+5. If you are working on some feature which introduces breaking changes or is planned for the next major version, ask to merge it into the next major development branch, e.g., `dev/0.4.0`.
+6. Remember to add/fix **unit tests**:
+    - [`vitest`](https://vitest.dev/) is used;
+    - take a look at existing tests in the `test` folder and follow the same organization/naming conventions;
+    - the `package.json` includes scripts for testing.
+
+### About the codebase
+
+- All public objects are exported from the `index.ts` file. This includes all the types in `types.ts`:
+    - if you want to create a new public interface, put it in `types.ts`, give it a meaningful name and add some `js-doc` to it, if necessary;
+    - no internal interface should be in `types.ts`, because it would be exported to the user.
+
+Thanks for your contributions!
 
 ## Disclaimer!
 

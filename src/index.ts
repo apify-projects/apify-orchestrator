@@ -19,7 +19,7 @@ import {
 import { CustomLogger } from './utils/logging.js';
 import { makeNameUnique } from './utils/naming.js';
 
-export const version = '0.3.0';
+export const version = '0.4.0';
 
 export * from './types.js';
 

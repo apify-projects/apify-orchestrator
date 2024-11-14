@@ -16,6 +16,7 @@ export default defineConfig({
                 '**/node_modules/**',
                 '**/dist/**',
                 '**/test/**',
+                'vitest.config.ts',
             ],
         },
         restoreMocks: true,

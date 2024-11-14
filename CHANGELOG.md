@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0
+
+### Breaking changes
+
+- Some public interfaces have been renamed:
+    - `ScheduledClientOptions` → `ExtendedClientOptions`
+    - `ScheduledApifyClient` → `ExtendedApifyClient`
+    - `QueuedActorClient` → `ExtendedActorClient`
+    - `TrackedRunClient` → `ExtendedRunClient`
+    - `IterableDatasetClient` → `ExtendedDatasetClient`
+    - `ScheduledClientOptions` → `ExtendedClientOptions`
+- `iterateOutput` has been removed from `ExtendedApifyClient`.
+
+### Added
+
+- `mergeDatasets` is a new method of the main Orchestrator object which creates a `DatasetGroup`, that can be used to iterate multiple datasets (it replaces `iterateOutput`).
+
 ## 0.3.0 - 2024-09-27
 
 ### Breaking changes

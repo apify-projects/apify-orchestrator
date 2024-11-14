@@ -1,6 +1,6 @@
 # Apify Orchestrator
 
-**0.3.0**
+**0.4.0**
 
 An opinionated library built around `apify` and `apify-client`, aiming at providing a nice tool for calling several external Actors in the same Run and gathering their results.
 
@@ -19,7 +19,7 @@ instead, it allows you to trigger one or more new Runs from everywhere in your c
     - the major version number is `0`;
     - breaking changes are allowed on different minor versions.
 4. If you are working on minor features or patches, ask to merge your work directly into the `main` branch.
-5. If you are working on some feature which introduces breaking changes or is planned for the next major version, ask to merge it into the next major development branch, e.g., `dev/0.4.0`.
+5. If you are working on some feature which introduces breaking changes or is planned for the next major version, ask to merge it into the next major development branch, e.g., `dev/0.5.0`.
 6. Remember to add/fix **unit tests**:
     - [`vitest`](https://vitest.dev/) is used;
     - take a look at existing tests in the `test` folder and follow the same organization/naming conventions;
@@ -32,18 +32,6 @@ instead, it allows you to trigger one or more new Runs from everywhere in your c
     - no internal interface should be in `types.ts`, because it would be exported to the user.
 
 Thanks for your contributions!
-
-## Disclaimer!
-
-This is a proof of concept, meaning that it could be removed (or moved somewhere else) at any moment.
-
-Ideally, I would like to make this tool easily available for everyone in one of these ways:
-
-- Integrate the code into the Apify SDK.
-- Integrate the code into [`apify-extra`](https://github.com/apify-projects/apify-extra-library).
-- Make this an independent npm package.
-
-Each approach has its pros and cons.
 
 ## Main features
 
@@ -60,25 +48,10 @@ Most of the following features are opt-in: you can use just the ones you need.
 
 - Log all the events that occur (a Run starts, finishes, fails...) in a format that is **easy to read and debug**.
 
-- Periodically log a **report** listing the Runs and their status.
-
 ## Installation
 
-For the time being, you can copy the content of `src` into a directory in your project of your choice.
-
-```bash
-mkdir PATH_TO_MY_PROJECT/src/orchestrator
-cp -r src/* PATH_TO_MY_PROJECT/src/orchestrator/
-```
-
-The dependencies of these libraries are:
-
-- `apify`
-- `apify-client`
-- `crawlee`
-
-```bash
-npm install apify apify-client crawlee
+```sh
+npm install apify-orchestrator
 ```
 
 ## Quick-start
@@ -130,7 +103,8 @@ const urls = ['...', '...', ...];
 const actorInput = { startUrls: urls.map((url) => ({ url })) };
 
 // Call an Actor, creating a new Run, an wait for it to finish
-const run = await client.actor(actorId).call('my-job', actorInput); // here you can give a name to this Run!
+// Here you can give this Run a name, which will be used wether a resurrection takes place
+const run = await client.actor(actorId).call('my-job', actorInput);
 
 // Read the default dataset
 const itemList = await client.dataset(run.defaultDatasetId).listItems({ skipEmpty: true });
@@ -261,7 +235,7 @@ import { Actor } from 'apify';
 import { Orchestrator } from './orchestrator/index.js'
 
 const CHILDREN_RUN_KILLER_INPUT_PARAMS = {
-    __watchedRun: {
+    __watched: {
         parentRunId: Actor.getEnv().actorRunId,
         apifyUserId: Actor.getEnv().userId,
     },
@@ -293,15 +267,11 @@ const orchestrator = new Orchestrator({
 
 ## Orchestrator API
 
-Each client provided by this library extends its corresponding client from `apify-client`, e.g., `ScheduledApifyClient`
+Each client provided by this library extends its corresponding client from `apify-client`, e.g., `ExtendedApifyClient`
 extends `ApifyClient`, and you can use any method from its super-class.
 
 For additional information, see [this file](./src/types.ts).
 
-## Limitations and future improvements
+## Future improvements
 
-- Set a custom memory limit
-- Set a limit for the number of concurrent Runs
-- Implement other split input options
-- Improve the report
-- Add the number of items currently in the dataset to the report
+See [issues](https://github.com/apify-projects/apify-orchestrator/issues).

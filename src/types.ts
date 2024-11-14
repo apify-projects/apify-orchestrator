@@ -97,10 +97,18 @@ export interface ApifyOrchestrator {
      * @param options includes the options from `ApifyClientOptions` and `name`
      * @returns the `ScheduledApifyClient` object
      */
-    apifyClient: (options?: ScheduledClientOptions) => Promise<ScheduledApifyClient>
+    apifyClient: (options?: ExtendedClientOptions) => Promise<ExtendedApifyClient>
+
+    /**
+     * Group some datasets together, to be able to read all their items at one time.
+     *
+     * @param datasets the dataset clients, generated with `ExtendedApifyClient.dataset`
+     * @returns an object representing group of merged datasets
+     */
+    mergeDatasets: <T extends DatasetItem>(...datasets: ExtendedDatasetClient<T>[]) => DatasetGroup<T>
 }
 
-export type ScheduledClientOptions = ApifyClientOptions & {
+export type ExtendedClientOptions = ApifyClientOptions & {
     /**
      * Used to identify a client, for instance, when storing its Runs in the Key Value Store.
      */
@@ -112,21 +120,27 @@ export type ScheduledClientOptions = ApifyClientOptions & {
  *
  * @extends ApifyClient
  */
-export interface ScheduledApifyClient extends ApifyClient {
-    /**
-     * @override
-     */
-    actor: (id: string) => QueuedActorClient
+export interface ExtendedApifyClient extends ApifyClient {
+    readonly clientName: string
+    readonly abortAllRunsOnGracefulAbort: boolean
+    readonly hideSensibleInformation: boolean
+    readonly enableDatasetTracking: boolean
+    readonly fixedInput: object | undefined
 
     /**
      * @override
      */
-    dataset: <T extends DatasetItem>(id: string) => IterableDatasetClient<T>
+    actor: (id: string) => ExtendedActorClient
+
+    /**
+     * @override
+     */
+    dataset: <T extends DatasetItem>(id: string) => ExtendedDatasetClient<T>
 
     /**
      * @returns a Run client corresponding to the given name, if it exists
      */
-    runByName: (name: string) => Promise<TrackedRunClient | undefined>
+    runByName: (name: string) => Promise<ExtendedRunClient | undefined>
 
     /**
      * @returns an ActorRun object corresponding to the given name, if it exists
@@ -150,15 +164,6 @@ export interface ScheduledApifyClient extends ApifyClient {
      * Stop all the Runs in progress started from this client.
      */
     abortAllRuns: () => Promise<void>
-
-    /**
-     * Iterate the items in the default dataset of one or more Runs.
-     *
-     * @param resource a single `ActorRun` or a `RunRecord`
-     * @param options the options for the iteration, including the page size
-     * @returns an `AsyncGenerator` which iterates the items from all the default datasets
-     */
-    iterateOutput: <T extends DatasetItem>(resource: ActorRun | RunRecord, options: IterateOptions) => AsyncGenerator<T, void, void>
 }
 
 /**
@@ -166,7 +171,7 @@ export interface ScheduledApifyClient extends ApifyClient {
  *
  * @extends ActorClient
  */
-export interface QueuedActorClient extends ActorClient {
+export interface ExtendedActorClient extends ActorClient {
     /**
      * Enqueues one or more requests for new Runs, and return immediately.
      *
@@ -269,14 +274,14 @@ export interface QueuedActorClient extends ActorClient {
  *
  * @extends RunClient
  */
-export interface TrackedRunClient extends RunClient {}
+export interface ExtendedRunClient extends RunClient {}
 
 /**
  * A Dataset client allowing to iterate over the items in the dataset, automatically paginated.
  *
  * @extends DatasetClient
  */
-export interface IterableDatasetClient<T extends DatasetItem> extends DatasetClient<T> {
+export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetClient<T> {
     /**
      * Iterates over the items in the dataset.
      *
@@ -284,6 +289,12 @@ export interface IterableDatasetClient<T extends DatasetItem> extends DatasetCli
      *
      * @param options includes all the options in `DatasetClientListItemOptions` and `pageSize`
      * @returns an `AsyncGenerator` which iterates the items in the dataset
+     *
+     * @example
+     * const datasetIterator = datasetClient.iterate({ pageSize: 100 });
+     * for await (const item of datasetIterator) {
+     *     console.log(item.title);
+     * }
      */
     iterate: (options: IterateOptions) => AsyncGenerator<T, void, void>
 
@@ -308,8 +319,31 @@ export interface IterableDatasetClient<T extends DatasetItem> extends DatasetCli
      *
      * @param options includes all the options in `DatasetClientListItemOptions`, `pageSize`, `itemsThreshold`, and `pollIntervalSecs`
      * @returns an `AsyncGenerator` which iterates the items in the dataset
+     *
+     * @example
+     * const datasetIterator = datasetClient.greedyIterate({ pageSize: 100 });
+     * for await (const item of datasetIterator) {
+     *     console.log(item.title);
+     * }
      */
     greedyIterate: (options: GreedyIterateOptions) => AsyncGenerator<T, void, void>
+}
+
+export interface DatasetGroup<T extends DatasetItem> {
+    /**
+     * The dataset clients in this group.
+     */
+    readonly datasets: ExtendedDatasetClient<T>[]
+
+    /**
+     * Iterate over all the items from all the dataset, in order, at one time.
+     *
+     * The option `pageSize` will help avoiding the JavaScript's string limit when deserializing the content.
+     *
+     * @param options includes all the options in `DatasetClientListItemOptions` and `pageSize`
+     * @returns an `AsyncGenerator` which iterates the items in the datasets
+     */
+    iterate: (options: IterateOptions) => AsyncGenerator<T, void, void>
 }
 
 /**
@@ -331,13 +365,6 @@ export interface ActorRunRequest {
  * A record of Runs, having their names as keys and their `ActorRun` objects as values.
  */
 export type RunRecord = Record<string, ActorRun>
-
-/**
- * Helps distinguishing between a `RunRecord` and an `ActorRun` in TypeScript.
- */
-export function isRunRecord(runRecordOrActorRun: RunRecord | ActorRun): runRecordOrActorRun is RunRecord {
-    return Object.values(runRecordOrActorRun).every((run) => typeof run === 'object' && 'defaultDatasetId' in run);
-}
 
 /**
  * A generic definition of a dataset item.

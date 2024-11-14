@@ -5,35 +5,44 @@
 
 import { ExtApifyClient } from './clients/apify-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS } from './constants.js';
+import { DatasetGroupClass } from './entities/dataset-group.js';
 import { RunsTracker } from './tracker.js';
 import {
     ApifyOrchestrator,
     OrchestratorOptions,
-    ScheduledApifyClient,
-    ScheduledClientOptions,
+    ExtendedApifyClient,
+    ExtendedClientOptions,
+    DatasetItem,
+    ExtendedDatasetClient,
+    DatasetGroup,
 } from './types.js';
 import { CustomLogger } from './utils/logging.js';
+import { makeNameUnique } from './utils/naming.js';
 
-export const version = '0.3.0';
+export const version = '0.4.0';
 
 export * from './types.js';
 
-// Use a singleton counter shared among all Orchestrator instances.
-let clientsCounter = 0;
+const takenPersistPrefixes = new Set<string>();
+const takenClientNames = new Set<string>();
 
 export class Orchestrator implements ApifyOrchestrator {
-    protected options: OrchestratorOptions;
+    readonly options: OrchestratorOptions;
     protected customLogger: CustomLogger;
 
     constructor(options: Partial<OrchestratorOptions> = {}) {
-        this.options = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...options };
+        const fullOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...options };
+        fullOptions.persistPrefix = makeNameUnique(fullOptions.persistPrefix, takenPersistPrefixes);
+        takenPersistPrefixes.add(fullOptions.persistPrefix);
+        this.options = fullOptions;
         this.customLogger = new CustomLogger(this.options.enableLogs, this.options.hideSensibleInformation);
     }
 
-    async apifyClient(options: ScheduledClientOptions = {}): Promise<ScheduledApifyClient> {
+    async apifyClient(options: ExtendedClientOptions = {}): Promise<ExtendedApifyClient> {
         const { name, ...apifyClientOptions } = options;
 
-        clientsCounter++;
+        const clientName = makeNameUnique(name ?? 'CLIENT', takenClientNames);
+        takenClientNames.add(clientName);
 
         const enableFailedRunsHistory = !this.options.hideSensibleInformation;
         const runsTracker = new RunsTracker(
@@ -41,7 +50,7 @@ export class Orchestrator implements ApifyOrchestrator {
             enableFailedRunsHistory,
             this.options.onUpdate,
         );
-        const clientName = name ?? `CLIENT-${clientsCounter}`;
+
         await runsTracker.init(
             this.options.persistSupport,
             `${this.options.persistPrefix}${clientName}-`,
@@ -61,5 +70,9 @@ export class Orchestrator implements ApifyOrchestrator {
         client.startScheduler();
 
         return client;
+    }
+
+    mergeDatasets<T extends DatasetItem>(...datasets: ExtendedDatasetClient<T>[]): DatasetGroup<T> {
+        return new DatasetGroupClass(...datasets);
     }
 }

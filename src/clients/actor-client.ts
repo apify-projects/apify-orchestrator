@@ -3,7 +3,7 @@ import { ActorCallOptions, ActorClient, ActorLastRunOptions, ActorRun, ActorStar
 import { ExtRunClient } from './run-client.js';
 import { APIFY_PAYLOAD_BYTES_LIMIT } from '../constants.js';
 import { RunsTracker, isRunOkStatus } from '../tracker.js';
-import { ActorRunRequest, QueuedActorClient, RunRecord, SplitRules, TrackedRunClient } from '../types.js';
+import { ActorRunRequest, ExtendedActorClient, RunRecord, SplitRules, ExtendedRunClient } from '../types.js';
 import { splitIntoChunksWithMaxSize, strBytes } from '../utils/bytes.js';
 import { CustomLogger } from '../utils/logging.js';
 
@@ -16,7 +16,7 @@ export interface EnqueuedRequest {
     options?: ActorStartOptions
 }
 
-type EnqueueFunction = (runRequest: EnqueuedRequest) => TrackedRunClient | undefined
+type EnqueueFunction = (runRequest: EnqueuedRequest) => ExtendedRunClient | undefined
 type ForcedEnqueueFunction = (runRequest: EnqueuedRequest) => undefined
 
 function mergeInputParams(input?: object, extraParams?: object): object | undefined {
@@ -57,7 +57,7 @@ function generateRunRequests(
     });
 }
 
-export class ExtActorClient extends ActorClient implements QueuedActorClient {
+export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     protected superClient: ActorClient;
     protected enqueueFunction: EnqueueFunction;
     protected forcedEnqueueFunction: ForcedEnqueueFunction;
@@ -130,7 +130,7 @@ export class ExtActorClient extends ActorClient implements QueuedActorClient {
             options,
         };
 
-        let existingRunClient: TrackedRunClient | undefined;
+        let existingRunClient: ExtendedRunClient | undefined;
         let run = await new Promise<ActorRun | undefined>((resolve) => {
             existingRunClient = this.enqueueFunction({
                 ...runParams,

@@ -1,6 +1,6 @@
 # Apify Orchestrator
 
-**0.4.1**
+**0.4.2**
 
 An opinionated library built around `apify` and `apify-client`, aiming at providing a nice tool for calling several external Actors in the same Run and gathering their results.
 

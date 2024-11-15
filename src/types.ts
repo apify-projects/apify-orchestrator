@@ -20,7 +20,7 @@ export interface OrchestratorOptions {
     /**
      * Hide sensible data from logs, such as Run IDs and URLs.
      *
-     * **WARNING**: if you enable persistance without an encryption key,
+     * **WARNING**: if you enable persistence without an encryption key,
      * the user will be able to retrieve the hidden data from the Key Value Store.
      *
      * @default true
@@ -35,12 +35,12 @@ export interface OrchestratorOptions {
     onUpdate?: UpdateCallback
 
     /**
-     * Which support to use for persistance:
+     * Which support to use for persistence:
      *
      * - `kvs`: Key Value Store
-     * - `none`: disable persistance
+     * - `none`: disable persistence
      *
-     * **WARNING**: persistance may leak sensible information to the user, such as external runs' IDs.
+     * **WARNING**: persistence may leak sensible information to the user, such as external runs' IDs.
      * If you don't want the information in the Key Value Store to be readable to anyone having access to it,
      * set a `persistEncryptionKey`.
      *

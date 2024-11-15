@@ -37,7 +37,7 @@ Thanks for your contributions!
 
 Most of the following features are opt-in: you can use just the ones you need.
 
-- Automatic **resources management**: start a Run when there is enough memory and Actor jobs available on the selected account.
+- Automatic **resources' management**: start a Run when there is enough memory and Actor jobs available on the selected account.
 
 - Store the Runs in progress in the Key Value Store and **resume** them after a resurrection, avoiding starting a new, redundant Run.
 
@@ -166,8 +166,12 @@ const runRecord = await client.actor(actorId).callBatch(
     { respectApifyMaxPayloadSize: true }, // tell the Orchestrator to split the input respecting the API limit
 );
 
-// Create an iterator for reading the default dataset
-const datasetIterator = client.iterateOutput(runRecord, {
+// Create an iterator for reading all the default datasets together
+const datasetIterator = orchestrator.mergeDatasets(
+    ...Object.values(runRecord).map(
+        (run) => client.dataset(run.defaultDatasetId),
+    )
+).iterate({
     pageSize: 100,   // define a page size to use pagination and avoid exceeding the string limit
     skipEmpty: true, // you can use the same options used with dataset.listItems
 })
@@ -192,7 +196,7 @@ Also, notice the `for await` at the end: it is due to the fact that `datasetIter
 which fetches the first 100 items, iterates over them, then fetches another 100, and so on.
 
 Be aware that, with the current implementation, input splitting may be quite slow.
-If you would prefer to split the input yourself, you can do it like this:
+If you preferred to split the input yourself, you can do it like this:
 
 ```js
 const input1 = { ... }
@@ -252,7 +256,7 @@ The parameters defined in `fixedInput` will be added to *all* the Runs triggered
 
 Sensible information, such as Run IDs, can be logged or stored into the Key Value Store,
 depending on the Orchestrator's configuration.
-If you would like to keep using logs and persistance, but you want to hide such information, set these options:
+If you would like to keep using logs and persistence, but you want to hide such information, set these options:
 
 ```js
 import { Orchestrator } from './orchestrator/index.js'
@@ -260,7 +264,7 @@ import { Orchestrator } from './orchestrator/index.js'
 const orchestrator = new Orchestrator({
     enableLogs: true,
     hideSensibleInformation: true, // will hide information such as Run IDs from logs
-    persistSupport: 'kvs', // will enable persistance-related features, such as managing resurrections
+    persistSupport: 'kvs', // will enable persistence-related features, such as managing resurrections
     persistEncryptionKey: 'my-secret-key', // will make data written by the Orchestrator into the Key Value Store encrypted
 });
 ```

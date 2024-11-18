@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.5.1
+
+### Fixed
+
+- Fix build.
+
+## 0.5.0
+
+### Breaking changes
+
+- Removed the tracking of dataset items.
+
+### Added
+
+- Added the last changed run to `updateCallback`.
+
+## 0.4.2
+
+### Fixed
+
+- Fix README.
+
+## 0.4.1
+
+### Fixed
+
+- Fix build.
+
 ## 0.4.0
 
 ### Breaking changes

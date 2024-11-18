@@ -21,7 +21,6 @@ describe('apify-client methods', () => {
         options.fixedInput,
         options.abortAllRunsOnGracefulAbort,
         options.hideSensibleInformation,
-        !!options.onUpdate,
     );
 
     const mockDate = new Date('2024-09-11T06:00:00.000Z');
@@ -320,21 +319,18 @@ describe('apify-client methods', () => {
             expect(runRecord).toEqual(expectedRunRecord);
             expect(runsTracker.currentRuns).toEqual({
                 'test-run-1': {
-                    itemsCount: 0,
                     runId: 'test-id-1',
                     runUrl: 'https://console.apify.com/actors/runs/test-id-1',
                     status: 'SUCCEEDED',
                     startedAt: mockDate.toISOString(),
                 },
                 'test-run-2': {
-                    itemsCount: 0,
                     runId: 'test-id-2',
                     runUrl: 'https://console.apify.com/actors/runs/test-id-2',
                     status: 'SUCCEEDED',
                     startedAt: mockDate.toISOString(),
                 },
                 'test-run-3': {
-                    itemsCount: 0,
                     runId: 'test-id-3',
                     runUrl: 'https://console.apify.com/actors/runs/test-id-3',
                     status: 'SUCCEEDED',

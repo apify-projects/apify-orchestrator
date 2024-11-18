@@ -124,7 +124,6 @@ export interface ExtendedApifyClient extends ApifyClient {
     readonly clientName: string
     readonly abortAllRunsOnGracefulAbort: boolean
     readonly hideSensibleInformation: boolean
-    readonly enableDatasetTracking: boolean
     readonly fixedInput: object | undefined
 
     /**
@@ -410,12 +409,11 @@ export interface SplitRules {
     respectApifyMaxPayloadSize?: boolean
 }
 
-export type UpdateCallback = (status: Record<string, RunInfo>) => unknown
+export type UpdateCallback = (report: Record<string, RunInfo>, lastChangedRun?: ActorRun) => unknown
 
 export interface RunInfo {
     runId: string
     runUrl: string
     status: string
     startedAt: string
-    itemsCount: number
 }

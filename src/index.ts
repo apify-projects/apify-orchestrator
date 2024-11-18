@@ -64,7 +64,6 @@ export class Orchestrator implements ApifyOrchestrator {
             this.options.fixedInput,
             this.options.abortAllRunsOnGracefulAbort,
             this.options.hideSensibleInformation,
-            !!this.options.onUpdate,
             apifyClientOptions,
         );
         client.startScheduler();

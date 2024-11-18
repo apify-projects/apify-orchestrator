@@ -15,7 +15,6 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     readonly clientName: string;
     readonly abortAllRunsOnGracefulAbort: boolean;
     readonly hideSensibleInformation: boolean;
-    readonly enableDatasetTracking: boolean;
     readonly fixedInput: object | undefined; // TODO: forbid changes
 
     protected runRequestsQueue = new Queue<EnqueuedRequest>();
@@ -33,7 +32,6 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         fixedInput: object | undefined,
         abortAllRunsOnGracefulAbort: boolean,
         hideSensibleInformation: boolean,
-        enableDatasetTracking: boolean,
         options: ApifyClientOptions = {},
     ) {
         if (!options.token) { options.token = Actor.apifyClient.token; }
@@ -42,7 +40,6 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         this.customLogger = customLogger;
         this.runsTracker = runsTracker;
         this.hideSensibleInformation = hideSensibleInformation;
-        this.enableDatasetTracking = enableDatasetTracking;
         this.fixedInput = fixedInput;
         this.abortAllRunsOnGracefulAbort = abortAllRunsOnGracefulAbort;
     }
@@ -123,7 +120,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     override dataset<T extends DatasetItem>(id: string): ExtDatasetClient<T> {
-        return new ExtDatasetClient<T>(super.dataset(id), this.customLogger, this.runsTracker, this.enableDatasetTracking);
+        return new ExtDatasetClient<T>(super.dataset(id), this.customLogger, this.runsTracker);
     }
 
     override run(id: string): RunClient {

@@ -24,7 +24,6 @@ describe('dataset-client', () => {
         options.fixedInput,
         options.abortAllRunsOnGracefulAbort,
         options.hideSensibleInformation,
-        !!options.onUpdate,
     );
 
     function generateExtDatasetClient() {

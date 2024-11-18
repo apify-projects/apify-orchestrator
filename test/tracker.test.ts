@@ -59,14 +59,12 @@ describe('RunsTracker', () => {
 
         const mockRuns = {
             [run1Name]: {
-                itemsCount: 0,
                 runId: run1.id,
                 runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
                 status: 'RUNNING',
                 startedAt: mockDate.toISOString(),
             },
             [run2Name]: {
-                itemsCount: 0,
                 runId: run2.id,
                 runUrl: `https://console.apify.com/actors/runs/${run2.id}`,
                 status: 'SUCCEEDED',
@@ -90,7 +88,6 @@ describe('RunsTracker', () => {
         await tracker.updateRun(run1Name, run1);
         expect(tracker.currentRuns).toEqual({
             [run1Name]: {
-                itemsCount: 0,
                 runId: run1.id,
                 runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
                 status: 'READY',
@@ -101,7 +98,6 @@ describe('RunsTracker', () => {
         await tracker.updateRun(run1Name, { ...run1, status: 'RUNNING' });
         expect(tracker.currentRuns).toEqual({
             [run1Name]: {
-                itemsCount: 0,
                 runId: run1.id,
                 runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
                 status: 'RUNNING',
@@ -112,14 +108,12 @@ describe('RunsTracker', () => {
         await tracker.updateRun(run2Name, run2);
         expect(tracker.currentRuns).toEqual({
             [run1Name]: {
-                itemsCount: 0,
                 runId: run1.id,
                 runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
                 status: 'RUNNING',
                 startedAt: mockDate.toISOString(),
             },
             [run2Name]: {
-                itemsCount: 0,
                 runId: run2.id,
                 runUrl: `https://console.apify.com/actors/runs/${run2.id}`,
                 status: 'SUCCEEDED',
@@ -129,40 +123,12 @@ describe('RunsTracker', () => {
         expect(tracker.currentRuns).toEqual(await Actor.getValue(`${prefix}RUNS`));
     });
 
-    it('updates items count correctly', async () => {
-        const tracker = new RunsTracker(logger, false);
-
-        await tracker.init('kvs', prefix);
-        await tracker.updateRun(run1Name, run1);
-        expect(tracker.currentRuns).toEqual({
-            [run1Name]: {
-                itemsCount: 0,
-                runId: run1.id,
-                runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
-                status: 'READY',
-                startedAt: mockDate.toISOString(),
-            },
-        });
-
-        await tracker.updateItemsCount(run1Name, 17);
-        expect(tracker.currentRuns).toEqual({
-            [run1Name]: {
-                itemsCount: 17,
-                runId: run1.id,
-                runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
-                status: 'READY',
-                startedAt: mockDate.toISOString(),
-            },
-        });
-    });
-
     it('calls the callback upon update', async () => {
         const mockCallback = vi.fn();
         const tracker = new RunsTracker(logger, false, mockCallback);
 
         await Actor.setValue(`${prefix}RUNS`, {
             [run1Name]: {
-                itemsCount: 0,
                 runId: run1.id,
                 runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
                 status: 'READY',
@@ -175,51 +141,29 @@ describe('RunsTracker', () => {
         expect(mockCallback).toHaveBeenCalledTimes(1);
         expect(mockCallback).toHaveBeenLastCalledWith({
             [run1Name]: {
-                itemsCount: 0,
                 runId: run1.id,
                 runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
                 status: 'READY',
                 startedAt: mockDate.toISOString(),
             },
-        });
+        }, undefined);
 
         await tracker.updateRun(run2Name, run2);
         expect(mockCallback).toHaveBeenCalledTimes(2);
         expect(mockCallback).toHaveBeenLastCalledWith({
             [run1Name]: {
-                itemsCount: 0,
                 runId: run1.id,
                 runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
                 status: 'READY',
                 startedAt: mockDate.toISOString(),
             },
             [run2Name]: {
-                itemsCount: 0,
                 runId: run2.id,
                 runUrl: `https://console.apify.com/actors/runs/${run2.id}`,
                 status: 'SUCCEEDED',
                 startedAt: mockDate.toISOString(),
             },
-        });
-
-        await tracker.updateItemsCount(run2Name, 32);
-        expect(mockCallback).toHaveBeenCalledTimes(3);
-        expect(mockCallback).toHaveBeenLastCalledWith({
-            [run1Name]: {
-                itemsCount: 0,
-                runId: run1.id,
-                runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
-                status: 'READY',
-                startedAt: mockDate.toISOString(),
-            },
-            [run2Name]: {
-                itemsCount: 32,
-                runId: run2.id,
-                runUrl: `https://console.apify.com/actors/runs/${run2.id}`,
-                status: 'SUCCEEDED',
-                startedAt: mockDate.toISOString(),
-            },
-        });
+        }, run2);
     });
 
     it('allows to query runs', async () => {
@@ -230,14 +174,12 @@ describe('RunsTracker', () => {
 
         expect(tracker.currentRuns).toEqual({
             [run1Name]: {
-                itemsCount: 0,
                 runId: run1.id,
                 runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
                 status: 'READY',
                 startedAt: mockDate.toISOString(),
             },
             [run2Name]: {
-                itemsCount: 0,
                 runId: run2.id,
                 runUrl: `https://console.apify.com/actors/runs/${run2.id}`,
                 status: 'SUCCEEDED',
@@ -245,7 +187,6 @@ describe('RunsTracker', () => {
             },
         });
         expect(tracker.findRunByName(run1Name)).toEqual({
-            itemsCount: 0,
             runId: run1.id,
             runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
             status: 'READY',
@@ -269,7 +210,6 @@ describe('RunsTracker', () => {
         expect(await Actor.getValue(`${prefix}FAILED_RUNS`)).toEqual({
             [run1Name]: [
                 {
-                    itemsCount: 0,
                     runId: run1.id,
                     runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
                     status: 'ABORTED',
@@ -283,7 +223,6 @@ describe('RunsTracker', () => {
         expect(await Actor.getValue(`${prefix}FAILED_RUNS`)).toEqual({
             [run1Name]: [
                 {
-                    itemsCount: 0,
                     runId: run1.id,
                     runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
                     status: 'ABORTED',
@@ -292,7 +231,6 @@ describe('RunsTracker', () => {
             ],
             [run2Name]: [
                 {
-                    itemsCount: 0,
                     runId: run2.id,
                     runUrl: `https://console.apify.com/actors/runs/${run2.id}`,
                     status: 'LOST',

@@ -42,12 +42,15 @@ export class RunsTracker {
         this.onUpdate = onUpdate;
     }
 
-    protected async itemsChangedCallback() {
+    protected async itemsChangedCallback(lastChangedRun?: ActorRun) {
         if (this.onUpdate) {
-            // Pass a copy to avoid allowing direct changes to the tracker's data
-            this.onUpdate(Object.fromEntries(
-                Object.entries(this.currentRuns).map(([runName, runInfo]) => [runName, { ...runInfo }]),
-            ));
+            this.onUpdate(
+                // Pass a copy to avoid allowing direct changes to the tracker's data
+                Object.fromEntries(
+                    Object.entries(this.currentRuns).map(([runName, runInfo]) => [runName, { ...runInfo }]),
+                ),
+                lastChangedRun,
+            );
         }
     }
 
@@ -112,9 +115,8 @@ export class RunsTracker {
     async updateRun(runName: string, run: ActorRun): Promise<RunInfo> {
         const { id: runId, status, startedAt } = run;
         const runUrl = getRunUrl(runId);
-        const itemsCount = this.currentRuns[runName]?.itemsCount ?? 0;
         const formattedStartedAt = startedAt.toISOString();
-        const runInfo: RunInfo = { runId, runUrl, status, startedAt: formattedStartedAt, itemsCount };
+        const runInfo: RunInfo = { runId, runUrl, status, startedAt: formattedStartedAt };
 
         const itemChanged = this.currentRuns[runName]?.runId !== runId || this.currentRuns[runName]?.status !== status;
 
@@ -126,27 +128,7 @@ export class RunsTracker {
 
         if (itemChanged) {
             this.customLogger.prfxInfo(runName, 'Update Run', { status }, { url: runUrl });
-            await this.itemsChangedCallback();
-        }
-
-        return runInfo;
-    }
-
-    async updateItemsCount(runName: string, itemsCount: number): Promise<RunInfo | undefined> {
-        if (!this.currentRuns[runName]) {
-            this.customLogger.warning('Trying to update the item count of a Run which was not found', { runName, itemsCount });
-            return undefined;
-        }
-
-        const runInfo: RunInfo = { ...this.currentRuns[runName], itemsCount };
-
-        const itemChanged = this.currentRuns[runName].itemsCount !== itemsCount;
-
-        await this.currentRunsState.update((prev) => ({ ...prev, [runName]: runInfo }));
-
-        if (itemChanged) {
-            this.customLogger.prfxInfo(runName, 'Update Run\'s items count', { itemsCount }, { url: runInfo.runUrl });
-            await this.itemsChangedCallback();
+            await this.itemsChangedCallback(run);
         }
 
         return runInfo;

@@ -8,9 +8,8 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
     protected superClient: DatasetClient<T>;
     protected customLogger: CustomLogger;
     protected runsTracker: RunsTracker;
-    protected enableTracking: boolean;
 
-    constructor(datasetClient: DatasetClient<T>, customLogger: CustomLogger, runsTracker: RunsTracker, enableTracking: boolean) {
+    constructor(datasetClient: DatasetClient<T>, customLogger: CustomLogger, runsTracker: RunsTracker) {
         super({
             baseUrl: datasetClient.baseUrl,
             apifyClient: datasetClient.apifyClient,
@@ -21,7 +20,6 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
         this.customLogger = customLogger;
         this.superClient = datasetClient;
         this.runsTracker = runsTracker;
-        this.enableTracking = enableTracking;
     }
 
     async* iterate(options: IterateOptions = {}): AsyncGenerator<T, void, void> {
@@ -50,15 +48,6 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             }
         }
 
-        if (this.enableTracking) {
-            const dataset = await this.get();
-            const run = (dataset && dataset.actRunId) ? await this.apifyClient.run(dataset.actRunId).get() : undefined;
-            if (run && run.defaultDatasetId === dataset?.id) {
-                const runName = run ? this.runsTracker.findRunName(run.id) : undefined;
-                if (runName) { await this.runsTracker.updateItemsCount(runName, totalItems); }
-            }
-        }
-
         this.customLogger.info('Finished reading dataset', { totalItems }, { url: this.url });
     }
 
@@ -66,7 +55,6 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
         const { pageSize = 100, itemsThreshold = 100, pollIntervalSecs = 10, ...listItemOptions } = options;
         this.customLogger.info('Greedily iterating Dataset', { pageSize }, { url: this.url });
 
-        let runName: string | undefined;
         let readItemsCount = 0;
 
         let dataset: Dataset | undefined;
@@ -83,16 +71,6 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             if (!run) {
                 this.customLogger.error('Error getting Run while iterating Dataset greedily', { id: this.id });
                 return;
-            }
-
-            if (this.enableTracking && run.defaultDatasetId === dataset.id) {
-                if (!runName) {
-                    runName = this.runsTracker.findRunName(run.id);
-                }
-                if (runName) {
-                    await this.runsTracker.updateRun(runName, run);
-                    await this.runsTracker.updateItemsCount(runName, dataset.itemCount);
-                }
             }
 
             if (run.status !== 'READY' && run.status !== 'RUNNING') {

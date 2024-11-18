@@ -1,7 +1,5 @@
 # Apify Orchestrator
 
-**0.4.2**
-
 An opinionated library built around `apify` and `apify-client`, aiming at providing a nice tool for calling several external Actors in the same Run and gathering their results.
 
 Differently from other solutions, this library does not force you to run a fixed bunch of Actors in parallel:
@@ -11,10 +9,7 @@ instead, it allows you to trigger one or more new Runs from everywhere in your c
 
 1. Please, take a look at existing issues and submit your pull requests to: https://github.com/apify-projects/apify-orchestrator.
 2. Before starting to work on some topic, make sure to create/assign the corresponding issue to yourself.
-3. Remember to bump the patch/minor/major version number:
-- at the top of this README;
-- in the `index.ts` file;
-- in the `package.json` file.
+3. Remember to bump the patch/minor/major version number, using `npm version major/minor/path`.
 4. This project is still to be considered in *alpha* state, and it follows the [semantic versioning](https://semver.org/) rules. This means that:
     - the major version number is `0`;
     - breaking changes are allowed on different minor versions.

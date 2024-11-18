@@ -42,13 +42,14 @@ export class RunsTracker {
         this.onUpdate = onUpdate;
     }
 
-    protected async itemsChangedCallback(lastChangedRun?: ActorRun) {
+    protected async itemsChangedCallback(lastChangedRunName?: string, lastChangedRun?: ActorRun) {
         if (this.onUpdate) {
             this.onUpdate(
                 // Pass a copy to avoid allowing direct changes to the tracker's data
                 Object.fromEntries(
                     Object.entries(this.currentRuns).map(([runName, runInfo]) => [runName, { ...runInfo }]),
                 ),
+                lastChangedRunName,
                 lastChangedRun,
             );
         }
@@ -128,7 +129,7 @@ export class RunsTracker {
 
         if (itemChanged) {
             this.customLogger.prfxInfo(runName, 'Update Run', { status }, { url: runUrl });
-            await this.itemsChangedCallback(run);
+            await this.itemsChangedCallback(runName, run);
         }
 
         return runInfo;

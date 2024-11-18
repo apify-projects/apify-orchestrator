@@ -409,7 +409,11 @@ export interface SplitRules {
     respectApifyMaxPayloadSize?: boolean
 }
 
-export type UpdateCallback = (report: Record<string, RunInfo>, lastChangedRun?: ActorRun) => unknown
+export type UpdateCallback = (
+    report: Record<string, RunInfo>,
+    lastChangedRunName?: string,
+    lastChangedRun?: ActorRun
+) => unknown
 
 export interface RunInfo {
     runId: string

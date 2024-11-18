@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2
+
+### Added
+
+- Added the last changed run name to `updateCallback`.
+
 ## 0.5.1
 
 ### Fixed

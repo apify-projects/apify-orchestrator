@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.3
+
+- Fix tests.
+- Update dependencies, fix `vitest` vulnerability.
+
 ## 0.5.2
 
 ### Added

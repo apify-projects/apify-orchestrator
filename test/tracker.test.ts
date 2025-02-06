@@ -139,31 +139,39 @@ describe('RunsTracker', () => {
         // The first update happens after the initialization and report the content fetched from KVS.
         await tracker.init('kvs', prefix);
         expect(mockCallback).toHaveBeenCalledTimes(1);
-        expect(mockCallback).toHaveBeenLastCalledWith({
-            [run1Name]: {
-                runId: run1.id,
-                runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
-                status: 'READY',
-                startedAt: mockDate.toISOString(),
+        expect(mockCallback).toHaveBeenLastCalledWith(
+            {
+                [run1Name]: {
+                    runId: run1.id,
+                    runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
+                    status: 'READY',
+                    startedAt: mockDate.toISOString(),
+                },
             },
-        }, undefined);
+            undefined,
+            undefined,
+        );
 
         await tracker.updateRun(run2Name, run2);
         expect(mockCallback).toHaveBeenCalledTimes(2);
-        expect(mockCallback).toHaveBeenLastCalledWith({
-            [run1Name]: {
-                runId: run1.id,
-                runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
-                status: 'READY',
-                startedAt: mockDate.toISOString(),
+        expect(mockCallback).toHaveBeenLastCalledWith(
+            {
+                [run1Name]: {
+                    runId: run1.id,
+                    runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
+                    status: 'READY',
+                    startedAt: mockDate.toISOString(),
+                },
+                [run2Name]: {
+                    runId: run2.id,
+                    runUrl: `https://console.apify.com/actors/runs/${run2.id}`,
+                    status: 'SUCCEEDED',
+                    startedAt: mockDate.toISOString(),
+                },
             },
-            [run2Name]: {
-                runId: run2.id,
-                runUrl: `https://console.apify.com/actors/runs/${run2.id}`,
-                status: 'SUCCEEDED',
-                startedAt: mockDate.toISOString(),
-            },
-        }, run2);
+            'test-run-2',
+            run2,
+        );
     });
 
     it('allows to query runs', async () => {

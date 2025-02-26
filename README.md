@@ -138,7 +138,6 @@ import { Orchestrator } from './orchestrator/index.js'
 // Create the main orchestrator object and pass some options
 const orchestrator = new Orchestrator({
     enableLogs: true,
-    statsIntervalSec: 300,
     persistSupport: 'kvs',
     persistPrefix: 'ORCHESTRATOR-',
     abortAllRunsOnGracefulAbort: true,

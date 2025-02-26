@@ -259,7 +259,7 @@ const orchestrator = new Orchestrator({
     enableLogs: true,
     hideSensibleInformation: true, // will hide information such as Run IDs from logs
     persistSupport: 'kvs', // will enable persistence-related features, such as managing resurrections
-    persistEncryptionKey: 'my-secret-key', // will make data written by the Orchestrator into the Key Value Store encrypted
+    persisntanceEncryptionKey: 'my-secret-key', // will make data written by the Orchestrator into the Key Value Store encrypted
 });
 ```
 

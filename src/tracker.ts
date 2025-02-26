@@ -70,17 +70,17 @@ export class RunsTracker {
     /**
      * Sync with the persisted data.
      */
-    async init(persistSupport: PersistSupport = 'none', persistPrefix = 'ORCHESTRATOR-', persistEncryptionKey?: string) {
+    async init(persistSupport: PersistSupport = 'none', persistPrefix = 'ORCHESTRATOR-', persisntanceEncryptionKey?: string) {
         let wasSyncSuccessful = await this.currentRunsState.sync(
             `${persistPrefix}${RUNS_KEY}`,
             persistSupport,
-            persistEncryptionKey, // We need to encrypt this data because it includes Run IDs and URLs
+            persisntanceEncryptionKey, // We need to encrypt this data because it includes Run IDs and URLs
         );
         if (this.enableFailedHistory) {
             wasSyncSuccessful = wasSyncSuccessful && await this.failedRunsHistoryState.sync(
                 `${persistPrefix}${FAILED_RUNS_KEY}`,
                 persistSupport,
-                persistEncryptionKey, // We need to encrypt this data because it includes Run IDs and URLs
+                persisntanceEncryptionKey, // We need to encrypt this data because it includes Run IDs and URLs
             );
         }
         if (!wasSyncSuccessful) {

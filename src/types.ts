@@ -42,7 +42,7 @@ export interface OrchestratorOptions {
      *
      * **WARNING**: persistence may leak sensible information to the user, such as external runs' IDs.
      * If you don't want the information in the Key Value Store to be readable to anyone having access to it,
-     * set a `persistEncryptionKey`.
+     * set a `persisntanceEncryptionKey`.
      *
      * @default none
      */
@@ -65,7 +65,7 @@ export interface OrchestratorOptions {
      *
      * @default undefined
      */
-    persistEncryptionKey?: string
+    persisntanceEncryptionKey?: string
 
     /**
      * Some fixed input parameters to add to each Run.
@@ -273,7 +273,7 @@ export interface ExtendedActorClient extends ActorClient {
  *
  * @extends RunClient
  */
-export interface ExtendedRunClient extends RunClient {}
+export interface ExtendedRunClient extends RunClient { }
 
 /**
  * A Dataset client allowing to iterate over the items in the dataset, automatically paginated.

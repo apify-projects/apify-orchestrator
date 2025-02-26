@@ -52,7 +52,7 @@ export class Orchestrator implements ApifyOrchestrator {
         await runsTracker.init(
             this.options.persistSupport,
             `${this.options.persistPrefix}${clientName}-`,
-            this.options.persistEncryptionKey,
+            this.options.persisntanceEncryptionKey,
         );
 
         const client = new ExtApifyClient(

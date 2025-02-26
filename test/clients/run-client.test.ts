@@ -29,7 +29,7 @@ describe('run-client', () => {
         runsTracker,
         options.fixedInput,
         options.abortAllRunsOnGracefulAbort,
-        options.hideSensibleInformation,
+        options.hideSensitiveInformation,
     );
 
     async function generateExtRunClient(runName: string) {

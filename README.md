@@ -246,9 +246,9 @@ const orchestrator = new Orchestrator({
 
 The parameters defined in `fixedInput` will be added to *all* the Runs triggered using the orchestrator object.
 
-## How to hide sensible information from the user
+## How to hide sensitive information from the user
 
-Sensible information, such as Run IDs, can be logged or stored into the Key Value Store,
+Sensitive information, such as Run IDs, can be logged or stored into the Key Value Store,
 depending on the Orchestrator's configuration.
 If you would like to keep using logs and persistence, but you want to hide such information, set these options:
 
@@ -257,7 +257,7 @@ import { Orchestrator } from './orchestrator/index.js'
 
 const orchestrator = new Orchestrator({
     enableLogs: true,
-    hideSensibleInformation: true, // will hide information such as Run IDs from logs
+    hideSensitiveInformation: true, // will hide information such as Run IDs from logs
     persistSupport: 'kvs', // will enable persistence-related features, such as managing resurrections
     persisntanceEncryptionKey: 'my-secret-key', // will make data written by the Orchestrator into the Key Value Store encrypted
 });

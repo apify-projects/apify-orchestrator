@@ -8,48 +8,48 @@ const prefixMessage = (prefix: string, msg: string) => `[${prefix}] ${msg}`;
 
 export class CustomLogger {
     readonly isEnabled: boolean;
-    readonly hideSensibleInformation: boolean;
+    readonly hideSensitiveInformation: boolean;
 
-    constructor(isEnabled: boolean, hideSensibleInformation: boolean) {
+    constructor(isEnabled: boolean, hideSensitiveInformation: boolean) {
         this.isEnabled = isEnabled;
-        this.hideSensibleInformation = hideSensibleInformation;
+        this.hideSensitiveInformation = hideSensitiveInformation;
     }
 
-    protected generateLogData(data?: AdditionalData, sensibleData?: AdditionalData) {
-        if (this.hideSensibleInformation) { return data; }
-        if (!data && !sensibleData) { return undefined; }
-        return { ...(data ?? {}), ...(sensibleData ?? {}) };
+    protected generateLogData(data?: AdditionalData, sensitiveData?: AdditionalData) {
+        if (this.hideSensitiveInformation) { return data; }
+        if (!data && !sensitiveData) { return undefined; }
+        return { ...(data ?? {}), ...(sensitiveData ?? {}) };
     }
 
-    debug(msg: string, data?: AdditionalData, sensibleData?: AdditionalData) {
-        if (this.isEnabled) { log.debug(msg, this.generateLogData(data, sensibleData)); }
+    debug(msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
+        if (this.isEnabled) { log.debug(msg, this.generateLogData(data, sensitiveData)); }
     }
 
-    info(msg: string, data?: AdditionalData, sensibleData?: AdditionalData) {
-        if (this.isEnabled) { log.info(msg, this.generateLogData(data, sensibleData)); }
+    info(msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
+        if (this.isEnabled) { log.info(msg, this.generateLogData(data, sensitiveData)); }
     }
 
-    warning(msg: string, data?: AdditionalData, sensibleData?: AdditionalData) {
-        if (this.isEnabled) { log.warning(msg, this.generateLogData(data, sensibleData)); }
+    warning(msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
+        if (this.isEnabled) { log.warning(msg, this.generateLogData(data, sensitiveData)); }
     }
 
-    error(msg: string, data?: AdditionalData, sensibleData?: AdditionalData) {
-        if (this.isEnabled) { log.error(msg, this.generateLogData(data, sensibleData)); }
+    error(msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
+        if (this.isEnabled) { log.error(msg, this.generateLogData(data, sensitiveData)); }
     }
 
-    prfxDebug(prfx: string, msg: string, data?: AdditionalData, sensibleData?: AdditionalData) {
-        if (this.isEnabled) { log.debug(prefixMessage(prfx, msg), this.generateLogData(data, sensibleData)); }
+    prfxDebug(prfx: string, msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
+        if (this.isEnabled) { log.debug(prefixMessage(prfx, msg), this.generateLogData(data, sensitiveData)); }
     }
 
-    prfxInfo(prfx: string, msg: string, data?: AdditionalData, sensibleData?: AdditionalData) {
-        if (this.isEnabled) { log.info(prefixMessage(prfx, msg), this.generateLogData(data, sensibleData)); }
+    prfxInfo(prfx: string, msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
+        if (this.isEnabled) { log.info(prefixMessage(prfx, msg), this.generateLogData(data, sensitiveData)); }
     }
 
-    prfxWarn(prfx: string, msg: string, data?: AdditionalData, sensibleData?: AdditionalData) {
-        if (this.isEnabled) { log.warning(prefixMessage(prfx, msg), this.generateLogData(data, sensibleData)); }
+    prfxWarn(prfx: string, msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
+        if (this.isEnabled) { log.warning(prefixMessage(prfx, msg), this.generateLogData(data, sensitiveData)); }
     }
 
-    prfxError(prfx: string, msg: string, data?: AdditionalData, sensibleData?: AdditionalData) {
-        if (this.isEnabled) { log.error(prefixMessage(prfx, msg), this.generateLogData(data, sensibleData)); }
+    prfxError(prfx: string, msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
+        if (this.isEnabled) { log.error(prefixMessage(prfx, msg), this.generateLogData(data, sensitiveData)); }
     }
 }

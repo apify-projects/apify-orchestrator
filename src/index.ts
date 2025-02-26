@@ -33,7 +33,7 @@ export class Orchestrator implements ApifyOrchestrator {
         fullOptions.persistPrefix = makeNameUnique(fullOptions.persistPrefix, takenPersistPrefixes);
         takenPersistPrefixes.add(fullOptions.persistPrefix);
         this.options = fullOptions;
-        this.customLogger = new CustomLogger(this.options.enableLogs, this.options.hideSensibleInformation);
+        this.customLogger = new CustomLogger(this.options.enableLogs, this.options.hideSensitiveInformation);
     }
 
     async apifyClient(options: ExtendedClientOptions = {}): Promise<ExtendedApifyClient> {
@@ -42,7 +42,7 @@ export class Orchestrator implements ApifyOrchestrator {
         const clientName = makeNameUnique(name ?? 'CLIENT', takenClientNames);
         takenClientNames.add(clientName);
 
-        const enableFailedRunsHistory = !this.options.hideSensibleInformation;
+        const enableFailedRunsHistory = !this.options.hideSensitiveInformation;
         const runsTracker = new RunsTracker(
             this.customLogger,
             enableFailedRunsHistory,
@@ -61,7 +61,7 @@ export class Orchestrator implements ApifyOrchestrator {
             runsTracker,
             this.options.fixedInput,
             this.options.abortAllRunsOnGracefulAbort,
-            this.options.hideSensibleInformation,
+            this.options.hideSensitiveInformation,
             apifyClientOptions,
         );
         client.startScheduler();

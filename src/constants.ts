@@ -5,7 +5,7 @@ export const MAIN_LOOP_COOLDOWN_MS = 10_000;
 
 export const DEFAULT_ORCHESTRATOR_OPTIONS: OrchestratorOptions = {
     enableLogs: true,
-    hideSensibleInformation: true,
+    hideSensitiveInformation: true,
     persistSupport: 'none',
     persistPrefix: 'ORCHESTRATOR-',
     abortAllRunsOnGracefulAbort: true,

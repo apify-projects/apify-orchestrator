@@ -60,6 +60,7 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
         let dataset: Dataset | undefined;
         let run: ActorRun | undefined;
 
+        // TODO: breaking change - remove itemsThreshold and just listItems at every iteration
         while (true) {
             dataset = await this.get();
             if (!dataset || !dataset.actRunId) {
@@ -86,6 +87,12 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             }
 
             await new Promise((resolve) => setTimeout(resolve, pollIntervalSecs * 1000));
+        }
+
+        dataset = await this.get();
+        if (!dataset || !dataset.actRunId) {
+            this.customLogger.error('Error getting Dataset while iterating greedily', { id: this.id });
+            return;
         }
 
         while (readItemsCount < dataset.itemCount) {

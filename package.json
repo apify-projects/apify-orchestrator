@@ -1,6 +1,6 @@
 {
     "name": "apify-orchestrator",
-    "version": "0.5.3",
+    "version": "0.5.4",
     "description": "Utilities to orchestrate Apify Actors.",
     "engines": {
         "node": ">=16.0.0"

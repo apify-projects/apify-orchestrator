@@ -383,23 +383,28 @@ export type IterateOptions = DatasetClientListItemOptions & {
     /**
      * Value used for pagination. If omitted, all the items are downloaded together.
      */
-    pageSize?: number
+    pageSize?: number,
+
+    /**
+        * Skip the first `skip` elements of the dataset. This can be usefull to not reread elements
+        * after migration.
+        */
+    skip?: number,
 }
 
 export type GreedyIterateOptions = IterateOptions & {
-    /**
-     * Download new items when they are more than the specified threshold, or when the Run terminates.\
-     * If zero, the new items are downloaded as soon as they are detected.
-     *
-     * @default 100
-     */
-    itemsThreshold?: number
     /**
      * Check the run's status regularly at the specified interval, in seconds.
      *
      * @default 10
      */
     pollIntervalSecs?: number
+
+    // Redefined for better documentation
+    /**
+     * Value used for pagination. If omitted, all new items availiable are downloaded at a time.
+     */
+    pageSize?: number,
 }
 
 export interface SplitRules {

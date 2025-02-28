@@ -16,9 +16,9 @@
         "lint:fix": "eslint --fix",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
+        "prepare": "npm run build",
         "test": "vitest run",
-        "coverage": "vitest run --coverage",
-        "prepare": "husky"
+        "coverage": "vitest run --coverage"
     },
     "keywords": [
         "apify",

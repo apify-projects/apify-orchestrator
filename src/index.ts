@@ -30,8 +30,8 @@ export class Orchestrator implements ApifyOrchestrator {
 
     constructor(options: Partial<OrchestratorOptions> = {}) {
         const fullOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...options };
-        fullOptions.persistPrefix = makeNameUnique(fullOptions.persistPrefix, takenPersistPrefixes);
-        takenPersistPrefixes.add(fullOptions.persistPrefix);
+        fullOptions.persistencePrefix = makeNameUnique(fullOptions.persistencePrefix, takenPersistPrefixes);
+        takenPersistPrefixes.add(fullOptions.persistencePrefix);
         this.options = fullOptions;
         this.customLogger = new CustomLogger(this.options.enableLogs, this.options.hideSensitiveInformation);
     }
@@ -50,9 +50,9 @@ export class Orchestrator implements ApifyOrchestrator {
         );
 
         await runsTracker.init(
-            this.options.persistSupport,
-            `${this.options.persistPrefix}${clientName}-`,
-            this.options.persisntanceEncryptionKey,
+            this.options.persistenceSupport,
+            `${this.options.persistencePrefix}${clientName}-`,
+            this.options.persistenceEncryptionKey,
         );
 
         const client = new ExtApifyClient(

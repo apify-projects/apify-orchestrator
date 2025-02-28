@@ -46,14 +46,14 @@ export interface OrchestratorOptions {
      *
      * @default none
      */
-    persistSupport: PersistSupport
+    persistenceSupport: PersistenceSupport
 
     /**
      * Used to persist data in the Key Value Store.
      *
      * @default ORCHESTRATOR-
      */
-    persistPrefix: string
+    persistencePrefix: string
 
     /**
      * Define an encryption key if you desire to use persistence, while still hiding sensitive information from the user.
@@ -65,7 +65,7 @@ export interface OrchestratorOptions {
      *
      * @default undefined
      */
-    persisntanceEncryptionKey?: string
+    persistenceEncryptionKey?: string
 
     /**
      * Some fixed input parameters to add to each Run.
@@ -349,7 +349,7 @@ export interface DatasetGroup<T extends DatasetItem> {
  * - `kvs`: will store the values in the Key Value Store
  * - `none`: will keep the values in memory
  */
-export type PersistSupport = 'kvs' | 'none'
+export type PersistenceSupport = 'kvs' | 'none'
 
 /**
  * A request to be enqueued by the `QueuedActorClient`.

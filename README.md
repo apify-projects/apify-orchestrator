@@ -85,8 +85,8 @@ import { Orchestrator } from './orchestrator/index.js'
 const orchestrator = new Orchestrator({
     enableLogs: true,
     statsIntervalSec: 300,
-    persistSupport: 'kvs',
-    persistPrefix: 'ORCHESTRATOR-',
+    persistenceSupport: 'kvs',
+    persistencePrefix: 'ORCHESTRATOR-',
     abortAllRunsOnGracefulAbort: true,
 });
 
@@ -138,8 +138,8 @@ import { Orchestrator } from './orchestrator/index.js'
 // Create the main orchestrator object and pass some options
 const orchestrator = new Orchestrator({
     enableLogs: true,
-    persistSupport: 'kvs',
-    persistPrefix: 'ORCHESTRATOR-',
+    persistenceSupport: 'kvs',
+    persistencePrefix: 'ORCHESTRATOR-',
     abortAllRunsOnGracefulAbort: true,
 });
 
@@ -258,8 +258,8 @@ import { Orchestrator } from './orchestrator/index.js'
 const orchestrator = new Orchestrator({
     enableLogs: true,
     hideSensitiveInformation: true, // will hide information such as Run IDs from logs
-    persistSupport: 'kvs', // will enable persistence-related features, such as managing resurrections
-    persisntanceEncryptionKey: 'my-secret-key', // will make data written by the Orchestrator into the Key Value Store encrypted
+    persistenceSupport: 'kvs', // will enable persistence-related features, such as managing resurrections
+    persistenceEncryptionKey: 'my-secret-key', // will make data written by the Orchestrator into the Key Value Store encrypted
 });
 ```
 

@@ -1,6 +1,6 @@
 import { ActorRun } from 'apify-client';
 
-import { PersistSupport, RunInfo, UpdateCallback } from './types.js';
+import { PersistenceSupport, RunInfo, UpdateCallback } from './types.js';
 import { CustomLogger } from './utils/logging.js';
 import { State } from './utils/persist.js';
 
@@ -70,23 +70,23 @@ export class RunsTracker {
     /**
      * Sync with the persisted data.
      */
-    async init(persistSupport: PersistSupport = 'none', persistPrefix = 'ORCHESTRATOR-', persisntanceEncryptionKey?: string) {
+    async init(persistenceSupport: PersistenceSupport = 'none', persistencePrefix = 'ORCHESTRATOR-', persistenceEncryptionKey?: string) {
         let wasSyncSuccessful = await this.currentRunsState.sync(
-            `${persistPrefix}${RUNS_KEY}`,
-            persistSupport,
-            persisntanceEncryptionKey, // We need to encrypt this data because it includes Run IDs and URLs
+            `${persistencePrefix}${RUNS_KEY}`,
+            persistenceSupport,
+            persistenceEncryptionKey, // We need to encrypt this data because it includes Run IDs and URLs
         );
         if (this.enableFailedHistory) {
             wasSyncSuccessful = wasSyncSuccessful && await this.failedRunsHistoryState.sync(
-                `${persistPrefix}${FAILED_RUNS_KEY}`,
-                persistSupport,
-                persisntanceEncryptionKey, // We need to encrypt this data because it includes Run IDs and URLs
+                `${persistencePrefix}${FAILED_RUNS_KEY}`,
+                persistenceSupport,
+                persistenceEncryptionKey, // We need to encrypt this data because it includes Run IDs and URLs
             );
         }
         if (!wasSyncSuccessful) {
             this.customLogger.error(
                 'Some error happened while syncing the Orchestrator with the chosen support',
-                { persistSupport },
+                { persistenceSupport },
             );
         }
         await this.itemsChangedCallback();

@@ -1,4 +1,4 @@
-import { ActorRun, Dataset, DatasetClient } from 'apify-client';
+import { DatasetClient } from 'apify-client';
 
 import { RunsTracker } from '../tracker.js';
 import { DatasetItem, GreedyIterateOptions, ExtendedDatasetClient, IterateOptions } from '../types.js';
@@ -28,26 +28,40 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
 
         let readItemsCount = 0;
 
-        const offset = () => readItemsCount + skip
+        const offset = () => readItemsCount + skip;
 
         if (pageSize) {
-            let currentPage = await this.superClient.listItems({ ...listItemOptions, offset: offset(), limit: pageSize });
+            let currentPage = await this.superClient.listItems({
+                ...listItemOptions,
+                offset: offset(),
+                limit: pageSize,
+            });
             while (currentPage.items.length > 0) {
                 readItemsCount += currentPage.items.length;
                 for (const item of currentPage.items) {
                     yield item;
                 }
-                currentPage = await this.superClient.listItems({ offset: offset(), limit: pageSize });
+                currentPage = await this.superClient.listItems({
+                    offset: offset(),
+                    limit: pageSize,
+                });
             }
         } else {
-            const itemList = await this.superClient.listItems({ ...listItemOptions, offset: offset() });
+            const itemList = await this.superClient.listItems({
+                ...listItemOptions,
+                offset: offset(),
+            });
             readItemsCount += itemList.items.length;
             for (const item of itemList.items) {
                 yield item;
             }
         }
 
-        this.customLogger.info('Finished reading dataset', { itemsRead: readItemsCount, skip }, { url: this.url });
+        this.customLogger.info(
+            'Finished reading dataset',
+            { itemsRead: readItemsCount, skip },
+            { url: this.url },
+        );
     }
 
     async* greedyIterate(options: GreedyIterateOptions = {}): AsyncGenerator<T, void, void> {
@@ -61,7 +75,7 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
         const runId = (await this.get())?.actRunId;
         if (!runId) {
             this.customLogger.error('Error getting Dataset while iterating greedily', {
-                id: this.id
+                id: this.id,
             });
             return;
         }
@@ -70,23 +84,23 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             const run = await this.apifyClient.run(runId).get();
             if (!run) {
                 this.customLogger.error('Error getting Run while iterating Dataset greedily', {
-                    id: this.id
+                    id: this.id,
                 });
                 return;
             }
 
             if (!(run.status === 'READY' || run.status === 'RUNNING')) {
                 this.customLogger.info('Run finished moving to normal iteration', {
-                    readGreedilyCount: readItemsCount, skip
-                })
+                    readGreedilyCount: readItemsCount, skip,
+                });
                 break;
             }
 
             const itemList = await this.superClient.listItems({
                 ...listItemOptions,
                 offset: offset(),
-                limit: pageSize
-            })
+                limit: pageSize,
+            });
 
             readItemsCount += itemList.items.length;
 

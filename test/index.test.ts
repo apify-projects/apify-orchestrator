@@ -18,11 +18,11 @@ describe('Apify Orchestrator', () => {
     });
 
     it('makes persist prefixes unique', () => {
-        const orchestrator1 = new Orchestrator({ persistPrefix: 'TEST' });
-        const orchestrator2 = new Orchestrator({ persistPrefix: 'TEST' });
+        const orchestrator1 = new Orchestrator({ persistencePrefix: 'TEST' });
+        const orchestrator2 = new Orchestrator({ persistencePrefix: 'TEST' });
 
-        expect(orchestrator1.options.persistPrefix).toEqual('TEST');
-        expect(orchestrator2.options.persistPrefix).toEqual('TEST-2');
+        expect(orchestrator1.options.persistencePrefix).toEqual('TEST');
+        expect(orchestrator2.options.persistencePrefix).toEqual('TEST-2');
     });
 
     it('starts the scheduler upon client creation', async () => {

@@ -85,8 +85,8 @@ import { Orchestrator } from './orchestrator/index.js'
 const orchestrator = new Orchestrator({
     enableLogs: true,
     statsIntervalSec: 300,
-    persistSupport: 'kvs',
-    persistPrefix: 'ORCHESTRATOR-',
+    persistenceSupport: 'kvs',
+    persistencePrefix: 'ORCHESTRATOR-',
     abortAllRunsOnGracefulAbort: true,
 });
 
@@ -138,8 +138,8 @@ import { Orchestrator } from './orchestrator/index.js'
 // Create the main orchestrator object and pass some options
 const orchestrator = new Orchestrator({
     enableLogs: true,
-    persistSupport: 'kvs',
-    persistPrefix: 'ORCHESTRATOR-',
+    persistenceSupport: 'kvs',
+    persistencePrefix: 'ORCHESTRATOR-',
     abortAllRunsOnGracefulAbort: true,
 });
 
@@ -246,9 +246,9 @@ const orchestrator = new Orchestrator({
 
 The parameters defined in `fixedInput` will be added to *all* the Runs triggered using the orchestrator object.
 
-## How to hide sensible information from the user
+## How to hide sensitive information from the user
 
-Sensible information, such as Run IDs, can be logged or stored into the Key Value Store,
+Sensitive information, such as Run IDs, can be logged or stored into the Key Value Store,
 depending on the Orchestrator's configuration.
 If you would like to keep using logs and persistence, but you want to hide such information, set these options:
 
@@ -257,9 +257,9 @@ import { Orchestrator } from './orchestrator/index.js'
 
 const orchestrator = new Orchestrator({
     enableLogs: true,
-    hideSensibleInformation: true, // will hide information such as Run IDs from logs
-    persistSupport: 'kvs', // will enable persistence-related features, such as managing resurrections
-    persistEncryptionKey: 'my-secret-key', // will make data written by the Orchestrator into the Key Value Store encrypted
+    hideSensitiveInformation: true, // will hide information such as Run IDs from logs
+    persistenceSupport: 'kvs', // will enable persistence-related features, such as managing resurrections
+    persistenceEncryptionKey: 'my-secret-key', // will make data written by the Orchestrator into the Key Value Store encrypted
 });
 ```
 

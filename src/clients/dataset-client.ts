@@ -1,4 +1,4 @@
-import { ActorRun, Dataset, DatasetClient } from 'apify-client';
+import { DatasetClient } from 'apify-client';
 
 import { RunsTracker } from '../tracker.js';
 import { DatasetItem, GreedyIterateOptions, ExtendedDatasetClient, IterateOptions } from '../types.js';
@@ -29,16 +29,20 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
         let totalItems = 0;
 
         if (pageSize) {
-            let offset = 0;
-            let currentPage = await this.superClient.listItems({ ...listItemOptions, offset, limit: pageSize });
+            let currentOffset = listItemOptions.offset ?? 0;
+            let currentPage = await this.superClient.listItems({
+                ...listItemOptions,
+                offset: currentOffset,
+                limit: pageSize,
+            });
             while (currentPage.items.length > 0) {
                 totalItems += currentPage.items.length;
                 for (const item of currentPage.items) {
                     yield item;
                 }
 
-                offset += pageSize;
-                currentPage = await this.superClient.listItems({ offset, limit: pageSize });
+                currentOffset += pageSize;
+                currentPage = await this.superClient.listItems({ offset: currentOffset, limit: pageSize });
             }
         } else {
             const itemList = await this.superClient.listItems(listItemOptions);
@@ -52,56 +56,42 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
     }
 
     async* greedyIterate(options: GreedyIterateOptions = {}): AsyncGenerator<T, void, void> {
-        const { pageSize = 100, itemsThreshold = 100, pollIntervalSecs = 10, ...listItemOptions } = options;
-        this.customLogger.info('Greedily iterating Dataset', { pageSize }, { url: this.url });
+        const { pollIntervalSecs = 10, ...iterateOptions } = options;
+        this.customLogger.info('Greedily iterating Dataset', { pageSize: iterateOptions.pageSize }, { url: this.url });
 
-        let readItemsCount = 0;
+        let currentOffset = iterateOptions.offset ?? 0;
 
-        let dataset: Dataset | undefined;
-        let run: ActorRun | undefined;
+        const runId = (await this.get())?.actRunId;
 
-        // TODO: breaking change - remove itemsThreshold and just listItems at every iteration
-        while (true) {
-            dataset = await this.get();
-            if (!dataset || !dataset.actRunId) {
-                this.customLogger.error('Error getting Dataset while iterating greedily', { id: this.id });
-                return;
-            }
+        let runStatus = runId ? (await this.apifyClient.run(runId).get())?.status : undefined;
 
-            run = await this.apifyClient.run(dataset.actRunId).get();
-            if (!run) {
-                this.customLogger.error('Error getting Run while iterating Dataset greedily', { id: this.id });
-                return;
-            }
-
-            if (run.status !== 'READY' && run.status !== 'RUNNING') {
-                break;
-            }
-
-            if (dataset.itemCount >= readItemsCount + itemsThreshold) {
-                const itemList = await this.superClient.listItems({ ...listItemOptions, offset: readItemsCount, limit: pageSize });
-                readItemsCount += itemList.count;
-                for (const item of itemList.items) {
+        if (runId) {
+            while (runStatus && ['READY', 'RUNNING'].includes(runStatus)) {
+                const datasetIterator = this.iterate({ ...iterateOptions, offset: currentOffset });
+                for await (const item of datasetIterator) {
+                    currentOffset++;
                     yield item;
                 }
-            }
 
-            await new Promise((resolve) => setTimeout(resolve, pollIntervalSecs * 1000));
+                await new Promise((resolve) => setTimeout(resolve, pollIntervalSecs * 1000));
+
+                runStatus = (await this.apifyClient.run(runId).get())?.status;
+            }
+        } else {
+            this.customLogger.error(
+                'Greedy iterate: error getting Dataset or associated run\'s ID; trying to read the remaining items.',
+            );
         }
 
-        dataset = await this.get();
-        if (!dataset || !dataset.actRunId) {
-            this.customLogger.error('Error getting Dataset while iterating greedily', { id: this.id });
-            return;
+        if (runId && !runStatus) {
+            this.customLogger.error(
+                'Greedy iterate: error getting associated run\'s status: trying to read the remaining items.',
+            );
         }
 
-        while (readItemsCount < dataset.itemCount) {
-            const itemList = await this.superClient.listItems({ ...listItemOptions, offset: readItemsCount, limit: pageSize });
-            if (itemList.count === 0) { break; }
-            readItemsCount += itemList.count;
-            for (const item of itemList.items) {
-                yield item;
-            }
+        const datasetIterator = this.iterate({ ...iterateOptions, offset: currentOffset });
+        for await (const item of datasetIterator) {
+            yield item;
         }
     }
 }

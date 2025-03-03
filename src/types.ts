@@ -388,13 +388,6 @@ export type IterateOptions = DatasetClientListItemOptions & {
 
 export type GreedyIterateOptions = IterateOptions & {
     /**
-     * Download new items when they are more than the specified threshold, or when the Run terminates.\
-     * If zero, the new items are downloaded as soon as they are detected.
-     *
-     * @default 100
-     */
-    itemsThreshold?: number
-    /**
      * Check the run's status regularly at the specified interval, in seconds.
      *
      * @default 10

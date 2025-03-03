@@ -114,14 +114,49 @@ describe('dataset-client', () => {
             expect(listItemsSpy).toHaveBeenNthCalledWith(2, { offset: 2, limit: 2 });
             expect(listItemsSpy).toHaveBeenNthCalledWith(3, { offset: 4, limit: 2 });
         });
+
+        it('iterates the items using pagination and starting from the desired offset', async () => {
+            const listItemsSpy = vi.spyOn(DatasetClient.prototype, 'listItems')
+                .mockImplementationOnce(async () => ({
+                    count: 2,
+                    items: testItems.slice(0, 2),
+                    total: 8,
+                    offset: 5,
+                    limit: 2,
+                    desc: true,
+                }))
+                .mockImplementationOnce(async () => ({
+                    count: 1,
+                    items: testItems.slice(2, 3),
+                    total: 8,
+                    offset: 7,
+                    limit: 2,
+                    desc: true,
+                }))
+                .mockImplementationOnce(async () => ({
+                    count: 0,
+                    items: [],
+                    total: 8,
+                    offset: 9,
+                    limit: 2,
+                    desc: true,
+                }));
+            const datasetIterator = datasetClient.iterate({ pageSize: 2, offset: 5 });
+            let index = 0;
+            for await (const item of datasetIterator) {
+                expect(item).toEqual(testItems[index]);
+                index++;
+            }
+            expect(index).toBe(3);
+            expect(listItemsSpy).toHaveBeenCalledTimes(3);
+            expect(listItemsSpy).toHaveBeenNthCalledWith(1, { offset: 5, limit: 2 });
+            expect(listItemsSpy).toHaveBeenNthCalledWith(2, { offset: 7, limit: 2 });
+            expect(listItemsSpy).toHaveBeenNthCalledWith(3, { offset: 9, limit: 2 });
+        });
     });
 
     describe('greedyIterate', () => {
-        it('iterates the items from the dataset as soon as one batch is available, using pagination', () => {
-            // TODO: test
-        });
-
-        it('iterates the items from the dataset as soon as new items are available, setting pageSize to 0', () => {
+        it('iterates the items from the dataset until the run has finished', () => {
             // TODO: test
         });
     });

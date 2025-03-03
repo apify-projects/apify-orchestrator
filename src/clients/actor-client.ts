@@ -16,12 +16,8 @@ export interface EnqueuedRequest {
     options?: ActorStartOptions
 }
 
-type EnqueueFunction = (runRequest: EnqueuedRequest) => ExtendedRunClient | undefined
-type ForcedEnqueueFunction = (runRequest: EnqueuedRequest) => undefined
-
-function mergeInputParams(input?: object, extraParams?: object): object | undefined {
-    return (input && extraParams) ? { ...input, ...extraParams } : input;
-}
+export type EnqueueFunction = (runRequest: EnqueuedRequest) => ExtendedRunClient | undefined
+export type ForcedEnqueueFunction = (runRequest: EnqueuedRequest) => undefined
 
 const DEFAULT_SPLIT_RULES: SplitRules = {
     respectApifyMaxPayloadSize: true,
@@ -122,11 +118,15 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     }
 
     protected async enqueueAndWaitForStart(runName: string, input?: object, options?: ActorStartOptions): Promise<ActorRun> {
+        const fullInput: object | undefined = (!input && !this.fixedInput)
+            ? undefined
+            : { ...input ?? {}, ...this.fixedInput ?? {} };
+
         const runParams = {
             runName,
             defaultMemoryMbytes: this.defaultMemoryMbytes.bind(this),
             startRun: this.superClient.start.bind(this.superClient),
-            input,
+            input: fullInput,
             options,
         };
 
@@ -223,7 +223,7 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     async startRuns(...runRequests: ActorRunRequest[]): Promise<RunRecord> {
         const runRecord: RunRecord = {};
         await Promise.all(runRequests.map(
-            async ({ runName, input, options }) => this.start(runName, mergeInputParams(input, this.fixedInput), options)
+            async ({ runName, input, options }) => this.start(runName, input, options)
                 .then((run) => { runRecord[runName] = run; }),
         ));
         return runRecord;
@@ -244,7 +244,7 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     async callRuns(...runRequests: ActorRunRequest[]): Promise<RunRecord> {
         const runRecord: RunRecord = {};
         await Promise.all(runRequests.map(
-            async ({ runName, input, options }) => this.call(runName, mergeInputParams(input, this.fixedInput), options)
+            async ({ runName, input, options }) => this.call(runName, input, options)
                 .then((run) => { runRecord[runName] = run; }),
         ));
         return runRecord;

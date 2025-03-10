@@ -76,7 +76,7 @@ describe('dataset-client', () => {
             expect(listItemsSpy).toHaveBeenCalledWith({});
         });
 
-        it('iterates the items from the dataset, using pagination', async () => {
+        it('iterates the items from the dataset, using pagination, passing the given options', async () => {
             const listItemsSpy = vi.spyOn(DatasetClient.prototype, 'listItems')
                 .mockImplementationOnce(async () => ({
                     count: 2,
@@ -102,7 +102,7 @@ describe('dataset-client', () => {
                     limit: 2,
                     desc: true,
                 }));
-            const datasetIterator = datasetClient.iterate({ pageSize: 2 });
+            const datasetIterator = datasetClient.iterate({ pageSize: 2, fields: ['title'] });
             let index = 0;
             for await (const item of datasetIterator) {
                 expect(item).toEqual(testItems[index]);
@@ -110,9 +110,9 @@ describe('dataset-client', () => {
             }
             expect(index).toBe(3);
             expect(listItemsSpy).toHaveBeenCalledTimes(3);
-            expect(listItemsSpy).toHaveBeenNthCalledWith(1, { offset: 0, limit: 2 });
-            expect(listItemsSpy).toHaveBeenNthCalledWith(2, { offset: 2, limit: 2 });
-            expect(listItemsSpy).toHaveBeenNthCalledWith(3, { offset: 4, limit: 2 });
+            expect(listItemsSpy).toHaveBeenNthCalledWith(1, { offset: 0, limit: 2, fields: ['title'] });
+            expect(listItemsSpy).toHaveBeenNthCalledWith(2, { offset: 2, limit: 2, fields: ['title'] });
+            expect(listItemsSpy).toHaveBeenNthCalledWith(3, { offset: 4, limit: 2, fields: ['title'] });
         });
 
         it('iterates the items using pagination and starting from the desired offset', async () => {

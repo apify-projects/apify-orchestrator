@@ -42,7 +42,11 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
                 }
 
                 currentOffset += pageSize;
-                currentPage = await this.superClient.listItems({ offset: currentOffset, limit: pageSize });
+                currentPage = await this.superClient.listItems({
+                    ...listItemOptions,
+                    offset: currentOffset,
+                    limit: pageSize,
+                });
             }
         } else {
             const itemList = await this.superClient.listItems(listItemOptions);

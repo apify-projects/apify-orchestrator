@@ -26,37 +26,35 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
         const { pageSize, ...listItemOptions } = options;
         this.customLogger.info('Iterating Dataset', { pageSize }, { url: this.url });
 
-        let totalItems = 0;
+        const initialOffset = listItemOptions.offset ?? 0;
+        let readItems = 0;
 
         if (pageSize) {
-            let currentOffset = listItemOptions.offset ?? 0;
             let currentPage = await this.superClient.listItems({
                 ...listItemOptions,
-                offset: currentOffset,
                 limit: pageSize,
             });
             while (currentPage.items.length > 0) {
-                totalItems += currentPage.items.length;
+                readItems += currentPage.items.length;
                 for (const item of currentPage.items) {
                     yield item;
                 }
 
-                currentOffset += pageSize;
                 currentPage = await this.superClient.listItems({
                     ...listItemOptions,
-                    offset: currentOffset,
+                    offset: initialOffset + readItems,
                     limit: pageSize,
                 });
             }
         } else {
             const itemList = await this.superClient.listItems(listItemOptions);
-            totalItems += itemList.items.length;
+            readItems += itemList.items.length;
             for (const item of itemList.items) {
                 yield item;
             }
         }
 
-        this.customLogger.info('Finished reading dataset', { totalItems }, { url: this.url });
+        this.customLogger.info('Finished reading dataset', { initialOffset, readItems }, { url: this.url });
     }
 
     async* greedyIterate(options: GreedyIterateOptions = {}): AsyncGenerator<T, void, void> {

@@ -6,9 +6,9 @@
 
 - Changed the name of the following orchestrator options:
     - `hideSensibleInformation` → `hideSensitiveInformation`
-    - `persistSupport` -> `persistenceSupport`
-    - `persistPrefix` -> `persistencePrefix`
-    - `persistEncryptionKey` -> `persistenceEncryptionKey`
+    - `persistSupport` → `persistenceSupport`
+    - `persistPrefix` → `persistencePrefix`
+    - `persistEncryptionKey` → `persistenceEncryptionKey`
 
 ### Fixed
 

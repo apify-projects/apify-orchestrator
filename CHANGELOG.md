@@ -2,6 +2,14 @@
 
 ## 0.6.0
 
+### Breaking changes
+
+- Changed the name of the following orchestrator options:
+    - `hideSensibleInformation` → `hideSensitiveInformation`
+    - `persistSupport` -> `persistenceSupport`
+    - `persistPrefix` -> `persistencePrefix`
+    - `persistEncryptionKey` -> `persistenceEncryptionKey`
+
 ### Fixed
 
 - `fixedInput` now works as expected.

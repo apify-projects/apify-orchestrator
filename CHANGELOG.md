@@ -1,10 +1,20 @@
 # Changelog
 
+## 0.6.0
+
+### Fixed
+
+- `fixedInput` now works as expected.
+
 ## 0.5.4
+
+### Fixed
 
 - Fix `greedyIterate` function.
 
 ## 0.5.3
+
+### Fixed
 
 - Fix tests.
 - Update dependencies, fix `vitest` vulnerability.

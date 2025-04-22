@@ -21,14 +21,14 @@ describe('logging utils', () => {
             expect(infoSpy).not.toHaveBeenCalled();
         });
 
-        it('hides sensible information when required', () => {
+        it('hides sensitive information when required', () => {
             const infoSpy = vi.spyOn(log, 'info');
             const logger = new CustomLogger(true, true);
             logger.info('test', undefined, { hidden: 'msg' });
             expect(infoSpy).toHaveBeenCalledWith('test', undefined);
         });
 
-        it('does not hide sensible information when it is not required', () => {
+        it('does not hide sensitive information when it is not required', () => {
             const infoSpy = vi.spyOn(log, 'info');
             const logger = new CustomLogger(true, false);
             logger.info('test', undefined, { hidden: 'msg' });

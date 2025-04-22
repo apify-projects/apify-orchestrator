@@ -1,7 +1,7 @@
 import { Actor, KeyValueStore } from 'apify';
 
 import { openEncryptedKeyValueStore } from './key-value-store.js';
-import { PersistSupport } from '../types.js';
+import { PersistenceSupport } from '../types.js';
 
 type Updater<T> = T | ((prev: T) => T)
 
@@ -22,9 +22,9 @@ export class State<T> {
     /**
      * @returns the exit of the sync operation.
      */
-    async sync(key: string, persistSupport: PersistSupport = 'none', encryptionKey?: string): Promise<boolean> {
+    async sync(key: string, persistenceSupport: PersistenceSupport = 'none', encryptionKey?: string): Promise<boolean> {
         this.key = key;
-        if (persistSupport === 'none') { return true; }
+        if (persistenceSupport === 'none') { return true; }
         const kvStore = encryptionKey
             ? await openEncryptedKeyValueStore(encryptionKey)
             : await Actor.openKeyValueStore();

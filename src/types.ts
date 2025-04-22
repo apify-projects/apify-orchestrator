@@ -18,14 +18,14 @@ export interface OrchestratorOptions {
     enableLogs: boolean
 
     /**
-     * Hide sensible data from logs, such as Run IDs and URLs.
+     * Hide sensitive data from logs, such as Run IDs and URLs.
      *
      * **WARNING**: if you enable persistence without an encryption key,
      * the user will be able to retrieve the hidden data from the Key Value Store.
      *
      * @default true
      */
-    hideSensibleInformation: boolean
+    hideSensitiveInformation: boolean
 
     /**
      * A callback which is called every time the Orchestrator's status is updated.
@@ -40,32 +40,32 @@ export interface OrchestratorOptions {
      * - `kvs`: Key Value Store
      * - `none`: disable persistence
      *
-     * **WARNING**: persistence may leak sensible information to the user, such as external runs' IDs.
+     * **WARNING**: persistence may leak sensitive information to the user, such as external runs' IDs.
      * If you don't want the information in the Key Value Store to be readable to anyone having access to it,
-     * set a `persistEncryptionKey`.
+     * set a `persisntanceEncryptionKey`.
      *
      * @default none
      */
-    persistSupport: PersistSupport
+    persistenceSupport: PersistenceSupport
 
     /**
      * Used to persist data in the Key Value Store.
      *
      * @default ORCHESTRATOR-
      */
-    persistPrefix: string
+    persistencePrefix: string
 
     /**
-     * Define an encryption key if you desire to use persistence, while still hiding sensible information from the user.
+     * Define an encryption key if you desire to use persistence, while still hiding sensitive information from the user.
      *
-     * **WARNING**: if you want to hide sensible information, also set `hideSensibleInformation` to true,
+     * **WARNING**: if you want to hide sensitive information, also set `hideSensitiveInformation` to true,
      * otherwise such information will be still visible through logs.
      *
      * To allow persistency to work correctly, the same key should be provided upon resurrection.
      *
      * @default undefined
      */
-    persistEncryptionKey?: string
+    persistenceEncryptionKey?: string
 
     /**
      * Some fixed input parameters to add to each Run.
@@ -123,7 +123,7 @@ export type ExtendedClientOptions = ApifyClientOptions & {
 export interface ExtendedApifyClient extends ApifyClient {
     readonly clientName: string
     readonly abortAllRunsOnGracefulAbort: boolean
-    readonly hideSensibleInformation: boolean
+    readonly hideSensitiveInformation: boolean
     readonly fixedInput: object | undefined
 
     /**
@@ -273,7 +273,7 @@ export interface ExtendedActorClient extends ActorClient {
  *
  * @extends RunClient
  */
-export interface ExtendedRunClient extends RunClient {}
+export interface ExtendedRunClient extends RunClient { }
 
 /**
  * A Dataset client allowing to iterate over the items in the dataset, automatically paginated.
@@ -349,7 +349,7 @@ export interface DatasetGroup<T extends DatasetItem> {
  * - `kvs`: will store the values in the Key Value Store
  * - `none`: will keep the values in memory
  */
-export type PersistSupport = 'kvs' | 'none'
+export type PersistenceSupport = 'kvs' | 'none'
 
 /**
  * A request to be enqueued by the `QueuedActorClient`.

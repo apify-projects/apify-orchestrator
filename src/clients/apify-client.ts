@@ -14,7 +14,7 @@ import { Queue } from '../utils/queue.js';
 export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     readonly clientName: string;
     readonly abortAllRunsOnGracefulAbort: boolean;
-    readonly hideSensibleInformation: boolean;
+    readonly hideSensitiveInformation: boolean;
     readonly fixedInput: object | undefined; // TODO: forbid changes
 
     protected runRequestsQueue = new Queue<EnqueuedRequest>();
@@ -31,7 +31,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         runsTracker: RunsTracker,
         fixedInput: object | undefined,
         abortAllRunsOnGracefulAbort: boolean,
-        hideSensibleInformation: boolean,
+        hideSensitiveInformation: boolean,
         options: ApifyClientOptions = {},
     ) {
         if (!options.token) { options.token = Actor.apifyClient.token; }
@@ -39,7 +39,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         this.clientName = clientName;
         this.customLogger = customLogger;
         this.runsTracker = runsTracker;
-        this.hideSensibleInformation = hideSensibleInformation;
+        this.hideSensitiveInformation = hideSensitiveInformation;
         this.fixedInput = fixedInput;
         this.abortAllRunsOnGracefulAbort = abortAllRunsOnGracefulAbort;
     }

@@ -23,7 +23,7 @@ describe('dataset-client', () => {
         runsTracker,
         options.fixedInput,
         options.abortAllRunsOnGracefulAbort,
-        options.hideSensibleInformation,
+        options.hideSensitiveInformation,
     );
 
     function generateExtDatasetClient() {

@@ -20,7 +20,7 @@ describe('actor-client methods', () => {
         runsTracker,
         options.fixedInput,
         options.abortAllRunsOnGracefulAbort,
-        options.hideSensibleInformation,
+        options.hideSensitiveInformation,
     );
 
     const mockDate = new Date('2024-09-11T06:00:00.000Z');

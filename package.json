@@ -33,18 +33,17 @@
     "license": "Apache-2.0",
     "type": "module",
     "devDependencies": {
-        "@apify/eslint-config-ts": "^0.4.1",
-        "@apify/tsconfig": "^0.1.0",
-        "@vitest/coverage-v8": "^3.0.5",
-        "eslint": "^8.57.0",
-        "typescript": "^5.7.3",
+        "@apify/tsconfig": "^0.1.1",
+        "@vitest/coverage-v8": "^3.2.4",
+        "eslint": "^9.33.0",
+        "typescript": "^5.9.2",
         "vite-tsconfig-paths": "^5.1.4",
-        "vitest": "^3.0.5"
+        "vitest": "^3.2.4"
     },
     "dependencies": {
-        "apify": "^3.2.6",
-        "apify-client": "^2.12.0",
-        "crawlee": "^3.11.5"
+        "apify": "^3.4.2",
+        "apify-client": "^2.15.1",
+        "crawlee": "^3.13.8"
     },
     "cspell": {
         "version": "0.2",

@@ -1,13 +1,13 @@
 import { DatasetClient } from 'apify-client';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
-import { ExtDatasetClient } from 'src/clients/dataset-client.js';
+import type { ExtDatasetClient } from 'src/clients/dataset-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS } from 'src/constants.js';
 import { RunsTracker } from 'src/tracker.js';
-import { DatasetItem, OrchestratorOptions } from 'src/types.js';
+import type { DatasetItem, OrchestratorOptions } from 'src/types.js';
 import { CustomLogger } from 'src/utils/logging.js';
 
 interface TestItem extends DatasetItem {
-    title: string
+    title: string;
 }
 
 describe('dataset-client', () => {
@@ -17,25 +17,22 @@ describe('dataset-client', () => {
     let datasetClient: ExtDatasetClient<TestItem>;
     // let listItemsSpy: MockInstance<(options?: DatasetClientListItemOptions) => Promise<PaginatedList<DatasetItem>>>;
 
-    const generateApifyClient = () => new ExtApifyClient(
-        'test-client',
-        customLogger,
-        runsTracker,
-        options.fixedInput,
-        options.abortAllRunsOnGracefulAbort,
-        options.hideSensitiveInformation,
-    );
+    const generateApifyClient = () =>
+        new ExtApifyClient(
+            'test-client',
+            customLogger,
+            runsTracker,
+            options.fixedInput,
+            options.abortAllRunsOnGracefulAbort,
+            options.hideSensitiveInformation,
+        );
 
     function generateExtDatasetClient() {
         const client = generateApifyClient();
         return client.dataset<TestItem>('test-id');
     }
 
-    const testItems: TestItem[] = [
-        { title: 'test-1' },
-        { title: 'test-2' },
-        { title: 'test-3' },
-    ];
+    const testItems: TestItem[] = [{ title: 'test-1' }, { title: 'test-2' }, { title: 'test-3' }];
 
     beforeEach(async () => {
         vi.useFakeTimers();
@@ -56,15 +53,14 @@ describe('dataset-client', () => {
 
     describe('iterate', () => {
         it('iterates the items from the dataset', async () => {
-            const listItemsSpy = vi.spyOn(DatasetClient.prototype, 'listItems')
-                .mockImplementation(async () => ({
-                    count: 3,
-                    items: testItems,
-                    total: 3,
-                    offset: 0,
-                    limit: undefined,
-                    desc: true,
-                }));
+            const listItemsSpy = vi.spyOn(DatasetClient.prototype, 'listItems').mockImplementation(async () => ({
+                count: 3,
+                items: testItems,
+                total: 3,
+                offset: 0,
+                limit: undefined,
+                desc: true,
+            }));
             const datasetIterator = datasetClient.iterate();
             let index = 0;
             for await (const item of datasetIterator) {
@@ -77,7 +73,8 @@ describe('dataset-client', () => {
         });
 
         it('iterates the items from the dataset, using pagination', async () => {
-            const listItemsSpy = vi.spyOn(DatasetClient.prototype, 'listItems')
+            const listItemsSpy = vi
+                .spyOn(DatasetClient.prototype, 'listItems')
                 .mockImplementationOnce(async () => ({
                     count: 2,
                     items: testItems.slice(0, 2),

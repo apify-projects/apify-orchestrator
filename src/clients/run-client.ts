@@ -1,17 +1,17 @@
-import {
+import type {
     ActorRun,
     RunAbortOptions,
-    RunClient,
     RunGetOptions,
     RunMetamorphOptions,
     RunResurrectOptions,
     RunUpdateOptions,
     RunWaitForFinishOptions,
 } from 'apify-client';
+import { RunClient } from 'apify-client';
 
-import { RunsTracker } from '../tracker.js';
-import { ExtendedRunClient } from '../types.js';
-import { CustomLogger } from '../utils/logging.js';
+import type { RunsTracker } from '../tracker.js';
+import type { ExtendedRunClient } from '../types.js';
+import type { CustomLogger } from '../utils/logging.js';
 
 export class ExtRunClient extends RunClient implements ExtendedRunClient {
     readonly runName: string;
@@ -20,12 +20,7 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
     protected customLogger: CustomLogger;
     protected runsTracker: RunsTracker;
 
-    constructor(
-        runClient: RunClient,
-        runName: string,
-        customLogger: CustomLogger,
-        runsTracker: RunsTracker,
-    ) {
+    constructor(runClient: RunClient, runName: string, customLogger: CustomLogger, runsTracker: RunsTracker) {
         super({
             baseUrl: runClient.baseUrl,
             resourcePath: runClient.resourcePath,
@@ -62,7 +57,11 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
         await this.superClient.delete();
     }
 
-    override async metamorph(targetActorId: string, input: unknown, options?: RunMetamorphOptions | undefined): Promise<ActorRun> {
+    override async metamorph(
+        targetActorId: string,
+        input: unknown,
+        options?: RunMetamorphOptions | undefined,
+    ): Promise<ActorRun> {
         // TODO: implement
         this.customLogger.prfxWarn(this.runName, 'Metamorph Run is not supported yet in the Orchestrator.');
         return this.superClient.metamorph(targetActorId, input, options);

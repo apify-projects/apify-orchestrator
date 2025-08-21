@@ -1,4 +1,5 @@
-import { Actor, ActorRun } from 'apify';
+import type { ActorRun } from 'apify';
+import { Actor } from 'apify';
 import { RunsTracker } from 'src/tracker.js';
 import { openEncryptedKeyValueStore } from 'src/utils/key-value-store.js';
 import { CustomLogger } from 'src/utils/logging.js';

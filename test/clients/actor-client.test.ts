@@ -1,8 +1,9 @@
-import { ActorClient, ActorRun } from 'apify-client';
+import type { ActorRun } from 'apify-client';
+import { ActorClient } from 'apify-client';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_COOLDOWN_MS } from 'src/constants.js';
 import { RunsTracker } from 'src/tracker.js';
-import { OrchestratorOptions } from 'src/types.js';
+import type { OrchestratorOptions } from 'src/types.js';
 import * as apifyApi from 'src/utils/apify-api.js';
 import { CustomLogger } from 'src/utils/logging.js';
 
@@ -14,14 +15,15 @@ describe('actor-client methods', () => {
     let runsTracker: RunsTracker;
     let options: OrchestratorOptions;
 
-    const generateApifyClient = (clientName: string) => new ExtApifyClient(
-        clientName,
-        customLogger,
-        runsTracker,
-        options.fixedInput,
-        options.abortAllRunsOnGracefulAbort,
-        options.hideSensitiveInformation,
-    );
+    const generateApifyClient = (clientName: string) =>
+        new ExtApifyClient(
+            clientName,
+            customLogger,
+            runsTracker,
+            options.fixedInput,
+            options.abortAllRunsOnGracefulAbort,
+            options.hideSensitiveInformation,
+        );
 
     const mockDate = new Date('2024-09-11T06:00:00.000Z');
 
@@ -79,18 +81,16 @@ describe('actor-client methods', () => {
                 };
             });
 
-            const startSpy = vi.spyOn(ActorClient.prototype, 'start')
-                .mockImplementation(async () => { return getMockRun('test-id'); });
+            const startSpy = vi.spyOn(ActorClient.prototype, 'start').mockImplementation(async () => {
+                return getMockRun('test-id');
+            });
 
             const runInput = { runTestKey: 'runTestValue' };
             const startPromise = actorClient.start('test-run', runInput);
             vi.advanceTimersByTime(MAIN_LOOP_COOLDOWN_MS);
             await vi.waitUntil(() => !client.isSchedulerLocked, 2_000);
             await startPromise;
-            expect(startSpy).toHaveBeenCalledWith(
-                { ...options.fixedInput, ...runInput },
-                undefined,
-            );
+            expect(startSpy).toHaveBeenCalledWith({ ...options.fixedInput, ...runInput }, undefined);
         });
     });
 

@@ -1,8 +1,9 @@
-import { ActorRun, Dataset, DatasetClient } from 'apify-client';
+import type { ActorRun, Dataset } from 'apify-client';
+import { DatasetClient } from 'apify-client';
 
-import { RunsTracker } from '../tracker.js';
-import { DatasetItem, GreedyIterateOptions, ExtendedDatasetClient, IterateOptions } from '../types.js';
-import { CustomLogger } from '../utils/logging.js';
+import type { RunsTracker } from '../tracker.js';
+import type { DatasetItem, ExtendedDatasetClient, GreedyIterateOptions, IterateOptions } from '../types.js';
+import type { CustomLogger } from '../utils/logging.js';
 
 export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> implements ExtendedDatasetClient<T> {
     protected superClient: DatasetClient<T>;
@@ -22,7 +23,7 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
         this.runsTracker = runsTracker;
     }
 
-    async* iterate(options: IterateOptions = {}): AsyncGenerator<T, void, void> {
+    async *iterate(options: IterateOptions = {}): AsyncGenerator<T, void, void> {
         const { pageSize, ...listItemOptions } = options;
         this.customLogger.info('Iterating Dataset', { pageSize }, { url: this.url });
 
@@ -51,7 +52,7 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
         this.customLogger.info('Finished reading dataset', { totalItems }, { url: this.url });
     }
 
-    async* greedyIterate(options: GreedyIterateOptions = {}): AsyncGenerator<T, void, void> {
+    async *greedyIterate(options: GreedyIterateOptions = {}): AsyncGenerator<T, void, void> {
         const { pageSize = 100, itemsThreshold = 100, pollIntervalSecs = 10, ...listItemOptions } = options;
         this.customLogger.info('Greedily iterating Dataset', { pageSize }, { url: this.url });
 
@@ -79,14 +80,20 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             }
 
             if (dataset.itemCount >= readItemsCount + itemsThreshold) {
-                const itemList = await this.superClient.listItems({ ...listItemOptions, offset: readItemsCount, limit: pageSize });
+                const itemList = await this.superClient.listItems({
+                    ...listItemOptions,
+                    offset: readItemsCount,
+                    limit: pageSize,
+                });
                 readItemsCount += itemList.count;
                 for (const item of itemList.items) {
                     yield item;
                 }
             }
 
-            await new Promise((resolve) => setTimeout(resolve, pollIntervalSecs * 1000));
+            await new Promise((resolve) => {
+                setTimeout(resolve, pollIntervalSecs * 1000);
+            });
         }
 
         dataset = await this.get();
@@ -96,8 +103,14 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
         }
 
         while (readItemsCount < dataset.itemCount) {
-            const itemList = await this.superClient.listItems({ ...listItemOptions, offset: readItemsCount, limit: pageSize });
-            if (itemList.count === 0) { break; }
+            const itemList = await this.superClient.listItems({
+                ...listItemOptions,
+                offset: readItemsCount,
+                limit: pageSize,
+            });
+            if (itemList.count === 0) {
+                break;
+            }
             readItemsCount += itemList.count;
             for (const item of itemList.items) {
                 yield item;

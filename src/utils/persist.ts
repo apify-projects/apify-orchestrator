@@ -1,11 +1,12 @@
-import { Actor, KeyValueStore } from 'apify';
+import type { KeyValueStore } from 'apify';
+import { Actor } from 'apify';
 
+import type { PersistenceSupport } from '../types.js';
 import { openEncryptedKeyValueStore } from './key-value-store.js';
-import { PersistenceSupport } from '../types.js';
 
-type Updater<T> = T | ((prev: T) => T)
+type Updater<T> = T | ((prev: T) => T);
 
-function isCallback<T>(maybeFunction: Updater<T>): maybeFunction is ((prev: T) => T) {
+function isCallback<T>(maybeFunction: Updater<T>): maybeFunction is (prev: T) => T {
     return typeof maybeFunction === 'function';
 }
 
@@ -24,7 +25,9 @@ export class State<T> {
      */
     async sync(key: string, persistenceSupport: PersistenceSupport = 'none', encryptionKey?: string): Promise<boolean> {
         this.key = key;
-        if (persistenceSupport === 'none') { return true; }
+        if (persistenceSupport === 'none') {
+            return true;
+        }
         const kvStore = encryptionKey
             ? await openEncryptedKeyValueStore(encryptionKey)
             : await Actor.openKeyValueStore();
@@ -43,7 +46,9 @@ export class State<T> {
         }
     }
 
-    get value() { return this.memoryValue; }
+    get value() {
+        return this.memoryValue;
+    }
 
     async update(upd: Updater<T>) {
         if (isCallback(upd)) this.memoryValue = upd(this.memoryValue);

@@ -9,20 +9,23 @@ describe('apify-api utils', () => {
         it('maps the response values to the return values correctly', async () => {
             const fetchSpy = vi.spyOn(global, 'fetch');
 
-            fetchSpy.mockImplementationOnce(async () => ({
-                json: async () => ({
-                    data: {
-                        limits: {
-                            maxActorMemoryGbytes: 16,
-                            maxConcurrentActorJobs: 25,
-                        },
-                        current: {
-                            actorMemoryGbytes: 4,
-                            activeActorJobCount: 3,
-                        },
-                    },
-                }),
-            } as Response));
+            fetchSpy.mockImplementationOnce(
+                async () =>
+                    ({
+                        json: async () => ({
+                            data: {
+                                limits: {
+                                    maxActorMemoryGbytes: 16,
+                                    maxConcurrentActorJobs: 25,
+                                },
+                                current: {
+                                    actorMemoryGbytes: 4,
+                                    activeActorJobCount: 3,
+                                },
+                            },
+                        }),
+                    }) as Response,
+            );
             const limits = await getUserLimits('test-token');
             expect(fetchSpy).toHaveBeenCalledWith('https://api.apify.com/v2/users/me/limits?token=test-token');
             expect(limits).toEqual({
@@ -36,11 +39,14 @@ describe('apify-api utils', () => {
         it('returns positive infinity for each value in case of error', async () => {
             const fetchSpy = vi.spyOn(global, 'fetch');
 
-            fetchSpy.mockImplementationOnce(async () => ({
-                json: async () => ({
-                    data: 'invalid-data',
-                }),
-            } as Response));
+            fetchSpy.mockImplementationOnce(
+                async () =>
+                    ({
+                        json: async () => ({
+                            data: 'invalid-data',
+                        }),
+                    }) as Response,
+            );
             const limits = await getUserLimits('test-token');
             expect(fetchSpy).toHaveBeenCalledWith('https://api.apify.com/v2/users/me/limits?token=test-token');
             expect(limits).toEqual({

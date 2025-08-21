@@ -15,10 +15,10 @@ function getNumber(data: unknown, ...path: string[]): number {
 }
 
 interface UserLimits {
-    currentMemoryUsageGBs: number
-    maxMemoryGBs: number
-    activeActorJobCount: number
-    maxConcurrentActorJobs: number
+    currentMemoryUsageGBs: number;
+    maxMemoryGBs: number;
+    activeActorJobCount: number;
+    maxConcurrentActorJobs: number;
 }
 
 export async function getUserLimits(apifyToken?: string): Promise<UserLimits> {

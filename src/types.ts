@@ -1,4 +1,4 @@
-import {
+import type {
     ActorCallOptions,
     ActorClient,
     ActorLastRunOptions,
@@ -15,7 +15,7 @@ export interface OrchestratorOptions {
     /**
      * @default true
      */
-    enableLogs: boolean
+    enableLogs: boolean;
 
     /**
      * Hide sensitive data from logs, such as Run IDs and URLs.
@@ -25,14 +25,14 @@ export interface OrchestratorOptions {
      *
      * @default true
      */
-    hideSensitiveInformation: boolean
+    hideSensitiveInformation: boolean;
 
     /**
      * A callback which is called every time the Orchestrator's status is updated.
      *
      * The callback takes as input a record having Run names as keys, and Run information as values.
      */
-    onUpdate?: UpdateCallback
+    onUpdate?: UpdateCallback;
 
     /**
      * Which support to use for persistence:
@@ -42,18 +42,18 @@ export interface OrchestratorOptions {
      *
      * **WARNING**: persistence may leak sensitive information to the user, such as external runs' IDs.
      * If you don't want the information in the Key Value Store to be readable to anyone having access to it,
-     * set a `persisntanceEncryptionKey`.
+     * set a `persistenceEncryptionKey`.
      *
      * @default none
      */
-    persistenceSupport: PersistenceSupport
+    persistenceSupport: PersistenceSupport;
 
     /**
      * Used to persist data in the Key Value Store.
      *
      * @default ORCHESTRATOR-
      */
-    persistencePrefix: string
+    persistencePrefix: string;
 
     /**
      * Define an encryption key if you desire to use persistence, while still hiding sensitive information from the user.
@@ -65,14 +65,14 @@ export interface OrchestratorOptions {
      *
      * @default undefined
      */
-    persistenceEncryptionKey?: string
+    persistenceEncryptionKey?: string;
 
     /**
      * Some fixed input parameters to add to each Run.
      *
      * @default undefined
      */
-    fixedInput?: object
+    fixedInput?: object;
 
     /**
      * Abort all Runs started by the Orchestrator on graceful abort.
@@ -82,7 +82,7 @@ export interface OrchestratorOptions {
      *
      * @default true
      */
-    abortAllRunsOnGracefulAbort: boolean
+    abortAllRunsOnGracefulAbort: boolean;
 }
 
 /**
@@ -97,7 +97,7 @@ export interface ApifyOrchestrator {
      * @param options includes the options from `ApifyClientOptions` and `name`
      * @returns the `ScheduledApifyClient` object
      */
-    apifyClient: (options?: ExtendedClientOptions) => Promise<ExtendedApifyClient>
+    apifyClient: (options?: ExtendedClientOptions) => Promise<ExtendedApifyClient>;
 
     /**
      * Group some datasets together, to be able to read all their items at one time.
@@ -105,15 +105,15 @@ export interface ApifyOrchestrator {
      * @param datasets the dataset clients, generated with `ExtendedApifyClient.dataset`
      * @returns an object representing group of merged datasets
      */
-    mergeDatasets: <T extends DatasetItem>(...datasets: ExtendedDatasetClient<T>[]) => DatasetGroup<T>
+    mergeDatasets: <T extends DatasetItem>(...datasets: ExtendedDatasetClient<T>[]) => DatasetGroup<T>;
 }
 
 export type ExtendedClientOptions = ApifyClientOptions & {
     /**
      * Used to identify a client, for instance, when storing its Runs in the Key Value Store.
      */
-    name?: string
-}
+    name?: string;
+};
 
 /**
  * Starts the Runs through a scheduler.
@@ -121,35 +121,35 @@ export type ExtendedClientOptions = ApifyClientOptions & {
  * @extends ApifyClient
  */
 export interface ExtendedApifyClient extends ApifyClient {
-    readonly clientName: string
-    readonly abortAllRunsOnGracefulAbort: boolean
-    readonly hideSensitiveInformation: boolean
-    readonly fixedInput: object | undefined
+    readonly clientName: string;
+    readonly abortAllRunsOnGracefulAbort: boolean;
+    readonly hideSensitiveInformation: boolean;
+    readonly fixedInput: object | undefined;
 
     /**
      * @override
      */
-    actor: (id: string) => ExtendedActorClient
+    actor: (id: string) => ExtendedActorClient;
 
     /**
      * @override
      */
-    dataset: <T extends DatasetItem>(id: string) => ExtendedDatasetClient<T>
+    dataset: <T extends DatasetItem>(id: string) => ExtendedDatasetClient<T>;
 
     /**
      * @returns a Run client corresponding to the given name, if it exists
      */
-    runByName: (name: string) => Promise<ExtendedRunClient | undefined>
+    runByName: (name: string) => Promise<ExtendedRunClient | undefined>;
 
     /**
      * @returns an ActorRun object corresponding to the given name, if it exists
      */
-    actorRunByName: (name: string) => Promise<ActorRun | undefined>
+    actorRunByName: (name: string) => Promise<ActorRun | undefined>;
 
     /**
      * Searches for the Runs with the given names an generates a `RunRecord` with them.
      */
-    runRecord: (...runNames: string[]) => Promise<RunRecord>
+    runRecord: (...runNames: string[]) => Promise<RunRecord>;
 
     /**
      * Waits for one or more Runs previously started.
@@ -157,12 +157,12 @@ export interface ExtendedApifyClient extends ApifyClient {
      * @param batch a `RunRecord` object or a list of names
      * @returns an updated `RunRecord`
      */
-    waitForBatchFinish: (batch: RunRecord | string[]) => Promise<RunRecord>
+    waitForBatchFinish: (batch: RunRecord | string[]) => Promise<RunRecord>;
 
     /**
      * Stop all the Runs in progress started from this client.
      */
-    abortAllRuns: () => Promise<void>
+    abortAllRuns: () => Promise<void>;
 }
 
 /**
@@ -177,7 +177,7 @@ export interface ExtendedActorClient extends ActorClient {
      * @param runRequests the requests
      * @returns the future names of the Runs
      */
-    enqueue: (...runRequests: ActorRunRequest[]) => string[]
+    enqueue: (...runRequests: ActorRunRequest[]) => string[];
 
     /**
      * Enqueues one or more requests for new Runs, given the parameters to generate input batches.
@@ -197,17 +197,17 @@ export interface ExtendedActorClient extends ActorClient {
         inputGenerator: (chunk: T[]) => object,
         overrideSplitRules?: Partial<SplitRules>,
         options?: ActorStartOptions,
-    ) => string[]
+    ) => string[];
 
     /**
      * @override
      */
-    start: (runName: string, input?: object, options?: ActorStartOptions) => Promise<ActorRun>
+    start: (runName: string, input?: object, options?: ActorStartOptions) => Promise<ActorRun>;
 
     /**
      * Starts one or more Runs, based on an array of requests.
      */
-    startRuns: (...runRequests: ActorRunRequest[]) => Promise<RunRecord>
+    startRuns: (...runRequests: ActorRunRequest[]) => Promise<RunRecord>;
 
     /**
      * Starts one or more requests for new Runs, given the parameters to generate input batches.
@@ -227,17 +227,17 @@ export interface ExtendedActorClient extends ActorClient {
         inputGenerator: (chunk: T[]) => object,
         overrideSplitRules?: Partial<SplitRules>,
         options?: ActorStartOptions,
-    ) => Promise<RunRecord>
+    ) => Promise<RunRecord>;
 
     /**
      * @override
      */
-    call: (runName: string, input?: object, options?: ActorCallOptions) => Promise<ActorRun>
+    call: (runName: string, input?: object, options?: ActorCallOptions) => Promise<ActorRun>;
 
     /**
      * Starts and waits for one or more Runs, based on an array of requests.
      */
-    callRuns: (...runRequests: ActorRunRequest[]) => Promise<RunRecord>
+    callRuns: (...runRequests: ActorRunRequest[]) => Promise<RunRecord>;
 
     /**
      * Starts and waits for one or more requests for new Runs, given the parameters to generate input batches.
@@ -257,7 +257,7 @@ export interface ExtendedActorClient extends ActorClient {
         inputGenerator: (chunk: T[]) => object,
         overrideSplitRules?: Partial<SplitRules>,
         options?: ActorStartOptions,
-    ) => Promise<RunRecord>
+    ) => Promise<RunRecord>;
 
     /**
      * If it finds the Run it in the Runs records, it returns a `TrackedRunClient` instead of a `RunClient`,
@@ -265,7 +265,7 @@ export interface ExtendedActorClient extends ActorClient {
      *
      * @override
      */
-    lastRun: (options?: ActorLastRunOptions) => RunClient
+    lastRun: (options?: ActorLastRunOptions) => RunClient;
 }
 
 /**
@@ -273,7 +273,7 @@ export interface ExtendedActorClient extends ActorClient {
  *
  * @extends RunClient
  */
-export interface ExtendedRunClient extends RunClient { }
+export type ExtendedRunClient = RunClient;
 
 /**
  * A Dataset client allowing to iterate over the items in the dataset, automatically paginated.
@@ -295,7 +295,7 @@ export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetCli
      *     console.log(item.title);
      * }
      */
-    iterate: (options: IterateOptions) => AsyncGenerator<T, void, void>
+    iterate: (options: IterateOptions) => AsyncGenerator<T, void, void>;
 
     /**
      * Iterates over the items in the dataset. Fetches the items as soon as they are available
@@ -325,14 +325,14 @@ export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetCli
      *     console.log(item.title);
      * }
      */
-    greedyIterate: (options: GreedyIterateOptions) => AsyncGenerator<T, void, void>
+    greedyIterate: (options: GreedyIterateOptions) => AsyncGenerator<T, void, void>;
 }
 
 export interface DatasetGroup<T extends DatasetItem> {
     /**
      * The dataset clients in this group.
      */
-    readonly datasets: ExtendedDatasetClient<T>[]
+    readonly datasets: ExtendedDatasetClient<T>[];
 
     /**
      * Iterate over all the items from all the dataset, in order, at one time.
@@ -342,28 +342,28 @@ export interface DatasetGroup<T extends DatasetItem> {
      * @param options includes all the options in `DatasetClientListItemOptions` and `pageSize`
      * @returns an `AsyncGenerator` which iterates the items in the datasets
      */
-    iterate: (options: IterateOptions) => AsyncGenerator<T, void, void>
+    iterate: (options: IterateOptions) => AsyncGenerator<T, void, void>;
 }
 
 /**
  * - `kvs`: will store the values in the Key Value Store
  * - `none`: will keep the values in memory
  */
-export type PersistenceSupport = 'kvs' | 'none'
+export type PersistenceSupport = 'kvs' | 'none';
 
 /**
  * A request to be enqueued by the `QueuedActorClient`.
  */
 export interface ActorRunRequest {
-    runName: string
-    input?: object
-    options?: ActorStartOptions
+    runName: string;
+    input?: object;
+    options?: ActorStartOptions;
 }
 
 /**
  * A record of Runs, having their names as keys and their `ActorRun` objects as values.
  */
-export type RunRecord = Record<string, ActorRun>
+export type RunRecord = Record<string, ActorRun>;
 
 /**
  * A generic definition of a dataset item.
@@ -377,14 +377,14 @@ export type RunRecord = Record<string, ActorRun>
  * }
  * ```
  */
-export type DatasetItem = Record<string | number, unknown>
+export type DatasetItem = Record<string | number, unknown>;
 
 export type IterateOptions = DatasetClientListItemOptions & {
     /**
      * Value used for pagination. If omitted, all the items are downloaded together.
      */
-    pageSize?: number
-}
+    pageSize?: number;
+};
 
 export type GreedyIterateOptions = IterateOptions & {
     /**
@@ -393,31 +393,31 @@ export type GreedyIterateOptions = IterateOptions & {
      *
      * @default 100
      */
-    itemsThreshold?: number
+    itemsThreshold?: number;
     /**
      * Check the run's status regularly at the specified interval, in seconds.
      *
      * @default 10
      */
-    pollIntervalSecs?: number
-}
+    pollIntervalSecs?: number;
+};
 
 export interface SplitRules {
     /**
      * Make so that each input, when serialized, is lower in size than 9,437,184 bytes.
      */
-    respectApifyMaxPayloadSize?: boolean
+    respectApifyMaxPayloadSize?: boolean;
 }
 
 export type UpdateCallback = (
     report: Record<string, RunInfo>,
     lastChangedRunName?: string,
-    lastChangedRun?: ActorRun
-) => unknown
+    lastChangedRun?: ActorRun,
+) => unknown;
 
 export interface RunInfo {
-    runId: string
-    runUrl: string
-    status: string
-    startedAt: string
+    runId: string;
+    runUrl: string;
+    status: string;
+    startedAt: string;
 }

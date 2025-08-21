@@ -1,23 +1,25 @@
-import { ActorCallOptions, ActorClient, ActorLastRunOptions, ActorRun, ActorStartOptions, RunClient } from 'apify-client';
+import type { ActorCallOptions, ActorLastRunOptions, ActorRun, ActorStartOptions } from 'apify-client';
+import { ActorClient, RunClient } from 'apify-client';
 
-import { ExtRunClient } from './run-client.js';
 import { APIFY_PAYLOAD_BYTES_LIMIT } from '../constants.js';
-import { RunsTracker, isRunOkStatus } from '../tracker.js';
-import { ActorRunRequest, ExtendedActorClient, RunRecord, SplitRules, ExtendedRunClient } from '../types.js';
+import type { RunsTracker } from '../tracker.js';
+import { isRunOkStatus } from '../tracker.js';
+import type { ActorRunRequest, ExtendedActorClient, ExtendedRunClient, RunRecord, SplitRules } from '../types.js';
 import { splitIntoChunksWithMaxSize, strBytes } from '../utils/bytes.js';
-import { CustomLogger } from '../utils/logging.js';
+import type { CustomLogger } from '../utils/logging.js';
+import { ExtRunClient } from './run-client.js';
 
 export interface EnqueuedRequest {
-    runName: string
-    defaultMemoryMbytes: () => Promise<number | undefined>
-    startRun: (input?: unknown, options?: ActorStartOptions) => Promise<ActorRun>
-    startCallbacks: ((run: ActorRun | undefined) => void)[]
-    input?: object
-    options?: ActorStartOptions
+    runName: string;
+    defaultMemoryMbytes: () => Promise<number | undefined>;
+    startRun: (input?: unknown, options?: ActorStartOptions) => Promise<ActorRun>;
+    startCallbacks: ((run: ActorRun | undefined) => void)[];
+    input?: object;
+    options?: ActorStartOptions;
 }
 
-type EnqueueFunction = (runRequest: EnqueuedRequest) => ExtendedRunClient | undefined
-type ForcedEnqueueFunction = (runRequest: EnqueuedRequest) => undefined
+type EnqueueFunction = (runRequest: EnqueuedRequest) => ExtendedRunClient | undefined;
+type ForcedEnqueueFunction = (runRequest: EnqueuedRequest) => undefined;
 
 const DEFAULT_SPLIT_RULES: SplitRules = {
     respectApifyMaxPayloadSize: true,
@@ -26,9 +28,7 @@ const DEFAULT_SPLIT_RULES: SplitRules = {
 function generateInputChunks<T>(
     sources: T[],
     inputGenerator: (chunk: T[]) => object,
-    {
-        respectApifyMaxPayloadSize,
-    }: SplitRules,
+    { respectApifyMaxPayloadSize }: SplitRules,
     fixedInputToAddLater?: object,
 ): object[] {
     if (respectApifyMaxPayloadSize) {
@@ -46,9 +46,7 @@ function generateRunRequests(
     options?: ActorStartOptions,
 ): ActorRunRequest[] {
     return Object.entries(inputChunks).map(([index, input]) => {
-        const runName = inputChunks.length > 1
-            ? `${namePrefix}-${index}/${inputChunks.length}`
-            : namePrefix;
+        const runName = inputChunks.length > 1 ? `${namePrefix}-${index}/${inputChunks.length}` : namePrefix;
         return { runName, input, options };
     });
 }
@@ -88,17 +86,14 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     }
 
     protected generateRunOrchestratorClient(runName: string, runId: string) {
-        const runClient = new RunClient(this._subResourceOptions({
-            id: runId,
-            params: this._params(),
-            resourcePath: 'runs',
-        }));
-        return new ExtRunClient(
-            runClient,
-            runName,
-            this.customLogger,
-            this.runsTracker,
+        const runClient = new RunClient(
+            this._subResourceOptions({
+                id: runId,
+                params: this._params(),
+                resourcePath: 'runs',
+            }),
         );
+        return new ExtRunClient(runClient, runName, this.customLogger, this.runsTracker);
     }
 
     protected generateRunRequests<T>(
@@ -117,10 +112,13 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
         return (await this.get())?.defaultRunOptions.memoryMbytes;
     }
 
-    protected async enqueueAndWaitForStart(runName: string, input?: object, options?: ActorStartOptions): Promise<ActorRun> {
-        const fullInput: object | undefined = (!input && !this.fixedInput)
-            ? undefined
-            : { ...input ?? {}, ...this.fixedInput ?? {} };
+    protected async enqueueAndWaitForStart(
+        runName: string,
+        input?: object,
+        options?: ActorStartOptions,
+    ): Promise<ActorRun> {
+        const fullInput: object | undefined =
+            !input && !this.fixedInput ? undefined : { ...(input ?? {}), ...(this.fixedInput ?? {}) };
 
         const runParams = {
             runName,
@@ -136,7 +134,9 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
                 ...runParams,
                 startCallbacks: [resolve],
             });
-            if (existingRunClient) { resolve(undefined); }
+            if (existingRunClient) {
+                resolve(undefined);
+            }
         });
 
         if (!run && existingRunClient) {
@@ -149,7 +149,9 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
                         ...runParams,
                         startCallbacks: [resolve],
                     });
-                    if (existingRunClient) { resolve(undefined); }
+                    if (existingRunClient) {
+                        resolve(undefined);
+                    }
                 });
             }
         }
@@ -222,10 +224,13 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
 
     async startRuns(...runRequests: ActorRunRequest[]): Promise<RunRecord> {
         const runRecord: RunRecord = {};
-        await Promise.all(runRequests.map(
-            async ({ runName, input, options }) => this.start(runName, input, options)
-                .then((run) => { runRecord[runName] = run; }),
-        ));
+        await Promise.all(
+            runRequests.map(async ({ runName, input, options }) =>
+                this.start(runName, input, options).then((run) => {
+                    runRecord[runName] = run;
+                }),
+            ),
+        );
         return runRecord;
     }
 
@@ -243,10 +248,13 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
 
     async callRuns(...runRequests: ActorRunRequest[]): Promise<RunRecord> {
         const runRecord: RunRecord = {};
-        await Promise.all(runRequests.map(
-            async ({ runName, input, options }) => this.call(runName, input, options)
-                .then((run) => { runRecord[runName] = run; }),
-        ));
+        await Promise.all(
+            runRequests.map(async ({ runName, input, options }) =>
+                this.call(runName, input, options).then((run) => {
+                    runRecord[runName] = run;
+                }),
+            ),
+        );
         return runRecord;
     }
 

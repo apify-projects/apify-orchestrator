@@ -1,11 +1,13 @@
-import { DatasetClient, PaginatedList } from 'apify-client';
-import { DatasetItem, Orchestrator } from 'src/index.js';
+import type { PaginatedList } from 'apify-client';
+import { DatasetClient } from 'apify-client';
+import type { DatasetItem } from 'src/index.js';
+import { Orchestrator } from 'src/index.js';
 
 describe('grouping-utils', () => {
     describe('DatasetGroupClass', () => {
         it('can iterate over items from all the datasets, in order', async () => {
             interface Item extends DatasetItem {
-                title: string
+                title: string;
             }
             const dataset1: PaginatedList<Item> = {
                 count: 1,
@@ -51,11 +53,7 @@ describe('grouping-utils', () => {
                 readItems.push(item);
             }
 
-            expect(readItems).toEqual([
-                { title: 'A' },
-                { title: 'B' },
-                { title: 'C' },
-            ]);
+            expect(readItems).toEqual([{ title: 'A' }, { title: 'B' }, { title: 'C' }]);
         });
     });
 });

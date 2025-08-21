@@ -1,20 +1,20 @@
 /**
  * This is temporarily a "copy-paste" kind of library.
  * Maybe, someday it will become a proper library or part of the SDK, who knows?
-*/
+ */
 
 import { ExtApifyClient } from './clients/apify-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS } from './constants.js';
 import { DatasetGroupClass } from './entities/dataset-group.js';
 import { RunsTracker } from './tracker.js';
-import {
+import type {
     ApifyOrchestrator,
-    OrchestratorOptions,
+    DatasetGroup,
+    DatasetItem,
     ExtendedApifyClient,
     ExtendedClientOptions,
-    DatasetItem,
     ExtendedDatasetClient,
-    DatasetGroup,
+    OrchestratorOptions,
 } from './types.js';
 import { CustomLogger } from './utils/logging.js';
 import { makeNameUnique } from './utils/naming.js';
@@ -43,11 +43,7 @@ export class Orchestrator implements ApifyOrchestrator {
         takenClientNames.add(clientName);
 
         const enableFailedRunsHistory = !this.options.hideSensitiveInformation;
-        const runsTracker = new RunsTracker(
-            this.customLogger,
-            enableFailedRunsHistory,
-            this.options.onUpdate,
-        );
+        const runsTracker = new RunsTracker(this.customLogger, enableFailedRunsHistory, this.options.onUpdate);
 
         await runsTracker.init(
             this.options.persistenceSupport,

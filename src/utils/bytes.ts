@@ -1,4 +1,4 @@
-export const strBytes = (string: string) => (new TextEncoder().encode(string)).length;
+export const strBytes = (string: string) => new TextEncoder().encode(string).length;
 
 export function splitIntoChunksWithMaxSize<T>(
     sources: T[],
@@ -8,10 +8,7 @@ export function splitIntoChunksWithMaxSize<T>(
     let parts = 1;
     let inputs: object[] = [inputGenerator(sources)];
 
-    while (
-        parts < sources.length
-        && inputs.some((input) => strBytes(JSON.stringify(input)) > maxBytesSize)
-    ) {
+    while (parts < sources.length && inputs.some((input) => strBytes(JSON.stringify(input)) > maxBytesSize)) {
         parts++;
         const size = Math.ceil(sources.length / parts);
         inputs = [];

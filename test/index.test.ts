@@ -1,5 +1,6 @@
 import { MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
-import { DatasetItem, Orchestrator } from 'src/index.js';
+import type { DatasetItem } from 'src/index.js';
+import { Orchestrator } from 'src/index.js';
 import * as apifyApi from 'src/utils/apify-api.js';
 
 describe('Apify Orchestrator', () => {
@@ -27,13 +28,12 @@ describe('Apify Orchestrator', () => {
 
     it('starts the scheduler upon client creation', async () => {
         const client = await orchestrator.apifyClient({ name: 'client-going-to-start' });
-        const getAvailableMemorySpy = vi.spyOn(apifyApi, 'getUserLimits')
-            .mockImplementation(async () => ({
-                currentMemoryUsageGBs: Number.POSITIVE_INFINITY,
-                maxMemoryGBs: Number.POSITIVE_INFINITY,
-                activeActorJobCount: Number.POSITIVE_INFINITY,
-                maxConcurrentActorJobs: Number.POSITIVE_INFINITY,
-            }));
+        const getAvailableMemorySpy = vi.spyOn(apifyApi, 'getUserLimits').mockImplementation(async () => ({
+            currentMemoryUsageGBs: Number.POSITIVE_INFINITY,
+            maxMemoryGBs: Number.POSITIVE_INFINITY,
+            activeActorJobCount: Number.POSITIVE_INFINITY,
+            maxConcurrentActorJobs: Number.POSITIVE_INFINITY,
+        }));
         client.actor('test').enqueue({ runName: 'test' });
         vi.advanceTimersByTime(MAIN_LOOP_INTERVAL_MS);
         expect(getAvailableMemorySpy).toHaveBeenCalledTimes(1);
@@ -57,22 +57,14 @@ describe('Apify Orchestrator', () => {
 
     it('lets you create a dataset group', async () => {
         interface Item extends DatasetItem {
-            title: string
+            title: string;
         }
         const client = await orchestrator.apifyClient();
         const dataset1 = client.dataset<Item>('test-id1');
         const dataset2 = client.dataset<Item>('test-id2');
         const dataset3 = client.dataset<Item>('test-id3');
-        const mergedDatasets = orchestrator.mergeDatasets(
-            dataset1,
-            dataset2,
-            dataset3,
-        );
-        expect(mergedDatasets.datasets).toEqual([
-            dataset1,
-            dataset2,
-            dataset3,
-        ]);
+        const mergedDatasets = orchestrator.mergeDatasets(dataset1, dataset2, dataset3);
+        expect(mergedDatasets.datasets).toEqual([dataset1, dataset2, dataset3]);
     });
 
     // TODO: test different configurations?

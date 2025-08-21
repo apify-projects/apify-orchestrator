@@ -1,4 +1,4 @@
-import { OrchestratorOptions } from './types.js';
+import type { OrchestratorOptions } from './types.js';
 
 export const MAIN_LOOP_INTERVAL_MS = 1_000;
 export const MAIN_LOOP_COOLDOWN_MS = 10_000;

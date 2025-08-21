@@ -10,12 +10,12 @@ instead, it allows you to trigger one or more new Runs from everywhere in your c
 1. Please, take a look at existing issues and submit your pull requests to: https://github.com/apify-projects/apify-orchestrator.
 2. Before starting to work on some topic, make sure to create/assign the corresponding issue to yourself.
 3. Remember to bump the patch/minor/major version number, using `npm version major/minor/path`.
-4. This project is still to be considered in *alpha* state, and it follows the [semantic versioning](https://semver.org/) rules. This means that:
+4. This project is still to be considered in _alpha_ state, and it follows the [semantic versioning](https://semver.org/) rules. This means that:
     - the major version number is `0`;
     - breaking changes are allowed on different minor versions.
-4. If you are working on minor features or patches, ask to merge your work directly into the `main` branch.
-5. If you are working on some feature which introduces breaking changes or is planned for the next major version, ask to merge it into the next major development branch, e.g., `dev/0.5.0`.
-6. Remember to add/fix **unit tests**:
+5. If you are working on minor features or patches, ask to merge your work directly into the `main` branch.
+6. If you are working on some feature which introduces breaking changes or is planned for the next major version, ask to merge it into the next major development branch, e.g., `dev/0.5.0`.
+7. Remember to add/fix **unit tests**:
     - [`vitest`](https://vitest.dev/) is used;
     - take a look at existing tests in the `test` folder and follow the same organization/naming conventions;
     - the `package.json` includes scripts for testing.
@@ -36,7 +36,7 @@ Most of the following features are opt-in: you can use just the ones you need.
 
 - Store the Runs in progress in the Key Value Store and **resume** them after a resurrection, avoiding starting a new, redundant Run.
 
-- Abort all the Runs in progress, triggered by the orchestrator, when the latter is gracefully aborted *(opt-in)*.\
+- Abort all the Runs in progress, triggered by the orchestrator, when the latter is gracefully aborted _(opt-in)_.\
   In this way, you have at your disposal a **kill switch** to stop all the Runs at once, for instance, to keep scraping costs under control.
 
 - Avoid to incur in errors due to **too large strings**, e.g., due to JavaScript or Apify API limits.
@@ -121,11 +121,13 @@ Moreover, if you gracefully abort the orchestrator while the external Run is in 
 There are two occasions when you could exceed some limit:
 
 1. when starting a Run and providing an input that is too large, exceeding the API limit:
+
 ```
 Status code 413: the POST payload is too large (limit: 9437184 bytes, actual length: 9453568 bytes)
 ```
 
 2. when you try to read a dataset that is too large all at once, exceeding the JavaScript string limit.
+
 ```
 Error: Cannot create a string longer than 0x1fffffe8 characters
 ```
@@ -207,7 +209,7 @@ const runRecord = await client.actor(actorId).callRuns(
 
 ```js
 const myDataset = await Actor.openDataset('my-named-dataset');
-await myDataset.push(aVeryLargeArray)
+await myDataset.push(aVeryLargeArray);
 
 const client = await orchestrator.apifyClient();
 
@@ -230,7 +232,7 @@ Then, you can create an Orchestrator with the following settings:
 ```js
 import { Actor } from 'apify';
 
-import { Orchestrator } from './orchestrator/index.js'
+import { Orchestrator } from './orchestrator/index.js';
 
 const CHILDREN_RUN_KILLER_INPUT_PARAMS = {
     __watched: {
@@ -244,7 +246,7 @@ const orchestrator = new Orchestrator({
 });
 ```
 
-The parameters defined in `fixedInput` will be added to *all* the Runs triggered using the orchestrator object.
+The parameters defined in `fixedInput` will be added to _all_ the Runs triggered using the orchestrator object.
 
 ## How to hide sensitive information from the user
 
@@ -253,7 +255,7 @@ depending on the Orchestrator's configuration.
 If you would like to keep using logs and persistence, but you want to hide such information, set these options:
 
 ```js
-import { Orchestrator } from './orchestrator/index.js'
+import { Orchestrator } from './orchestrator/index.js';
 
 const orchestrator = new Orchestrator({
     enableLogs: true,

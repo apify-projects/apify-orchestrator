@@ -16,8 +16,8 @@
         "lint:fix": "eslint --fix",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "test": "vitest",
-        "coverage": "vitest --coverage"
+        "test": "vitest run",
+        "coverage": "vitest run --coverage"
     },
     "keywords": [
         "apify",

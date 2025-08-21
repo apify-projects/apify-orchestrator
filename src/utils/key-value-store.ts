@@ -1,17 +1,25 @@
-import crypto from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 
 import type { OpenStorageOptions } from 'apify';
 import { Actor, KeyValueStore } from 'apify';
 import type { StorageClient } from 'crawlee';
 
 function encrypt(dataToEncrypt: unknown, cryptSecret: string): string {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(cryptSecret), iv);
+    const iv = randomBytes(16);
+    const key = new Uint8Array(Buffer.from(cryptSecret));
+    const cipher = createCipheriv('aes-256-cbc', key, new Uint8Array(iv));
+
+    const inputBuffer = new Uint8Array(Buffer.from(JSON.stringify(dataToEncrypt)));
+    const updateResult = cipher.update(inputBuffer);
+    const finalResult = cipher.final();
+
+    // Combine the results
+    const encrypted = new Uint8Array(updateResult.length + finalResult.length);
+    encrypted.set(updateResult, 0);
+    encrypted.set(finalResult, updateResult.length);
 
     const result = {
-        data: Buffer.concat([cipher.update(Buffer.from(JSON.stringify(dataToEncrypt))), cipher.final()]).toString(
-            'base64',
-        ),
+        data: Buffer.from(encrypted).toString('base64'),
         iv: iv.toString('base64'),
     };
 
@@ -21,8 +29,20 @@ function encrypt(dataToEncrypt: unknown, cryptSecret: string): string {
 function decrypt<T>(dataToDecrypt: string, cryptSecret: string): T {
     const { data, iv } = JSON.parse(Buffer.from(dataToDecrypt, 'base64').toString());
 
-    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(cryptSecret), Buffer.from(iv, 'base64'));
-    return JSON.parse(Buffer.concat([decipher.update(Buffer.from(data, 'base64')), decipher.final()]).toString()) as T;
+    const key = new Uint8Array(Buffer.from(cryptSecret));
+    const ivBuffer = new Uint8Array(Buffer.from(iv, 'base64'));
+    const decipher = createDecipheriv('aes-256-cbc', key, ivBuffer);
+
+    const encryptedData = new Uint8Array(Buffer.from(data, 'base64'));
+    const updateResult = decipher.update(encryptedData);
+    const finalResult = decipher.final();
+
+    // Combine the results
+    const decrypted = new Uint8Array(updateResult.length + finalResult.length);
+    decrypted.set(updateResult, 0);
+    decrypted.set(finalResult, updateResult.length);
+
+    return JSON.parse(Buffer.from(decrypted).toString()) as T;
 }
 
 class EncryptedKeyValueStore extends KeyValueStore {
@@ -41,7 +61,7 @@ class EncryptedKeyValueStore extends KeyValueStore {
             },
             kvStore.config,
         );
-        this.cryptSecret = crypto.createHash('sha256').update(encryptionKey).digest('hex').slice(0, 32);
+        this.cryptSecret = createHash('sha256').update(encryptionKey).digest('hex').slice(0, 32);
         this.kvStore = kvStore;
     }
 
@@ -58,7 +78,15 @@ class EncryptedKeyValueStore extends KeyValueStore {
         try {
             return decrypt(encryptedValue, this.cryptSecret) as T;
         } catch (error) {
-            if ((error as { code?: string })?.code === 'ERR_OSSL_EVP_BAD_DECRYPT') {
+            const errorCode = (error as { code?: string })?.code;
+            const errorMessage = (error as { message?: string })?.message ?? '';
+
+            // Handle various crypto decryption errors
+            if (
+                errorCode === 'ERR_OSSL_EVP_BAD_DECRYPT' ||
+                errorCode === 'ERR_OSSL_BAD_DECRYPT' ||
+                errorMessage.includes('bad decrypt')
+            ) {
                 throw new Error(`Unable to decrypt key: "${key}". Possibly the wrong secret key is used?`);
             }
             throw error;
@@ -84,7 +112,7 @@ export async function openEncryptedKeyValueStore(
     encryptionKey: string,
     storeIdOrName?: string,
     options?: OpenStorageOptions,
-) {
+): Promise<EncryptedKeyValueStore> {
     const kvStore = await Actor.openKeyValueStore(storeIdOrName, options);
     const storageClient = Actor.config.getStorageClient();
 

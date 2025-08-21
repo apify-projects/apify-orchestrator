@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+echo "Checking lint..."
+npm run lint
+
+echo "Checking formatting..."
+npm run format:check
+
+echo "Running tests..."
+npm test

@@ -23,6 +23,7 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
     constructor(runClient: RunClient, runName: string, customLogger: CustomLogger, runsTracker: RunsTracker) {
         super({
             baseUrl: runClient.baseUrl,
+            publicBaseUrl: runClient.publicBaseUrl,
             resourcePath: runClient.resourcePath,
             apifyClient: runClient.apifyClient,
             httpClient: runClient.httpClient,

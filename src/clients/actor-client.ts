@@ -72,6 +72,7 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     ) {
         super({
             baseUrl: actorClient.baseUrl,
+            publicBaseUrl: actorClient.publicBaseUrl,
             apifyClient: actorClient.apifyClient,
             httpClient: actorClient.httpClient,
             id: actorClient.id,

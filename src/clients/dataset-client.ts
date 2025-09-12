@@ -13,6 +13,7 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
     constructor(datasetClient: DatasetClient<T>, customLogger: CustomLogger, runsTracker: RunsTracker) {
         super({
             baseUrl: datasetClient.baseUrl,
+            publicBaseUrl: datasetClient.publicBaseUrl,
             apifyClient: datasetClient.apifyClient,
             httpClient: datasetClient.httpClient,
             id: datasetClient.id,

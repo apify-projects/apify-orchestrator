@@ -6,5 +6,8 @@ npm run lint
 echo "Checking formatting..."
 npm run format:check
 
+echo "Building the project..."
+npm run build
+
 echo "Running tests..."
 npm test

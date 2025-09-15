@@ -9,11 +9,16 @@ import { splitIntoChunksWithMaxSize, strBytes } from '../utils/bytes.js';
 import type { CustomLogger } from '../utils/logging.js';
 import { ExtRunClient } from './run-client.js';
 
+export interface RunResult {
+    run: ActorRun | undefined;
+    error: Error | undefined;
+}
+
 export interface EnqueuedRequest {
     runName: string;
     defaultMemoryMbytes: () => Promise<number | undefined>;
     startRun: (input?: unknown, options?: ActorStartOptions) => Promise<ActorRun>;
-    startCallbacks: ((run: ActorRun | undefined) => void)[];
+    startCallbacks: ((result: RunResult) => void)[];
     input?: object;
     options?: ActorStartOptions;
 }
@@ -130,38 +135,42 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
         };
 
         let existingRunClient: ExtendedRunClient | undefined;
-        let run = await new Promise<ActorRun | undefined>((resolve) => {
+        let result = await new Promise<RunResult>((resolve) => {
             existingRunClient = this.enqueueFunction({
                 ...runParams,
                 startCallbacks: [resolve],
             });
             if (existingRunClient) {
-                resolve(undefined);
+                resolve({ run: undefined, error: undefined });
             }
         });
 
-        if (!run && existingRunClient) {
-            run = await existingRunClient.get();
+        if (!result.run && !result.error && existingRunClient) {
+            result.run = await existingRunClient.get();
 
             // If it was not possible to retrieve the Run from the client, force enqueuing a new Run.
-            if (!run) {
-                run = await new Promise<ActorRun | undefined>((resolve) => {
+            if (!result.run) {
+                result = await new Promise<RunResult>((resolve) => {
                     existingRunClient = this.forcedEnqueueFunction({
                         ...runParams,
                         startCallbacks: [resolve],
                     });
                     if (existingRunClient) {
-                        resolve(undefined);
+                        resolve({ run: undefined, error: undefined });
                     }
                 });
             }
         }
 
-        if (!run) {
+        if (result.error) {
+            throw result.error;
+        }
+
+        if (!result.run) {
             throw new Error(`Error starting Run: ${runName} (${this.id}).`);
         }
 
-        return run;
+        return result.run;
     }
 
     override async start(runName: string, input?: object, options?: ActorStartOptions): Promise<ActorRun> {

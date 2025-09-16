@@ -8,7 +8,7 @@ import type { DatasetItem, ExtendedApifyClient, RunRecord } from '../types.js';
 import { getUserLimits } from '../utils/apify-api.js';
 import type { CustomLogger } from '../utils/logging.js';
 import { Queue } from '../utils/queue.js';
-import type { EnqueuedRequest } from './actor-client.js';
+import type { EnqueuedRequest, RunResult } from './actor-client.js';
 import { ExtActorClient } from './actor-client.js';
 import { ExtDatasetClient } from './dataset-client.js';
 import { ExtRunClient } from './run-client.js';
@@ -71,7 +71,9 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
             this.runRequestsQueue.enqueue(runRequest);
         } else {
             // Avoid blocking if the orchestrator is not running
-            runRequest.startCallbacks.map((callback) => callback(undefined));
+            runRequest.startCallbacks.map((callback) =>
+                callback({ run: undefined, error: new Error('Orchestrator is not running') }),
+            );
         }
 
         return undefined;
@@ -80,20 +82,26 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     protected async findAndWaitForRunRequest(runName: string): Promise<ActorRun | undefined> {
         let result: ActorRun | undefined;
 
-        let startPromise: Promise<ActorRun | undefined> | undefined;
+        let startPromise: Promise<RunResult> | undefined;
         const runRequest = this.runRequestsQueue.find((req) => req.runName === runName);
         if (runRequest) {
-            startPromise = new Promise<ActorRun | undefined>((resolve) => {
+            startPromise = new Promise<RunResult>((resolve) => {
                 runRequest.startCallbacks.push(resolve);
             });
         }
 
         if (startPromise) {
-            const run = await startPromise;
-            if (!run) {
+            const runResult = await startPromise;
+            if (runResult.error) {
+                this.customLogger.prfxError(runName, 'Error starting Run from queue', {
+                    message: runResult.error.message,
+                });
+                throw new Error(`Error starting Run: ${runName}. ${runResult.error.message}`);
+            }
+            if (!runResult.run) {
                 throw new Error(`Error starting Run: ${runName}.`);
             }
-            result = run;
+            result = runResult.run;
         }
 
         return result;
@@ -191,12 +199,14 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                         try {
                             const run = await runRequest.startRun(input, options);
                             await this.runsTracker.updateRun(runName, run);
-                            runRequest.startCallbacks.map((callback) => callback(run));
+                            runRequest.startCallbacks.map((callback) => callback({ run, error: undefined }));
                         } catch (e) {
                             this.customLogger.prfxError(runName, 'Failed to start Run', {
                                 message: (e as Error)?.message,
                             });
-                            runRequest.startCallbacks.map((callback) => callback(undefined));
+                            runRequest.startCallbacks.map((callback) =>
+                                callback({ run: undefined, error: e as Error }),
+                            );
                         }
                     } else {
                         this.customLogger.error("Something wrong with the Apify orchestrator's queue!");
@@ -238,7 +248,9 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
 
         // Empty the queues and unlock all the callers waiting
         while (this.runRequestsQueue.length > 0) {
-            this.runRequestsQueue.dequeue()?.startCallbacks.map((callback) => callback(undefined));
+            this.runRequestsQueue
+                .dequeue()
+                ?.startCallbacks.map((callback) => callback({ run: undefined, error: new Error('Scheduler stopped') }));
         }
     }
 

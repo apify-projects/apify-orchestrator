@@ -18,6 +18,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     readonly abortAllRunsOnGracefulAbort: boolean;
     readonly hideSensitiveInformation: boolean;
     readonly fixedInput: object | undefined; // TODO: forbid changes
+    readonly retryOnError: boolean;
 
     protected runRequestsQueue = new Queue<EnqueuedRequest>();
     protected customLogger: CustomLogger;
@@ -34,6 +35,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         fixedInput: object | undefined,
         abortAllRunsOnGracefulAbort: boolean,
         hideSensitiveInformation: boolean,
+        retryOnError: boolean,
         options: ApifyClientOptions = {},
     ) {
         super({
@@ -46,6 +48,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         this.hideSensitiveInformation = hideSensitiveInformation;
         this.fixedInput = fixedInput;
         this.abortAllRunsOnGracefulAbort = abortAllRunsOnGracefulAbort;
+        this.retryOnError = retryOnError;
     }
 
     protected trackedRun(runName: string, id: string) {
@@ -210,6 +213,19 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                         }
                     } else {
                         this.customLogger.error("Something wrong with the Apify orchestrator's queue!");
+                    }
+                } else if (!this.retryOnError) {
+                    const runRequest = this.runRequestsQueue.dequeue();
+                    if (runRequest) {
+                        const { runName } = runRequest;
+
+                        const errorToThrow = new Error(
+                            'Not enough resources to start the Run, and retryOnError is set to false',
+                        );
+                        this.customLogger.prfxError(runName, 'Failed to start Run', {
+                            message: errorToThrow.message,
+                        });
+                        runRequest.startCallbacks.map((callback) => callback({ run: undefined, error: errorToThrow }));
                     }
                 } else {
                     // Wait for sometime before checking again

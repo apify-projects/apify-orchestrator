@@ -9,6 +9,7 @@ export const DEFAULT_ORCHESTRATOR_OPTIONS: OrchestratorOptions = {
     persistenceSupport: 'none',
     persistencePrefix: 'ORCHESTRATOR-',
     abortAllRunsOnGracefulAbort: true,
+    retryOnError: true,
 };
 
 export const APIFY_PAYLOAD_BYTES_LIMIT = 9_437_184;

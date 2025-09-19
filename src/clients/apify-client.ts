@@ -2,7 +2,7 @@ import { Actor, ApifyClient, log } from 'apify';
 import type { ActorRun, ApifyClientOptions, RunClient } from 'apify-client';
 
 import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
-import { InsufficientActorJobsError, InsufficientMemoryError, InsufficientResourcesError } from '../errors.js';
+import { InsufficientActorJobsError, InsufficientMemoryError } from '../errors.js';
 import type { RunsTracker } from '../tracker.js';
 import { isRunOkStatus } from '../tracker.js';
 import type { DatasetItem, ExtendedApifyClient, RunRecord } from '../types.js';
@@ -227,7 +227,9 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                             if (!canRunMoreActors) {
                                 return new InsufficientActorJobsError(runName);
                             }
-                            return new InsufficientResourcesError(runName);
+                            throw new Error(
+                                'Insufficient resources have been retrieved but they did not match any of the checks!',
+                            );
                         })();
 
                         this.customLogger.prfxError(
@@ -239,7 +241,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                         );
                         runRequest.startCallbacks.map((callback) => callback({ run: undefined, error: errorToThrow }));
                     } else {
-                        throw new InsufficientResourcesError();
+                        throw new Error('Insufficient resources have been retrieved but no runRequest found!');
                     }
                 } else {
                     // Wait for sometime before checking again

@@ -25,6 +25,7 @@ export default [
         },
         rules: {
             'no-console': 0,
+            'max-classes-per-file': ['error', { max: 10 }],
         },
     },
 ];

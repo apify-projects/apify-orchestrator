@@ -19,7 +19,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     readonly abortAllRunsOnGracefulAbort: boolean;
     readonly hideSensitiveInformation: boolean;
     readonly fixedInput: object | undefined; // TODO: forbid changes
-    readonly retryOnError: boolean;
+    readonly retryOnInsufficientResources: boolean;
 
     protected runRequestsQueue = new Queue<EnqueuedRequest>();
     protected customLogger: CustomLogger;
@@ -36,7 +36,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         fixedInput: object | undefined,
         abortAllRunsOnGracefulAbort: boolean,
         hideSensitiveInformation: boolean,
-        retryOnError: boolean,
+        retryOnInsufficientResources: boolean,
         options: ApifyClientOptions = {},
     ) {
         super({
@@ -49,7 +49,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         this.hideSensitiveInformation = hideSensitiveInformation;
         this.fixedInput = fixedInput;
         this.abortAllRunsOnGracefulAbort = abortAllRunsOnGracefulAbort;
-        this.retryOnError = retryOnError;
+        this.retryOnInsufficientResources = retryOnInsufficientResources;
     }
 
     protected trackedRun(runName: string, id: string) {
@@ -215,7 +215,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                     } else {
                         this.customLogger.error("Something wrong with the Apify orchestrator's queue!");
                     }
-                } else if (!this.retryOnError) {
+                } else if (!this.retryOnInsufficientResources) {
                     const runRequest = this.runRequestsQueue.dequeue();
                     if (runRequest) {
                         const { runName } = runRequest;
@@ -230,9 +230,13 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                             return new InsufficientResourcesError(runName);
                         })();
 
-                        this.customLogger.prfxError(runName, 'Failed to start Run and retryOnError is set to false', {
-                            message: errorToThrow.message,
-                        });
+                        this.customLogger.prfxError(
+                            runName,
+                            'Failed to start Run and retryOnInsufficientResources is set to false',
+                            {
+                                message: errorToThrow.message,
+                            },
+                        );
                         runRequest.startCallbacks.map((callback) => callback({ run: undefined, error: errorToThrow }));
                     } else {
                         throw new InsufficientResourcesError();

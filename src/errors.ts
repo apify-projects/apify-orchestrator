@@ -42,12 +42,15 @@ export class InsufficientActorJobsError extends OrchestratorError {
 }
 
 /**
- * Error thrown when there are insufficient resources and retryOnError is disabled
+ * Error thrown when there are insufficient resources and retryOnInsufficientResources is disabled
  */
 export class InsufficientResourcesError extends OrchestratorError {
     readonly code = 'INSUFFICIENT_RESOURCES_NO_RETRY';
 
     constructor(runName?: string) {
-        super(`Not enough resources to start the Run '${runName}', and retryOnError is set to false`, runName);
+        super(
+            `Not enough resources to start the Run '${runName}', and retryOnInsufficientResources is set to false`,
+            runName,
+        );
     }
 }

@@ -12,6 +12,7 @@ export abstract class OrchestratorError extends Error {
         this.name = this.constructor.name;
     }
 }
+
 /**
  * Error thrown when there's insufficient memory to start a run
  */

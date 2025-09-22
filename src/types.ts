@@ -87,7 +87,7 @@ export interface OrchestratorOptions {
     /**
      * Whether to automatically retry failed (due to lack of memory/jobs) operations.
      *
-     * When enabled, the orchestrator will attempt to retry if something went wrong
+     * When enabled, the orchestrator will attempt to retry if something went wrong.
      *
      * @default true
      */

@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 /**
  * Base class for all Apify Orchestrator errors
  */

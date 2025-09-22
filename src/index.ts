@@ -20,6 +20,7 @@ import { CustomLogger } from './utils/logging.js';
 import { makeNameUnique } from './utils/naming.js';
 
 export * from './types.js';
+export * from './errors.js';
 
 const takenPersistPrefixes = new Set<string>();
 const takenClientNames = new Set<string>();
@@ -58,6 +59,7 @@ export class Orchestrator implements ApifyOrchestrator {
             this.options.fixedInput,
             this.options.abortAllRunsOnGracefulAbort,
             this.options.hideSensitiveInformation,
+            this.options.retryOnInsufficientResources,
             apifyClientOptions,
         );
         client.startScheduler();

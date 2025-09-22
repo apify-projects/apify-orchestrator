@@ -2,6 +2,7 @@ import { Actor, ApifyClient, log } from 'apify';
 import type { ActorRun, ApifyClientOptions, RunClient } from 'apify-client';
 
 import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
+import { InsufficientActorJobsError, InsufficientMemoryError } from '../errors.js';
 import type { RunsTracker } from '../tracker.js';
 import { isRunOkStatus } from '../tracker.js';
 import type { DatasetItem, ExtendedApifyClient, RunRecord } from '../types.js';
@@ -18,6 +19,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     readonly abortAllRunsOnGracefulAbort: boolean;
     readonly hideSensitiveInformation: boolean;
     readonly fixedInput: object | undefined; // TODO: forbid changes
+    readonly retryOnInsufficientResources: boolean;
 
     protected runRequestsQueue = new Queue<EnqueuedRequest>();
     protected customLogger: CustomLogger;
@@ -34,6 +36,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         fixedInput: object | undefined,
         abortAllRunsOnGracefulAbort: boolean,
         hideSensitiveInformation: boolean,
+        retryOnInsufficientResources: boolean,
         options: ApifyClientOptions = {},
     ) {
         super({
@@ -46,6 +49,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         this.hideSensitiveInformation = hideSensitiveInformation;
         this.fixedInput = fixedInput;
         this.abortAllRunsOnGracefulAbort = abortAllRunsOnGracefulAbort;
+        this.retryOnInsufficientResources = retryOnInsufficientResources;
     }
 
     protected trackedRun(runName: string, id: string) {
@@ -211,6 +215,33 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                     } else {
                         this.customLogger.error("Something wrong with the Apify orchestrator's queue!");
                     }
+                } else if (!this.retryOnInsufficientResources) {
+                    const runRequest = this.runRequestsQueue.dequeue();
+                    if (!runRequest) {
+                        throw new Error('Insufficient resources have been retrieved but no runRequest found!');
+                    }
+                    const { runName } = runRequest;
+
+                    const errorToThrow = (() => {
+                        if (!hasEnoughMemory) {
+                            return new InsufficientMemoryError(runName, requiredMemoryGBs, availableMemoryGBs);
+                        }
+                        if (!canRunMoreActors) {
+                            return new InsufficientActorJobsError(runName);
+                        }
+                        throw new Error(
+                            'Insufficient resources have been retrieved but they did not match any of the checks!',
+                        );
+                    })();
+
+                    this.customLogger.prfxError(
+                        runName,
+                        'Failed to start Run and retryOnInsufficientResources is set to false',
+                        {
+                            message: errorToThrow.message,
+                        },
+                    );
+                    runRequest.startCallbacks.map((callback) => callback({ run: undefined, error: errorToThrow }));
                 } else {
                     // Wait for sometime before checking again
                     this.customLogger.info(

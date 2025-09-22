@@ -83,6 +83,15 @@ export interface OrchestratorOptions {
      * @default true
      */
     abortAllRunsOnGracefulAbort: boolean;
+
+    /**
+     * Whether to automatically retry failed (due to lack of memory/jobs) operations.
+     *
+     * When enabled, the orchestrator will attempt to retry if something went wrong.
+     *
+     * @default true
+     */
+    retryOnInsufficientResources: boolean;
 }
 
 /**

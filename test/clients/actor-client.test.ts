@@ -6,22 +6,14 @@ import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_COOLDOWN_MS } from 'src/constan
 import { RunsTracker } from 'src/tracker.js';
 import type { OrchestratorOptions } from 'src/types.js';
 import * as apifyApi from 'src/utils/apify-api.js';
+import type { OrchestratorContext } from 'src/utils/context.js';
 import { CustomLogger } from 'src/utils/logging.js';
 
-describe('actor-client methods', () => {
-    let customLogger: CustomLogger;
-    let runsTracker: RunsTracker;
+describe('ExtActorClient', () => {
+    let context: OrchestratorContext;
     let options: OrchestratorOptions;
 
-    const generateApifyClient = (clientName: string) =>
-        new ExtApifyClient(
-            clientName,
-            customLogger,
-            runsTracker,
-            options.fixedInput,
-            options.abortAllRunsOnGracefulAbort,
-            options.hideSensitiveInformation,
-        );
+    const generateApifyClient = (clientName: string) => new ExtApifyClient(context, { clientName, ...options });
 
     const mockDate = new Date('2024-09-11T06:00:00.000Z');
 
@@ -48,9 +40,10 @@ describe('actor-client methods', () => {
 
     beforeEach(async () => {
         vi.useFakeTimers();
-        customLogger = new CustomLogger(false, false);
-        runsTracker = new RunsTracker(customLogger, false);
-        await runsTracker.init();
+        const logger = new CustomLogger(false, false);
+        const runsTracker = new RunsTracker(logger, false);
+        context = { logger, runsTracker };
+        await context.runsTracker.init();
         options = {
             ...DEFAULT_ORCHESTRATOR_OPTIONS,
             enableLogs: false,
@@ -69,7 +62,7 @@ describe('actor-client methods', () => {
 
             // Add an existing run to the tracker
             const existingRun = getMockRun('existing-run-id', 'RUNNING');
-            await runsTracker.updateRun('test-run', existingRun);
+            await context.runsTracker.updateRun('test-run', existingRun);
 
             // Mock the RunClient.get method to return the existing run
             const getSpy = vi.spyOn(ExtRunClient.prototype, 'get').mockImplementation(async () => {
@@ -82,14 +75,14 @@ describe('actor-client methods', () => {
             expect(getSpy).toHaveBeenCalled();
         });
 
-        it('enqueues a new request, if an existing Run was found but not available', async () => {
+        it('enqueues a new request, if an existing Run was found but is not available', async () => {
             const client = generateApifyClient('test-client');
             client.startScheduler();
             const actorClient = client.actor('test-actor-id');
 
             // Add an existing run to the tracker with FAILED status so it won't be reused
             const existingRun = getMockRun('existing-run-id', 'FAILED');
-            await runsTracker.updateRun('test-run', existingRun);
+            await context.runsTracker.updateRun('test-run', existingRun);
 
             mockUserLimits();
 
@@ -158,7 +151,7 @@ describe('actor-client methods', () => {
 
             // Add an existing run to the tracker
             const existingRun = getMockRun('existing-run-id', 'RUNNING');
-            await runsTracker.updateRun('test-run', existingRun);
+            await context.runsTracker.updateRun('test-run', existingRun);
 
             // Mock the RunClient.get method to return the existing run
             vi.spyOn(ExtRunClient.prototype, 'get').mockImplementation(async () => {
@@ -184,7 +177,7 @@ describe('actor-client methods', () => {
 
             // Add an existing run to the tracker with FAILED status so it won't be reused
             const existingRun = getMockRun('existing-run-id', 'FAILED');
-            await runsTracker.updateRun('test-run', existingRun);
+            await context.runsTracker.updateRun('test-run', existingRun);
 
             mockUserLimits();
 
@@ -245,7 +238,7 @@ describe('actor-client methods', () => {
 
             // Add a run to the tracker
             const trackedRun = getMockRun('tracked-run-id', 'SUCCEEDED');
-            await runsTracker.updateRun('tracked-run', trackedRun);
+            await context.runsTracker.updateRun('tracked-run', trackedRun);
 
             // Mock the superClient's lastRun method
             const mockRunClient = {

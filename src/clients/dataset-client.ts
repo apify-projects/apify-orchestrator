@@ -1,16 +1,15 @@
 import type { ActorRun, Dataset } from 'apify-client';
 import { DatasetClient } from 'apify-client';
 
-import type { RunsTracker } from '../tracker.js';
 import type { DatasetItem, ExtendedDatasetClient, GreedyIterateOptions, IterateOptions } from '../types.js';
-import type { CustomLogger } from '../utils/logging.js';
+import type { OrchestratorContext } from '../utils/context.js';
 
 export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> implements ExtendedDatasetClient<T> {
-    protected superClient: DatasetClient<T>;
-    protected customLogger: CustomLogger;
-    protected runsTracker: RunsTracker;
+    protected context: OrchestratorContext;
 
-    constructor(datasetClient: DatasetClient<T>, customLogger: CustomLogger, runsTracker: RunsTracker) {
+    protected superClient: DatasetClient<T>;
+
+    constructor(context: OrchestratorContext, datasetClient: DatasetClient<T>) {
         super({
             baseUrl: datasetClient.baseUrl,
             publicBaseUrl: datasetClient.publicBaseUrl,
@@ -19,14 +18,13 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             id: datasetClient.id,
             params: datasetClient.params,
         });
-        this.customLogger = customLogger;
+        this.context = context;
         this.superClient = datasetClient;
-        this.runsTracker = runsTracker;
     }
 
     async *iterate(options: IterateOptions = {}): AsyncGenerator<T, void, void> {
         const { pageSize, ...listItemOptions } = options;
-        this.customLogger.info('Iterating Dataset', { pageSize }, { url: this.url });
+        this.context.logger.info('Iterating Dataset', { pageSize }, { url: this.url });
 
         let totalItems = 0;
 
@@ -50,12 +48,12 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             }
         }
 
-        this.customLogger.info('Finished reading dataset', { totalItems }, { url: this.url });
+        this.context.logger.info('Finished reading dataset', { totalItems }, { url: this.url });
     }
 
     async *greedyIterate(options: GreedyIterateOptions = {}): AsyncGenerator<T, void, void> {
         const { pageSize = 100, itemsThreshold = 100, pollIntervalSecs = 10, ...listItemOptions } = options;
-        this.customLogger.info('Greedily iterating Dataset', { pageSize }, { url: this.url });
+        this.context.logger.info('Greedily iterating Dataset', { pageSize }, { url: this.url });
 
         let readItemsCount = 0;
 
@@ -66,13 +64,13 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
         while (true) {
             dataset = await this.get();
             if (!dataset || !dataset.actRunId) {
-                this.customLogger.error('Error getting Dataset while iterating greedily', { id: this.id });
+                this.context.logger.error('Error getting Dataset while iterating greedily', { id: this.id });
                 return;
             }
 
             run = await this.apifyClient.run(dataset.actRunId).get();
             if (!run) {
-                this.customLogger.error('Error getting Run while iterating Dataset greedily', { id: this.id });
+                this.context.logger.error('Error getting Run while iterating Dataset greedily', { id: this.id });
                 return;
             }
 
@@ -99,7 +97,7 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
 
         dataset = await this.get();
         if (!dataset || !dataset.actRunId) {
-            this.customLogger.error('Error getting Dataset while iterating greedily', { id: this.id });
+            this.context.logger.error('Error getting Dataset while iterating greedily', { id: this.id });
             return;
         }
 

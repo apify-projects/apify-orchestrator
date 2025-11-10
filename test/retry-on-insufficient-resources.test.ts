@@ -6,6 +6,7 @@ import { InsufficientActorJobsError, InsufficientMemoryError } from 'src/errors.
 import type { OrchestratorOptions } from 'src/index.js';
 import { RunsTracker } from 'src/tracker.js';
 import * as apifyApi from 'src/utils/apify-api.js';
+import type { OrchestratorContext } from 'src/utils/context.js';
 import { CustomLogger } from 'src/utils/logging.js';
 
 const mockDate = new Date('2024-09-11T06:00:00.000Z');
@@ -19,26 +20,17 @@ const getMockRun = (id: string, status = 'READY', defaultDatasetId = 'test-datas
 };
 
 describe('retry on insufficient resources', () => {
-    let customLogger: CustomLogger;
-    let runsTracker: RunsTracker;
+    let context: OrchestratorContext;
     let options: OrchestratorOptions;
 
-    const generateApifyClient = (clientName: string) =>
-        new ExtApifyClient(
-            clientName,
-            customLogger,
-            runsTracker,
-            options.fixedInput,
-            options.abortAllRunsOnGracefulAbort,
-            options.hideSensitiveInformation,
-            options.retryOnInsufficientResources,
-        );
+    const generateApifyClient = (clientName: string) => new ExtApifyClient(context, { clientName, ...options });
 
     beforeEach(async () => {
         vi.useFakeTimers();
-        customLogger = new CustomLogger(false, false);
-        runsTracker = new RunsTracker(customLogger, false);
-        await runsTracker.init();
+        const logger = new CustomLogger(false, false);
+        const runsTracker = new RunsTracker(logger, false);
+        context = { logger, runsTracker };
+        await context.runsTracker.init();
         options = {
             ...DEFAULT_ORCHESTRATOR_OPTIONS,
             enableLogs: false,

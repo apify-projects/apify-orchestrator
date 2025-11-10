@@ -1,8 +1,4 @@
-/**
- * This is temporarily a "copy-paste" kind of library.
- * Maybe, someday it will become a proper library or part of the SDK, who knows?
- */
-
+import type { ExtApifyClientOptions } from './clients/apify-client.js';
 import { ExtApifyClient } from './clients/apify-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS } from './constants.js';
 import { DatasetGroupClass } from './entities/dataset-group.js';
@@ -16,6 +12,7 @@ import type {
     ExtendedDatasetClient,
     OrchestratorOptions,
 } from './types.js';
+import type { OrchestratorContext } from './utils/context.js';
 import { CustomLogger } from './utils/logging.js';
 import { makeNameUnique } from './utils/naming.js';
 
@@ -38,7 +35,7 @@ export class Orchestrator implements ApifyOrchestrator {
     }
 
     async apifyClient(options: ExtendedClientOptions = {}): Promise<ExtendedApifyClient> {
-        const { name, ...apifyClientOptions } = options;
+        const { name, ...superClientOptions } = options;
 
         const clientName = makeNameUnique(name ?? 'CLIENT', takenClientNames);
         takenClientNames.add(clientName);
@@ -52,16 +49,20 @@ export class Orchestrator implements ApifyOrchestrator {
             this.options.persistenceEncryptionKey,
         );
 
-        const client = new ExtApifyClient(
-            clientName,
-            this.customLogger,
+        const context: OrchestratorContext = {
+            logger: this.customLogger,
             runsTracker,
-            this.options.fixedInput,
-            this.options.abortAllRunsOnGracefulAbort,
-            this.options.hideSensitiveInformation,
-            this.options.retryOnInsufficientResources,
-            apifyClientOptions,
-        );
+        };
+
+        const extendedClientOptions: ExtApifyClientOptions = {
+            clientName,
+            fixedInput: this.options.fixedInput,
+            abortAllRunsOnGracefulAbort: this.options.abortAllRunsOnGracefulAbort,
+            hideSensitiveInformation: this.options.hideSensitiveInformation,
+            retryOnInsufficientResources: this.options.retryOnInsufficientResources,
+        };
+
+        const client = new ExtApifyClient(context, extendedClientOptions, superClientOptions);
         client.startScheduler();
 
         return client;

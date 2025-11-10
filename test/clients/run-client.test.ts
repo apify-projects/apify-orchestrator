@@ -6,12 +6,12 @@ import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_INTERVAL_MS } from 'src/constan
 import { RunsTracker } from 'src/tracker.js';
 import type { OrchestratorOptions, RunInfo } from 'src/types.js';
 import * as apifyApi from 'src/utils/apify-api.js';
+import type { OrchestratorContext } from 'src/utils/context.js';
 import { CustomLogger } from 'src/utils/logging.js';
 import type { MockInstance } from 'vitest';
 
-describe('run-client', () => {
-    let customLogger: CustomLogger;
-    let runsTracker: RunsTracker;
+describe('ExtRunClient', () => {
+    let context: OrchestratorContext;
     let options: OrchestratorOptions;
     let updateRunSpy: MockInstance<(runName: string, run: ActorRun) => Promise<RunInfo>>;
     let runClient: ExtRunClient;
@@ -24,15 +24,7 @@ describe('run-client', () => {
         startedAt: mockDate,
     } as ActorRun;
 
-    const generateApifyClient = () =>
-        new ExtApifyClient(
-            'test-client',
-            customLogger,
-            runsTracker,
-            options.fixedInput,
-            options.abortAllRunsOnGracefulAbort,
-            options.hideSensitiveInformation,
-        );
+    const generateApifyClient = () => new ExtApifyClient(context, { clientName: 'test-client', ...options });
 
     async function generateExtRunClient(runName: string) {
         vi.spyOn(apifyApi, 'getUserLimits').mockImplementationOnce(async () => {
@@ -57,8 +49,9 @@ describe('run-client', () => {
 
     beforeEach(async () => {
         vi.useFakeTimers();
-        customLogger = new CustomLogger(false, false);
-        runsTracker = new RunsTracker(customLogger, false);
+        const logger = new CustomLogger(false, false);
+        const runsTracker = new RunsTracker(logger, false);
+        context = { logger, runsTracker };
         await runsTracker.init();
         options = {
             ...DEFAULT_ORCHESTRATOR_OPTIONS,

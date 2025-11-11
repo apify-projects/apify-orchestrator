@@ -190,31 +190,41 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                     0;
 
                 const { runName, input, options } = nextRunRequest;
+
                 this.context.logger.prfxInfo(runName, 'Starting next', { queue: this.runRequestsQueue.length });
+
+                let result: RunResult;
+
                 try {
                     const run = await nextRunRequest.startRun(input, options);
-                    await this.context.runsTracker.updateRun(runName, run);
-                    for (const callback of nextRunRequest.startCallbacks) {
-                        callback({ run, error: undefined });
-                    }
+                    result = { run, error: undefined };
                 } catch (startError) {
                     this.context.logger.prfxError(runName, 'Failed to start Run', {
                         message: (startError as Error)?.message,
                     });
                     const error = await parseStartRunError(startError, runName, getRequiredMemoryMbytes);
-                    if (
-                        this.retryOnInsufficientResources &&
-                        (error instanceof InsufficientMemoryError || error instanceof InsufficientActorJobsError)
-                    ) {
-                        this.context.logger.info(
-                            `Not enough resources: waiting ${MAIN_LOOP_COOLDOWN_MS}ms before trying again`,
-                        );
-                        this.runRequestsQueue.enqueue(nextRunRequest);
-                        this.mainLoopCooldown = MAIN_LOOP_COOLDOWN_MS;
-                    } else {
-                        for (const callback of nextRunRequest.startCallbacks) {
-                            callback({ run: undefined, error });
-                        }
+                    result = { run: undefined, error };
+                }
+
+                const { run, error } = result;
+
+                if (run) {
+                    await this.context.runsTracker.updateRun(runName, run);
+                    for (const callback of nextRunRequest.startCallbacks) {
+                        callback({ run, error: undefined });
+                    }
+                } else if (
+                    this.retryOnInsufficientResources &&
+                    (error instanceof InsufficientMemoryError || error instanceof InsufficientActorJobsError)
+                ) {
+                    this.context.logger.info(
+                        `Not enough resources: waiting ${MAIN_LOOP_COOLDOWN_MS}ms before trying again`,
+                    );
+                    this.runRequestsQueue.enqueue(nextRunRequest);
+                    this.mainLoopCooldown = MAIN_LOOP_COOLDOWN_MS;
+                } else {
+                    for (const callback of nextRunRequest.startCallbacks) {
+                        callback({ run: undefined, error });
                     }
                 }
             }),

@@ -1,5 +1,6 @@
 import { ApifyApiError } from 'apify-client';
-import { InsufficientActorJobsError, InsufficientMemoryError } from 'src/errors.js';
+
+import { InsufficientActorJobsError, InsufficientMemoryError } from '../errors.js';
 
 export const MEMORY_LIMIT_EXCEEDED_ERROR_TYPE = 'actor-memory-limit-exceeded';
 export const CONCURRENT_RUNS_LIMIT_EXCEEDED_ERROR_TYPE = 'concurrent-runs-limit-exceeded';

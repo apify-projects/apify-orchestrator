@@ -1,11 +1,11 @@
 import { Actor, ApifyClient, log } from 'apify';
 import type { ActorRun, ApifyClientOptions, RunClient } from 'apify-client';
+import { parseStartRunError } from 'src/utils/apify-client.js';
 
 import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
 import { InsufficientActorJobsError, InsufficientMemoryError } from '../errors.js';
 import { isRunOkStatus } from '../tracker.js';
 import type { DatasetItem, ExtendedApifyClient, RunRecord } from '../types.js';
-import { getUserLimits } from '../utils/apify-api.js';
 import type { OrchestratorContext } from '../utils/context.js';
 import { Queue } from '../utils/queue.js';
 import type { EnqueuedRequest, ExtActorClientOptions, RunResult } from './actor-client.js';
@@ -80,14 +80,14 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
             }
         }
 
-        if (this.mainLoopId !== undefined) {
+        if (this.mainLoopId === undefined) {
+            // Avoid blocking if the orchestrator is not running
+            for (const callback of runRequest.startCallbacks) {
+                callback({ run: undefined, error: new Error('Orchestrator is not running') });
+            }
+        } else {
             this.context.logger.prfxInfo(runRequest.runName, 'Enqueuing Run request');
             this.runRequestsQueue.enqueue(runRequest);
-        } else {
-            // Avoid blocking if the orchestrator is not running
-            runRequest.startCallbacks.map((callback) =>
-                callback({ run: undefined, error: new Error('Orchestrator is not running') }),
-            );
         }
 
         return undefined;
@@ -178,85 +178,44 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         // Main loop
         this.mainLoopId = setInterval(
             withMainLoopLock(async () => {
-                const nextRunRequest = this.runRequestsQueue.peek();
+                const nextRunRequest = this.runRequestsQueue.dequeue();
                 if (!nextRunRequest) {
                     return;
                 }
 
-                const userLimits = await getUserLimits(this.token);
-
-                const requiredMemoryMBs =
+                const getRequiredMemoryMbytes = async () =>
                     nextRunRequest.options?.memory ??
                     (await nextRunRequest.defaultMemoryMbytes()) ??
                     // If no information about memory is available, set the requirement to zero.
                     0;
-                const requiredMemoryGBs = requiredMemoryMBs / 1024;
-                const availableMemoryGBs = userLimits.maxMemoryGBs - userLimits.currentMemoryUsageGBs;
-                const availableActorJobs = userLimits.maxConcurrentActorJobs - userLimits.activeActorJobCount;
 
-                const hasEnoughMemory = availableMemoryGBs - requiredMemoryGBs > 0;
-                const canRunMoreActors = availableActorJobs > 0;
-
-                // Start the next run
-                if (hasEnoughMemory && canRunMoreActors) {
-                    const runRequest = this.runRequestsQueue.dequeue();
-                    if (runRequest) {
-                        const { runName, input, options } = runRequest;
-                        this.context.logger.prfxInfo(
-                            runName,
-                            'Starting next',
-                            { queue: this.runRequestsQueue.length, requiredMemoryGBs },
-                            { availableMemoryGBs },
+                const { runName, input, options } = nextRunRequest;
+                this.context.logger.prfxInfo(runName, 'Starting next', { queue: this.runRequestsQueue.length });
+                try {
+                    const run = await nextRunRequest.startRun(input, options);
+                    await this.context.runsTracker.updateRun(runName, run);
+                    for (const callback of nextRunRequest.startCallbacks) {
+                        callback({ run, error: undefined });
+                    }
+                } catch (startError) {
+                    this.context.logger.prfxError(runName, 'Failed to start Run', {
+                        message: (startError as Error)?.message,
+                    });
+                    const error = await parseStartRunError(startError, runName, getRequiredMemoryMbytes);
+                    if (
+                        this.retryOnInsufficientResources &&
+                        (error instanceof InsufficientMemoryError || error instanceof InsufficientActorJobsError)
+                    ) {
+                        this.context.logger.info(
+                            `Not enough resources: waiting ${MAIN_LOOP_COOLDOWN_MS}ms before trying again`,
                         );
-                        try {
-                            const run = await runRequest.startRun(input, options);
-                            await this.context.runsTracker.updateRun(runName, run);
-                            runRequest.startCallbacks.map((callback) => callback({ run, error: undefined }));
-                        } catch (e) {
-                            this.context.logger.prfxError(runName, 'Failed to start Run', {
-                                message: (e as Error)?.message,
-                            });
-                            runRequest.startCallbacks.map((callback) =>
-                                callback({ run: undefined, error: e as Error }),
-                            );
-                        }
+                        this.runRequestsQueue.enqueue(nextRunRequest);
+                        this.mainLoopCooldown = MAIN_LOOP_COOLDOWN_MS;
                     } else {
-                        this.context.logger.error("Something wrong with the Apify orchestrator's queue!");
-                    }
-                } else if (!this.retryOnInsufficientResources) {
-                    const runRequest = this.runRequestsQueue.dequeue();
-                    if (!runRequest) {
-                        throw new Error('Insufficient resources have been retrieved but no runRequest found!');
-                    }
-                    const { runName } = runRequest;
-
-                    const errorToThrow = (() => {
-                        if (!hasEnoughMemory) {
-                            return new InsufficientMemoryError(runName, requiredMemoryGBs, availableMemoryGBs);
+                        for (const callback of nextRunRequest.startCallbacks) {
+                            callback({ run: undefined, error });
                         }
-                        if (!canRunMoreActors) {
-                            return new InsufficientActorJobsError(runName);
-                        }
-                        throw new Error(
-                            'Insufficient resources have been retrieved but they did not match any of the checks!',
-                        );
-                    })();
-
-                    this.context.logger.prfxError(
-                        runName,
-                        'Failed to start Run and retryOnInsufficientResources is set to false',
-                        {
-                            message: errorToThrow.message,
-                        },
-                    );
-                    runRequest.startCallbacks.map((callback) => callback({ run: undefined, error: errorToThrow }));
-                } else {
-                    // Wait for sometime before checking again
-                    this.context.logger.info(
-                        `Not enough resources: waiting ${MAIN_LOOP_COOLDOWN_MS}ms before trying again`,
-                        { availableMemoryGBs, availableActorJobs },
-                    );
-                    this.mainLoopCooldown = MAIN_LOOP_COOLDOWN_MS;
+                    }
                 }
             }),
             MAIN_LOOP_INTERVAL_MS,

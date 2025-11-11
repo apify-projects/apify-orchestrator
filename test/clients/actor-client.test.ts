@@ -5,7 +5,6 @@ import { ExtRunClient } from 'src/clients/run-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_COOLDOWN_MS } from 'src/constants.js';
 import { RunsTracker } from 'src/tracker.js';
 import type { OrchestratorOptions } from 'src/types.js';
-import * as apifyApi from 'src/utils/apify-api.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
 import { CustomLogger } from 'src/utils/logging.js';
 
@@ -25,18 +24,6 @@ describe('ExtActorClient', () => {
             startedAt: mockDate,
         } as ActorRun;
     };
-
-    /**
-     * Mocks the user limits API call.
-     * Necessary for letting the scheduler to start new runs.
-     */
-    const mockUserLimits = () =>
-        vi.spyOn(apifyApi, 'getUserLimits').mockImplementation(async () => ({
-            currentMemoryUsageGBs: 1,
-            maxMemoryGBs: 8,
-            activeActorJobCount: 1,
-            maxConcurrentActorJobs: 8,
-        }));
 
     beforeEach(async () => {
         vi.useFakeTimers();
@@ -84,8 +71,6 @@ describe('ExtActorClient', () => {
             const existingRun = getMockRun('existing-run-id', 'FAILED');
             await context.runsTracker.updateRun('test-run', existingRun);
 
-            mockUserLimits();
-
             const newRun = getMockRun('new-run-id', 'READY');
             const startSpy = vi.spyOn(ActorClient.prototype, 'start').mockImplementation(async () => {
                 return newRun;
@@ -105,8 +90,6 @@ describe('ExtActorClient', () => {
             const client = generateApifyClient('test-client');
             client.startScheduler();
             const actorClient = client.actor('test-actor-id');
-
-            mockUserLimits();
 
             const newRun = getMockRun('new-run-id', 'READY');
             const startSpy = vi.spyOn(ActorClient.prototype, 'start').mockImplementation(async () => {
@@ -128,8 +111,6 @@ describe('ExtActorClient', () => {
             const client = generateApifyClient('test-client');
             client.startScheduler();
             const actorClient = client.actor('test-actor-id');
-
-            mockUserLimits();
 
             const startSpy = vi.spyOn(ActorClient.prototype, 'start').mockImplementation(async () => {
                 return getMockRun('test-id');
@@ -179,8 +160,6 @@ describe('ExtActorClient', () => {
             const existingRun = getMockRun('existing-run-id', 'FAILED');
             await context.runsTracker.updateRun('test-run', existingRun);
 
-            mockUserLimits();
-
             const newRun = getMockRun('new-run-id', 'READY');
             vi.spyOn(ActorClient.prototype, 'start').mockImplementation(async () => {
                 return newRun;
@@ -206,8 +185,6 @@ describe('ExtActorClient', () => {
             const client = generateApifyClient('test-client');
             client.startScheduler();
             const actorClient = client.actor('test-actor-id');
-
-            mockUserLimits();
 
             const newRun = getMockRun('new-run-id', 'READY');
             vi.spyOn(ActorClient.prototype, 'start').mockImplementation(async () => {
@@ -360,8 +337,6 @@ describe('ExtActorClient', () => {
             client.startScheduler();
             const actorClient = client.actor('test-actor-id');
 
-            mockUserLimits();
-
             // Mock ActorClient.start
             const mockRun = getMockRun('batch-run-id', 'READY');
             const startSpy = vi.spyOn(ActorClient.prototype, 'start').mockImplementation(async () => mockRun);
@@ -416,8 +391,6 @@ describe('ExtActorClient', () => {
             const client = generateApifyClient('test-client');
             client.startScheduler();
             const actorClient = client.actor('test-actor-id');
-
-            mockUserLimits();
 
             // Mock ActorClient.start
             const mockRun = getMockRun('batch-run-id', 'READY');

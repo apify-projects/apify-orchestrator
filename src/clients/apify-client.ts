@@ -85,11 +85,11 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
             for (const callback of runRequest.startCallbacks) {
                 callback({ kind: RUN_STATUSES.ERROR, error: new Error('Orchestrator is not running') });
             }
-        } else {
-            this.context.logger.prfxInfo(runRequest.runName, 'Enqueuing Run request');
-            this.runRequestsQueue.enqueue(runRequest);
+            return undefined;
         }
 
+        this.context.logger.prfxInfo(runRequest.runName, 'Enqueuing Run request');
+        this.runRequestsQueue.enqueue(runRequest);
         return undefined;
     }
 

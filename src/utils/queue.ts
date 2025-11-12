@@ -5,6 +5,10 @@ export class Queue<T> {
         this.data.push(...items);
     }
 
+    prepend(...items: T[]) {
+        this.data.unshift(...items);
+    }
+
     get length() {
         return this.data.length;
     }

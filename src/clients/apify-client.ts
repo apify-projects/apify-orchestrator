@@ -220,7 +220,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                     this.context.logger.info(
                         `Not enough resources: waiting ${MAIN_LOOP_COOLDOWN_MS}ms before trying again`,
                     );
-                    this.runRequestsQueue.enqueue(nextRunRequest);
+                    this.runRequestsQueue.prepend(nextRunRequest);
                     this.mainLoopCooldown = MAIN_LOOP_COOLDOWN_MS;
                 } else {
                     for (const callback of nextRunRequest.startCallbacks) {

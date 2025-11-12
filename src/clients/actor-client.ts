@@ -9,18 +9,27 @@ import type { OrchestratorContext } from '../utils/context.js';
 import type { ExtRunClientOptions } from './run-client.js';
 import { ExtRunClient } from './run-client.js';
 
+export const RUN_STATUSES = {
+    RUN_STARTED: 'RUN_STARTED',
+    ERROR: 'ERROR',
+    /**
+     * Returned when a run is about to be spawned on the platform
+     */
+    IN_PROGRESS: 'IN_PROGRESS',
+} as const;
+
 export type RunResult =
     | {
-          kind: 'run-started';
+          kind: typeof RUN_STATUSES.RUN_STARTED;
           run: ActorRun;
       }
     | {
-          kind: 'error';
+          kind: typeof RUN_STATUSES.ERROR;
           error: Error;
       }
     | {
           // returned when a run is about to be spawned on the platform
-          kind: 'in-progress';
+          kind: typeof RUN_STATUSES.IN_PROGRESS;
       };
 
 export interface EnqueuedRequest {
@@ -150,16 +159,16 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
                 startCallbacks: [resolve],
             });
             if (existingRunClient) {
-                resolve({ kind: 'in-progress' });
+                resolve({ kind: RUN_STATUSES.IN_PROGRESS });
             }
         });
 
-        if (result.kind === 'in-progress' && existingRunClient) {
+        if (result.kind === RUN_STATUSES.IN_PROGRESS && existingRunClient) {
             const run = await existingRunClient.get();
 
             // If it was not possible to retrieve the Run from the client, force enqueuing a new Run.
             if (run) {
-                result = { kind: 'run-started', run };
+                result = { kind: RUN_STATUSES.RUN_STARTED, run };
             } else {
                 result = await new Promise<RunResult>((resolve) => {
                     existingRunClient = this.forceEnqueueRunOnApifyAccount({
@@ -167,17 +176,17 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
                         startCallbacks: [resolve],
                     });
                     if (existingRunClient) {
-                        resolve({ kind: 'in-progress' });
+                        resolve({ kind: RUN_STATUSES.IN_PROGRESS });
                     }
                 });
             }
         }
 
-        if (result.kind === 'error') {
+        if (result.kind === RUN_STATUSES.ERROR) {
             throw result.error;
         }
 
-        if (result.kind === 'in-progress') {
+        if (result.kind === RUN_STATUSES.IN_PROGRESS) {
             throw new Error(`Error starting Run: ${runName} (${this.id}).`);
         }
 

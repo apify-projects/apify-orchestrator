@@ -9,7 +9,7 @@ import { parseStartRunError } from '../utils/apify-client.js';
 import type { OrchestratorContext } from '../utils/context.js';
 import { Queue } from '../utils/queue.js';
 import type { EnqueuedRequest, ExtActorClientOptions, RunResult } from './actor-client.js';
-import { ExtActorClient } from './actor-client.js';
+import { ExtActorClient, RUN_STATUSES } from './actor-client.js';
 import { ExtDatasetClient } from './dataset-client.js';
 import type { ExtRunClientOptions } from './run-client.js';
 import { ExtRunClient } from './run-client.js';
@@ -83,7 +83,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         if (this.mainLoopId === undefined) {
             // Avoid blocking if the orchestrator is not running
             for (const callback of runRequest.startCallbacks) {
-                callback({ kind: 'error', error: new Error('Orchestrator is not running') });
+                callback({ kind: RUN_STATUSES.ERROR, error: new Error('Orchestrator is not running') });
             }
         } else {
             this.context.logger.prfxInfo(runRequest.runName, 'Enqueuing Run request');
@@ -106,13 +106,13 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
 
         if (startPromise) {
             const runResult = await startPromise;
-            if (runResult.kind === 'error') {
+            if (runResult.kind === RUN_STATUSES.ERROR) {
                 this.context.logger.prfxError(runName, 'Error starting Run from queue', {
                     message: runResult.error.message,
                 });
                 throw new Error(`Error starting Run: ${runName}. ${runResult.error.message}`);
             }
-            if (runResult.kind === 'in-progress') {
+            if (runResult.kind === RUN_STATUSES.IN_PROGRESS) {
                 throw new Error(`Error starting Run: ${runName}.`);
             }
             result = runResult.run;
@@ -197,23 +197,23 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
 
                 try {
                     const run = await nextRunRequest.startRun(input, options);
-                    result = { kind: 'run-started', run };
+                    result = { kind: RUN_STATUSES.RUN_STARTED, run };
                 } catch (startError) {
                     this.context.logger.prfxError(runName, 'Failed to start Run', {
                         message: (startError as Error)?.message,
                     });
                     const error = await parseStartRunError(startError, runName, getRequiredMemoryMbytes);
-                    result = { kind: 'error', error };
+                    result = { kind: RUN_STATUSES.ERROR, error };
                 }
 
-                if (result.kind === 'run-started') {
+                if (result.kind === RUN_STATUSES.RUN_STARTED) {
                     await this.context.runsTracker.updateRun(runName, result.run);
                     for (const callback of nextRunRequest.startCallbacks) {
-                        callback({ kind: 'run-started', run: result.run });
+                        callback({ kind: RUN_STATUSES.RUN_STARTED, run: result.run });
                     }
                 } else if (
                     this.retryOnInsufficientResources &&
-                    result.kind === 'error' &&
+                    result.kind === RUN_STATUSES.ERROR &&
                     (result.error instanceof InsufficientMemoryError ||
                         result.error instanceof InsufficientActorJobsError)
                 ) {
@@ -224,7 +224,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                     this.mainLoopCooldown = MAIN_LOOP_COOLDOWN_MS;
                 } else {
                     for (const callback of nextRunRequest.startCallbacks) {
-                        callback({ kind: 'error', error: result.error });
+                        callback({ kind: RUN_STATUSES.ERROR, error: result.error });
                     }
                 }
             }),
@@ -258,7 +258,9 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         while (this.runRequestsQueue.length > 0) {
             this.runRequestsQueue
                 .dequeue()
-                ?.startCallbacks.map((callback) => callback({ kind: 'error', error: new Error('Scheduler stopped') }));
+                ?.startCallbacks.map((callback) =>
+                    callback({ kind: RUN_STATUSES.ERROR, error: new Error('Scheduler stopped') }),
+                );
         }
     }
 

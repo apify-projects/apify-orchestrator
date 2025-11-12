@@ -7,7 +7,7 @@ import type { OrchestratorOptions } from 'src/index.js';
 import { RunsTracker } from 'src/tracker.js';
 import { parseStartRunError } from 'src/utils/apify-client.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
-import { CustomLogger } from 'src/utils/logging.js';
+import { generateLogger } from 'src/utils/logging.js';
 
 vi.mock('src/utils/apify-client.js', async (importActual) => {
     return {
@@ -34,7 +34,7 @@ describe('retry on insufficient resources', () => {
 
     beforeEach(async () => {
         vi.useFakeTimers();
-        const logger = new CustomLogger(false, false);
+        const logger = generateLogger({ enableLogs: false, hideSensitiveInformation: false });
         const runsTracker = new RunsTracker(logger, false);
         context = { logger, runsTracker };
         await context.runsTracker.init();

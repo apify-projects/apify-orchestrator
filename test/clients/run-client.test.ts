@@ -6,7 +6,7 @@ import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_INTERVAL_MS } from 'src/constan
 import { RunsTracker } from 'src/tracker.js';
 import type { OrchestratorOptions, RunInfo } from 'src/types.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
-import { CustomLogger } from 'src/utils/logging.js';
+import { generateLogger } from 'src/utils/logging.js';
 import type { MockInstance } from 'vitest';
 
 describe('ExtRunClient', () => {
@@ -40,7 +40,7 @@ describe('ExtRunClient', () => {
 
     beforeEach(async () => {
         vi.useFakeTimers();
-        const logger = new CustomLogger(false, false);
+        const logger = generateLogger({ enableLogs: false, hideSensitiveInformation: false });
         const runsTracker = new RunsTracker(logger, false);
         context = { logger, runsTracker };
         await runsTracker.init();

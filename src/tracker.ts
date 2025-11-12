@@ -1,7 +1,7 @@
 import type { ActorRun } from 'apify-client';
 
 import type { PersistenceSupport, RunInfo, UpdateCallback } from './types.js';
-import type { CustomLogger } from './utils/logging.js';
+import type { Logger } from './utils/logging.js';
 import { State } from './utils/persist.js';
 
 const RUNS_KEY = 'RUNS';
@@ -24,14 +24,14 @@ export function isRunFailStatus(status: string): status is RunFailStatus {
 }
 
 export class RunsTracker {
-    protected customLogger: CustomLogger;
+    protected logger: Logger;
     protected enableFailedHistory: boolean;
     protected currentRunsState: State<Record<string, RunInfo>>;
     protected failedRunsHistoryState: State<Record<string, RunInfo[]>>;
     protected onUpdate: UpdateCallback | undefined;
 
-    constructor(customLogger: CustomLogger, enableFailedHistory: boolean, onUpdate?: UpdateCallback) {
-        this.customLogger = customLogger;
+    constructor(logger: Logger, enableFailedHistory: boolean, onUpdate?: UpdateCallback) {
+        this.logger = logger;
         this.enableFailedHistory = enableFailedHistory;
         this.currentRunsState = new State<Record<string, RunInfo>>({});
         this.failedRunsHistoryState = new State<Record<string, RunInfo[]>>({});
@@ -86,7 +86,7 @@ export class RunsTracker {
                 ));
         }
         if (!wasSyncSuccessful) {
-            this.customLogger.error('Some error happened while syncing the Orchestrator with the chosen support', {
+            this.logger.error('Some error happened while syncing the Orchestrator with the chosen support', {
                 persistenceSupport,
             });
         }
@@ -102,7 +102,7 @@ export class RunsTracker {
         if (!runInfo) {
             return undefined;
         }
-        this.customLogger.prfxInfo(runName, 'Found existing tracked Run', {}, { url: runInfo.runUrl });
+        this.logger.prefixed(runName).info('Found existing tracked Run', {}, { url: runInfo.runUrl });
         return runInfo;
     }
 
@@ -133,7 +133,7 @@ export class RunsTracker {
         }
 
         if (itemChanged) {
-            this.customLogger.prfxInfo(runName, 'Update Run', { status }, { url: runUrl });
+            this.logger.prefixed(runName).info('Update Run', { status }, { url: runUrl });
             await this.itemsChangedCallback(runName, run);
         }
 
@@ -146,7 +146,7 @@ export class RunsTracker {
             return;
         }
         runInfo.status = 'LOST';
-        this.customLogger.prfxInfo(runName, 'Lost Run', { reason }, { url: runInfo.runUrl });
+        this.logger.prefixed(runName).info('Lost Run', { reason }, { url: runInfo.runUrl });
         if (this.enableFailedHistory) {
             await this.addOrUpdateFailedRun(runName, runInfo);
         }

@@ -1,7 +1,7 @@
+import { ActorClient } from 'apify-client';
 import { MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
 import type { DatasetItem } from 'src/index.js';
 import { Orchestrator } from 'src/index.js';
-import * as apifyApi from 'src/utils/apify-api.js';
 
 describe('Apify Orchestrator', () => {
     let orchestrator: Orchestrator;
@@ -27,16 +27,11 @@ describe('Apify Orchestrator', () => {
     });
 
     it('starts the scheduler upon client creation', async () => {
+        const startSpy = vi.spyOn(ActorClient.prototype, 'start');
         const client = await orchestrator.apifyClient({ name: 'client-going-to-start' });
-        const getAvailableMemorySpy = vi.spyOn(apifyApi, 'getUserLimits').mockImplementation(async () => ({
-            currentMemoryUsageGBs: Number.POSITIVE_INFINITY,
-            maxMemoryGBs: Number.POSITIVE_INFINITY,
-            activeActorJobCount: Number.POSITIVE_INFINITY,
-            maxConcurrentActorJobs: Number.POSITIVE_INFINITY,
-        }));
         client.actor('test').enqueue({ runName: 'test' });
         vi.advanceTimersByTime(MAIN_LOOP_INTERVAL_MS);
-        expect(getAvailableMemorySpy).toHaveBeenCalledTimes(1);
+        expect(startSpy).toHaveBeenCalledTimes(1);
     });
 
     it('makes client names unique', async () => {

@@ -5,9 +5,16 @@ import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL
 import { InsufficientActorJobsError, InsufficientMemoryError } from 'src/errors.js';
 import type { OrchestratorOptions } from 'src/index.js';
 import { RunsTracker } from 'src/tracker.js';
-import * as apifyApi from 'src/utils/apify-api.js';
+import { parseStartRunError } from 'src/utils/apify-client.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
 import { CustomLogger } from 'src/utils/logging.js';
+
+vi.mock('src/utils/apify-client.js', async (importActual) => {
+    return {
+        ...(await importActual()),
+        parseStartRunError: vi.fn(),
+    };
+});
 
 const mockDate = new Date('2024-09-11T06:00:00.000Z');
 const getMockRun = (id: string, status = 'READY', defaultDatasetId = 'test-dataset-id') => {
@@ -47,20 +54,15 @@ describe('retry on insufficient resources', () => {
         const client = generateApifyClient('no-retry-client-memory');
         client.startScheduler();
 
-        const getUserLimitsSpy = vi.spyOn(apifyApi, 'getUserLimits').mockResolvedValue({
-            currentMemoryUsageGBs: 7,
-            maxMemoryGBs: 8,
-            activeActorJobCount: 0,
-            maxConcurrentActorJobs: 10,
-        });
         const startSpy = vi.spyOn(ActorClient.prototype, 'start');
+        startSpy.mockRejectedValue(new Error('test-error'));
+        vi.mocked(parseStartRunError).mockResolvedValue(new InsufficientMemoryError('test-run', 0));
 
         const startPromise = client.actor('test-actor').start('test-run', undefined, { memory: 2_000 });
 
         vi.advanceTimersByTime(MAIN_LOOP_INTERVAL_MS);
         await expect(startPromise).rejects.toBeInstanceOf(InsufficientMemoryError);
-        expect(getUserLimitsSpy).toHaveBeenCalledTimes(1);
-        expect(startSpy).not.toHaveBeenCalled();
+        expect(startSpy).toHaveBeenCalledTimes(1);
     });
 
     it('throws InsufficientActorJobsError immediately when retry is disabled and no jobs available', async () => {
@@ -68,20 +70,15 @@ describe('retry on insufficient resources', () => {
         const client = generateApifyClient('no-retry-client-jobs');
         client.startScheduler();
 
-        const getUserLimitsSpy = vi.spyOn(apifyApi, 'getUserLimits').mockResolvedValue({
-            currentMemoryUsageGBs: 0,
-            maxMemoryGBs: 100,
-            activeActorJobCount: 5,
-            maxConcurrentActorJobs: 5,
-        });
         const startSpy = vi.spyOn(ActorClient.prototype, 'start');
+        startSpy.mockRejectedValue(new Error('test-error'));
+        vi.mocked(parseStartRunError).mockResolvedValue(new InsufficientActorJobsError('test-run'));
 
         const startPromise = client.actor('test-actor').start('test-run', undefined, { memory: 256 });
 
         vi.advanceTimersByTime(MAIN_LOOP_INTERVAL_MS);
         await expect(startPromise).rejects.toBeInstanceOf(InsufficientActorJobsError);
-        expect(getUserLimitsSpy).toHaveBeenCalledTimes(1);
-        expect(startSpy).not.toHaveBeenCalled();
+        expect(startSpy).toHaveBeenCalledTimes(1);
     });
 
     it('retries when retry is enabled: waits on insufficient memory and starts when resources become available', async () => {
@@ -89,39 +86,22 @@ describe('retry on insufficient resources', () => {
         const client = generateApifyClient('retry-client');
         client.startScheduler();
 
-        const getUserLimitsSpy = vi
-            .spyOn(apifyApi, 'getUserLimits')
-            // First call: not enough memory (8GB max, 7GB used; requires 2GB => only 1GB available)
-            .mockResolvedValueOnce({
-                currentMemoryUsageGBs: 7,
-                maxMemoryGBs: 8,
-                activeActorJobCount: 1,
-                maxConcurrentActorJobs: 8,
-            })
-            // Second call (after cooldown): enough memory and jobs
-            .mockResolvedValueOnce({
-                currentMemoryUsageGBs: 1,
-                maxMemoryGBs: 8,
-                activeActorJobCount: 1,
-                maxConcurrentActorJobs: 8,
-            });
-
-        const startSpy = vi
-            .spyOn(ActorClient.prototype, 'start')
-            .mockImplementation(async () => getMockRun('run-1', 'READY'));
+        const startSpy = vi.spyOn(ActorClient.prototype, 'start');
+        startSpy.mockRejectedValueOnce(new Error('test-error'));
+        vi.mocked(parseStartRunError).mockResolvedValueOnce(new InsufficientMemoryError('test-run', 0));
+        startSpy.mockResolvedValueOnce(getMockRun('run-1', 'READY'));
 
         const startPromise = client.actor('test-actor').start('test-run', undefined, { memory: 2_000 });
 
         // First scheduler tick: detect insufficient resources and set cooldown, no start
         vi.advanceTimersByTime(MAIN_LOOP_INTERVAL_MS);
         await vi.waitUntil(() => !client.isSchedulerLocked, 2_000);
-        expect(getUserLimitsSpy).toHaveBeenCalledTimes(1);
-        expect(startSpy).not.toHaveBeenCalled();
+        expect(startSpy).toHaveBeenCalledTimes(1);
 
         // Cooldown period: should not poll immediately
         vi.advanceTimersByTime(MAIN_LOOP_INTERVAL_MS);
         await vi.waitUntil(() => !client.isSchedulerLocked, 2_000);
-        expect(getUserLimitsSpy).toHaveBeenCalledTimes(1);
+        expect(startSpy).toHaveBeenCalledTimes(1);
 
         // Advance until cooldown elapses, then next tick should poll again and start the run
         for (let t = 0; t < MAIN_LOOP_COOLDOWN_MS; t += MAIN_LOOP_INTERVAL_MS) {
@@ -130,8 +110,7 @@ describe('retry on insufficient resources', () => {
         }
 
         const run = await startPromise;
-        expect(getUserLimitsSpy).toHaveBeenCalledTimes(2);
-        expect(startSpy).toHaveBeenCalledTimes(1);
+        expect(startSpy).toHaveBeenCalledTimes(2);
         expect(run.id).toBe('run-1');
     });
 });

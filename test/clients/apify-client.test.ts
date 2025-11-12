@@ -5,11 +5,18 @@ import { ExtApifyClient } from 'src/clients/apify-client.js';
 import { ExtDatasetClient } from 'src/clients/dataset-client.js';
 import { ExtRunClient } from 'src/clients/run-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
-import type { OrchestratorOptions } from 'src/index.js';
+import { InsufficientMemoryError, type OrchestratorOptions } from 'src/index.js';
 import { RunsTracker } from 'src/tracker.js';
-import * as apifyApi from 'src/utils/apify-api.js';
+import { parseStartRunError } from 'src/utils/apify-client.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
 import { CustomLogger } from 'src/utils/logging.js';
+
+vi.mock('src/utils/apify-client.js', async (importActual) => {
+    return {
+        ...(await importActual()),
+        parseStartRunError: vi.fn(),
+    };
+});
 
 describe('ExtApifyClient', () => {
     let context: OrchestratorContext;
@@ -78,92 +85,52 @@ describe('ExtApifyClient', () => {
     });
 
     describe('startScheduler', () => {
-        it('starts the scheduler and checks for available memory if the queue is non empty', async () => {
-            const client = generateApifyClient('test-client');
-            client.startScheduler();
-            const getAvailableMemorySpy = vi.spyOn(apifyApi, 'getUserLimits').mockImplementation(async () => {
-                return {
-                    currentMemoryUsageGBs: 0,
-                    maxMemoryGBs: 0,
-                    activeActorJobCount: 0,
-                    maxConcurrentActorJobs: 0,
-                };
-            });
-            client.actor('test').enqueue({ runName: 'test' });
-            expect(getAvailableMemorySpy).not.toHaveBeenCalled();
-            vi.advanceTimersByTime(MAIN_LOOP_INTERVAL_MS);
-            expect(getAvailableMemorySpy).toHaveBeenCalledTimes(1);
-        });
-
         it('waits for a cooldown time if there is not enough available memory', async () => {
+            const startSpy = vi.spyOn(ActorClient.prototype, 'start');
+            startSpy.mockRejectedValueOnce(new Error('test-error'));
+            vi.mocked(parseStartRunError).mockResolvedValue(new InsufficientMemoryError('test-run', 0));
+
             const client = generateApifyClient('test-client');
             client.startScheduler();
-            const getUserLimitsSpy = vi
-                .spyOn(apifyApi, 'getUserLimits')
-                // With this value, the enqueued Run cannot start.
-                .mockImplementationOnce(async () => {
-                    return {
-                        currentMemoryUsageGBs: 7,
-                        maxMemoryGBs: 8,
-                        activeActorJobCount: 3,
-                        maxConcurrentActorJobs: 8,
-                    };
-                });
-            const startSpy = vi.spyOn(ActorClient.prototype, 'start');
 
             client.actor('test').enqueue({ runName: 'test', options: { memory: 2_000 } });
 
             // Expect the scheduler not to have been executed because the time is still.
-            expect(getUserLimitsSpy).not.toHaveBeenCalled();
+            expect(startSpy).not.toHaveBeenCalled();
 
             vi.advanceTimersByTime(MAIN_LOOP_INTERVAL_MS);
             await vi.waitFor(() => !client.isSchedulerLocked, 2_000);
-            expect(getUserLimitsSpy).toHaveBeenCalledTimes(1);
-            expect(startSpy).not.toHaveBeenCalled();
+            expect(startSpy).toHaveBeenCalledTimes(1);
 
             // Expect not to have called the API once more, because of the cooldown time.
             vi.advanceTimersByTime(MAIN_LOOP_INTERVAL_MS);
             await vi.waitUntil(() => !client.isSchedulerLocked, 2_000);
-            expect(getUserLimitsSpy).toHaveBeenCalledTimes(1);
-            expect(startSpy).not.toHaveBeenCalled();
+            expect(startSpy).toHaveBeenCalledTimes(1);
 
-            // With this value, the enqueued Run will be able to start.
-            getUserLimitsSpy.mockImplementationOnce(async () => {
-                return {
-                    currentMemoryUsageGBs: 1,
-                    maxMemoryGBs: 8,
-                    activeActorJobCount: 1,
-                    maxConcurrentActorJobs: 8,
-                };
-            });
+            startSpy.mockResolvedValueOnce(getMockRun('run-1', 'READY'));
+
             // Expect to call the API again after the cooldown
             for (let i = 0; i < MAIN_LOOP_COOLDOWN_MS; i += MAIN_LOOP_INTERVAL_MS) {
                 vi.advanceTimersByTime(MAIN_LOOP_COOLDOWN_MS);
                 await vi.waitUntil(() => !client.isSchedulerLocked, 2_000);
             }
             await vi.waitUntil(() => !client.isSchedulerLocked, 2_000);
-            expect(getUserLimitsSpy).toHaveBeenCalledTimes(2);
-            expect(startSpy).toHaveBeenCalledTimes(1);
+            expect(startSpy).toHaveBeenCalledTimes(2);
         });
     });
 
     describe('stopScheduler', () => {
         it('stops the inner scheduler', async () => {
+            const startSpy = vi.spyOn(ActorClient.prototype, 'start');
+
             const client = generateApifyClient('test-client');
             client.startScheduler();
-            const getAvailableMemorySpy = vi.spyOn(apifyApi, 'getUserLimits').mockImplementation(async () => {
-                return {
-                    currentMemoryUsageGBs: 0,
-                    maxMemoryGBs: 0,
-                    activeActorJobCount: 0,
-                    maxConcurrentActorJobs: 0,
-                };
-            });
+
             client.actor('test').enqueue({ runName: 'test' });
-            expect(getAvailableMemorySpy).not.toHaveBeenCalled();
+            expect(startSpy).not.toHaveBeenCalled();
             await client.stopScheduler();
             vi.advanceTimersByTime(MAIN_LOOP_INTERVAL_MS);
-            expect(getAvailableMemorySpy).not.toHaveBeenCalled();
+            expect(startSpy).not.toHaveBeenCalled();
         });
     });
 

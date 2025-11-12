@@ -5,7 +5,6 @@ import type { ExtRunClient } from 'src/clients/run-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
 import { RunsTracker } from 'src/tracker.js';
 import type { OrchestratorOptions, RunInfo } from 'src/types.js';
-import * as apifyApi from 'src/utils/apify-api.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
 import { CustomLogger } from 'src/utils/logging.js';
 import type { MockInstance } from 'vitest';
@@ -27,14 +26,6 @@ describe('ExtRunClient', () => {
     const generateApifyClient = () => new ExtApifyClient(context, { clientName: 'test-client', ...options });
 
     async function generateExtRunClient(runName: string) {
-        vi.spyOn(apifyApi, 'getUserLimits').mockImplementationOnce(async () => {
-            return {
-                currentMemoryUsageGBs: 1,
-                maxMemoryGBs: 8,
-                activeActorJobCount: 3,
-                maxConcurrentActorJobs: 8,
-            };
-        });
         const startSpy = vi.spyOn(ActorClient.prototype, 'start').mockImplementation(async () => mockRun);
 
         const client = generateApifyClient();

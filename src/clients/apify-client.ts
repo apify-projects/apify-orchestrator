@@ -3,18 +3,28 @@ import type { ActorRun, ApifyClientOptions, RunClient } from 'apify-client';
 
 import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
 import { InsufficientActorJobsError, InsufficientMemoryError } from '../errors.js';
-import type { RunsTracker } from '../tracker.js';
 import { isRunOkStatus } from '../tracker.js';
 import type { DatasetItem, ExtendedApifyClient, RunRecord } from '../types.js';
-import { getUserLimits } from '../utils/apify-api.js';
-import type { CustomLogger } from '../utils/logging.js';
+import { parseStartRunError } from '../utils/apify-client.js';
+import type { OrchestratorContext } from '../utils/context.js';
 import { Queue } from '../utils/queue.js';
-import type { EnqueuedRequest, RunResult } from './actor-client.js';
-import { ExtActorClient } from './actor-client.js';
+import type { EnqueuedRequest, ExtActorClientOptions, RunResult } from './actor-client.js';
+import { ExtActorClient, RUN_STATUSES } from './actor-client.js';
 import { ExtDatasetClient } from './dataset-client.js';
+import type { ExtRunClientOptions } from './run-client.js';
 import { ExtRunClient } from './run-client.js';
 
+export interface ExtApifyClientOptions {
+    clientName: string;
+    fixedInput?: object;
+    abortAllRunsOnGracefulAbort: boolean;
+    hideSensitiveInformation: boolean;
+    retryOnInsufficientResources: boolean;
+}
+
 export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
+    protected context: OrchestratorContext;
+
     readonly clientName: string;
     readonly abortAllRunsOnGracefulAbort: boolean;
     readonly hideSensitiveInformation: boolean;
@@ -22,30 +32,29 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     readonly retryOnInsufficientResources: boolean;
 
     protected runRequestsQueue = new Queue<EnqueuedRequest>();
-    protected customLogger: CustomLogger;
-    protected runsTracker: RunsTracker;
 
     protected mainLoopId: NodeJS.Timeout | undefined;
     protected mainLoopLock = false;
     protected mainLoopCooldown = 0;
 
     constructor(
-        clientName: string,
-        customLogger: CustomLogger,
-        runsTracker: RunsTracker,
-        fixedInput: object | undefined,
-        abortAllRunsOnGracefulAbort: boolean,
-        hideSensitiveInformation: boolean,
-        retryOnInsufficientResources: boolean,
-        options: ApifyClientOptions = {},
+        context: OrchestratorContext,
+        options: ExtApifyClientOptions,
+        superClientOptions: ApifyClientOptions = {},
     ) {
+        const {
+            clientName,
+            fixedInput,
+            abortAllRunsOnGracefulAbort,
+            hideSensitiveInformation,
+            retryOnInsufficientResources,
+        } = options;
         super({
-            ...options,
-            token: options.token ?? Actor.apifyClient.token,
+            ...superClientOptions,
+            token: superClientOptions.token ?? Actor.apifyClient.token,
         });
+        this.context = context;
         this.clientName = clientName;
-        this.customLogger = customLogger;
-        this.runsTracker = runsTracker;
         this.hideSensitiveInformation = hideSensitiveInformation;
         this.fixedInput = fixedInput;
         this.abortAllRunsOnGracefulAbort = abortAllRunsOnGracefulAbort;
@@ -53,7 +62,8 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     protected trackedRun(runName: string, id: string) {
-        return new ExtRunClient(super.run(id), runName, this.customLogger, this.runsTracker);
+        const runClientOptions: ExtRunClientOptions = { runName };
+        return new ExtRunClient(this.context, runClientOptions, super.run(id));
     }
 
     protected enqueue(runRequest: EnqueuedRequest, force: true): undefined;
@@ -62,7 +72,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         const { runName } = runRequest;
 
         if (!force) {
-            const existingRunInfo = this.runsTracker.findRunByName(runName);
+            const existingRunInfo = this.context.runsTracker.findRunByName(runName);
 
             // If the Run exists and has not failed, keep it
             if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
@@ -70,16 +80,16 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
             }
         }
 
-        if (this.mainLoopId !== undefined) {
-            this.customLogger.prfxInfo(runRequest.runName, 'Enqueuing Run request');
-            this.runRequestsQueue.enqueue(runRequest);
-        } else {
+        if (this.mainLoopId === undefined) {
             // Avoid blocking if the orchestrator is not running
-            runRequest.startCallbacks.map((callback) =>
-                callback({ run: undefined, error: new Error('Orchestrator is not running') }),
-            );
+            for (const callback of runRequest.startCallbacks) {
+                callback({ kind: RUN_STATUSES.ERROR, error: new Error('Orchestrator is not running') });
+            }
+            return undefined;
         }
 
+        this.context.logger.prfxInfo(runRequest.runName, 'Enqueuing Run request');
+        this.runRequestsQueue.enqueue(runRequest);
         return undefined;
     }
 
@@ -96,13 +106,13 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
 
         if (startPromise) {
             const runResult = await startPromise;
-            if (runResult.error) {
-                this.customLogger.prfxError(runName, 'Error starting Run from queue', {
+            if (runResult.kind === RUN_STATUSES.ERROR) {
+                this.context.logger.prfxError(runName, 'Error starting Run from queue', {
                     message: runResult.error.message,
                 });
                 throw new Error(`Error starting Run: ${runName}. ${runResult.error.message}`);
             }
-            if (!runResult.run) {
+            if (runResult.kind === RUN_STATUSES.IN_PROGRESS) {
                 throw new Error(`Error starting Run: ${runName}.`);
             }
             result = runResult.run;
@@ -112,7 +122,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     protected findStartedRun(runName: string): ExtRunClient | undefined {
-        const startedRunInfo = this.runsTracker.currentRuns[runName];
+        const startedRunInfo = this.context.runsTracker.currentRuns[runName];
         if (startedRunInfo) {
             return this.trackedRun(runName, startedRunInfo.runId);
         }
@@ -120,22 +130,20 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     override actor(id: string): ExtActorClient {
-        return new ExtActorClient(
-            super.actor(id),
-            this.customLogger,
-            this.runsTracker,
-            (runRequest) => this.enqueue(runRequest, false),
-            (runRequest) => this.enqueue(runRequest, true),
-            this.fixedInput,
-        );
+        const actorClientOptions: ExtActorClientOptions = {
+            enqueueRunOnApifyAccount: (runRequest) => this.enqueue(runRequest, false),
+            forceEnqueueRunOnApifyAccount: (runRequest) => this.enqueue(runRequest, true),
+            fixedInput: this.fixedInput,
+        };
+        return new ExtActorClient(this.context, actorClientOptions, super.actor(id));
     }
 
     override dataset<T extends DatasetItem>(id: string): ExtDatasetClient<T> {
-        return new ExtDatasetClient<T>(super.dataset(id), this.customLogger, this.runsTracker);
+        return new ExtDatasetClient<T>(this.context, super.dataset(id));
     }
 
     override run(id: string): RunClient {
-        const runName = this.runsTracker.findRunName(id);
+        const runName = this.context.runsTracker.findRunName(id);
         return runName ? this.trackedRun(runName, id) : super.run(id);
     }
 
@@ -149,7 +157,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     startScheduler() {
-        this.customLogger.info("Starting Apify client's scheduler", { clientName: this.clientName });
+        this.context.logger.info("Starting Apify client's scheduler", { clientName: this.clientName });
 
         // Do not allow more than one main loop operation to execute at once.
         const withMainLoopLock = (op: () => Promise<void>) => async () => {
@@ -170,85 +178,54 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         // Main loop
         this.mainLoopId = setInterval(
             withMainLoopLock(async () => {
-                const nextRunRequest = this.runRequestsQueue.peek();
+                const nextRunRequest = this.runRequestsQueue.dequeue();
                 if (!nextRunRequest) {
                     return;
                 }
 
-                const userLimits = await getUserLimits(this.token);
-
-                const requiredMemoryMBs =
+                const getRequiredMemoryMbytes = async () =>
                     nextRunRequest.options?.memory ??
                     (await nextRunRequest.defaultMemoryMbytes()) ??
                     // If no information about memory is available, set the requirement to zero.
                     0;
-                const requiredMemoryGBs = requiredMemoryMBs / 1024;
-                const availableMemoryGBs = userLimits.maxMemoryGBs - userLimits.currentMemoryUsageGBs;
-                const availableActorJobs = userLimits.maxConcurrentActorJobs - userLimits.activeActorJobCount;
 
-                const hasEnoughMemory = availableMemoryGBs - requiredMemoryGBs > 0;
-                const canRunMoreActors = availableActorJobs > 0;
+                const { runName, input, options } = nextRunRequest;
 
-                // Start the next run
-                if (hasEnoughMemory && canRunMoreActors) {
-                    const runRequest = this.runRequestsQueue.dequeue();
-                    if (runRequest) {
-                        const { runName, input, options } = runRequest;
-                        this.customLogger.prfxInfo(
-                            runName,
-                            'Starting next',
-                            { queue: this.runRequestsQueue.length, requiredMemoryGBs },
-                            { availableMemoryGBs },
-                        );
-                        try {
-                            const run = await runRequest.startRun(input, options);
-                            await this.runsTracker.updateRun(runName, run);
-                            runRequest.startCallbacks.map((callback) => callback({ run, error: undefined }));
-                        } catch (e) {
-                            this.customLogger.prfxError(runName, 'Failed to start Run', {
-                                message: (e as Error)?.message,
-                            });
-                            runRequest.startCallbacks.map((callback) =>
-                                callback({ run: undefined, error: e as Error }),
-                            );
-                        }
-                    } else {
-                        this.customLogger.error("Something wrong with the Apify orchestrator's queue!");
+                this.context.logger.prfxInfo(runName, 'Starting next', { queue: this.runRequestsQueue.length });
+
+                let result: RunResult;
+
+                try {
+                    const run = await nextRunRequest.startRun(input, options);
+                    result = { kind: RUN_STATUSES.RUN_STARTED, run };
+                } catch (startError) {
+                    this.context.logger.prfxError(runName, 'Failed to start Run', {
+                        message: (startError as Error)?.message,
+                    });
+                    const error = await parseStartRunError(startError, runName, getRequiredMemoryMbytes);
+                    result = { kind: RUN_STATUSES.ERROR, error };
+                }
+
+                if (result.kind === RUN_STATUSES.RUN_STARTED) {
+                    await this.context.runsTracker.updateRun(runName, result.run);
+                    for (const callback of nextRunRequest.startCallbacks) {
+                        callback({ kind: RUN_STATUSES.RUN_STARTED, run: result.run });
                     }
-                } else if (!this.retryOnInsufficientResources) {
-                    const runRequest = this.runRequestsQueue.dequeue();
-                    if (!runRequest) {
-                        throw new Error('Insufficient resources have been retrieved but no runRequest found!');
-                    }
-                    const { runName } = runRequest;
-
-                    const errorToThrow = (() => {
-                        if (!hasEnoughMemory) {
-                            return new InsufficientMemoryError(runName, requiredMemoryGBs, availableMemoryGBs);
-                        }
-                        if (!canRunMoreActors) {
-                            return new InsufficientActorJobsError(runName);
-                        }
-                        throw new Error(
-                            'Insufficient resources have been retrieved but they did not match any of the checks!',
-                        );
-                    })();
-
-                    this.customLogger.prfxError(
-                        runName,
-                        'Failed to start Run and retryOnInsufficientResources is set to false',
-                        {
-                            message: errorToThrow.message,
-                        },
-                    );
-                    runRequest.startCallbacks.map((callback) => callback({ run: undefined, error: errorToThrow }));
-                } else {
-                    // Wait for sometime before checking again
-                    this.customLogger.info(
+                } else if (
+                    this.retryOnInsufficientResources &&
+                    result.kind === RUN_STATUSES.ERROR &&
+                    (result.error instanceof InsufficientMemoryError ||
+                        result.error instanceof InsufficientActorJobsError)
+                ) {
+                    this.context.logger.info(
                         `Not enough resources: waiting ${MAIN_LOOP_COOLDOWN_MS}ms before trying again`,
-                        { availableMemoryGBs, availableActorJobs },
                     );
+                    this.runRequestsQueue.prepend(nextRunRequest);
                     this.mainLoopCooldown = MAIN_LOOP_COOLDOWN_MS;
+                } else {
+                    for (const callback of nextRunRequest.startCallbacks) {
+                        callback({ kind: RUN_STATUSES.ERROR, error: result.error });
+                    }
                 }
             }),
             MAIN_LOOP_INTERVAL_MS,
@@ -269,7 +246,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     async stopScheduler() {
-        this.customLogger.info("Stopping Apify client's scheduler", { clientName: this.clientName });
+        this.context.logger.info("Stopping Apify client's scheduler", { clientName: this.clientName });
 
         // Stop the main loop
         if (this.mainLoopId) {
@@ -281,7 +258,9 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         while (this.runRequestsQueue.length > 0) {
             this.runRequestsQueue
                 .dequeue()
-                ?.startCallbacks.map((callback) => callback({ run: undefined, error: new Error('Scheduler stopped') }));
+                ?.startCallbacks.map((callback) =>
+                    callback({ kind: RUN_STATUSES.ERROR, error: new Error('Scheduler stopped') }),
+                );
         }
     }
 
@@ -336,7 +315,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
 
     async waitForBatchFinish(batch: RunRecord | string[]): Promise<RunRecord> {
         const runRecord = Array.isArray(batch) ? await this.runRecord(...batch) : batch;
-        this.customLogger.info('Waiting for batch', { runNames: Object.keys(runRecord) });
+        this.context.logger.info('Waiting for batch', { runNames: Object.keys(runRecord) });
 
         const resultRunRecord: RunRecord = {};
 
@@ -351,9 +330,9 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     async abortAllRuns() {
-        log.info('Aborting runs', this.runsTracker.currentRuns);
+        log.info('Aborting runs', this.context.runsTracker.currentRuns);
         await Promise.all(
-            Object.entries(this.runsTracker.currentRuns).map(async ([runName, runInfo]) => {
+            Object.entries(this.context.runsTracker.currentRuns).map(async ([runName, runInfo]) => {
                 try {
                     await this.trackedRun(runName, runInfo.runId).abort();
                 } catch (err) {

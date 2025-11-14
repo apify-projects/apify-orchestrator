@@ -4,28 +4,19 @@ import type { ExtDatasetClient } from 'src/clients/dataset-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS } from 'src/constants.js';
 import { RunsTracker } from 'src/tracker.js';
 import type { DatasetItem, OrchestratorOptions } from 'src/types.js';
+import type { OrchestratorContext } from 'src/utils/context.js';
 import { CustomLogger } from 'src/utils/logging.js';
 
 interface TestItem extends DatasetItem {
     title: string;
 }
 
-describe('dataset-client', () => {
-    let customLogger: CustomLogger;
-    let runsTracker: RunsTracker;
+describe('ExtDatasetClient', () => {
+    let context: OrchestratorContext;
     let options: OrchestratorOptions;
     let datasetClient: ExtDatasetClient<TestItem>;
-    // let listItemsSpy: MockInstance<(options?: DatasetClientListItemOptions) => Promise<PaginatedList<DatasetItem>>>;
 
-    const generateApifyClient = () =>
-        new ExtApifyClient(
-            'test-client',
-            customLogger,
-            runsTracker,
-            options.fixedInput,
-            options.abortAllRunsOnGracefulAbort,
-            options.hideSensitiveInformation,
-        );
+    const generateApifyClient = () => new ExtApifyClient(context, { clientName: 'test-client', ...options });
 
     function generateExtDatasetClient() {
         const client = generateApifyClient();
@@ -36,9 +27,10 @@ describe('dataset-client', () => {
 
     beforeEach(async () => {
         vi.useFakeTimers();
-        customLogger = new CustomLogger(false, false);
-        runsTracker = new RunsTracker(customLogger, false);
-        await runsTracker.init();
+        const logger = new CustomLogger(false, false);
+        const runsTracker = new RunsTracker(logger, false);
+        context = { logger, runsTracker };
+        await context.runsTracker.init();
         options = {
             ...DEFAULT_ORCHESTRATOR_OPTIONS,
             enableLogs: false,

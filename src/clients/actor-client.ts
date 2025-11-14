@@ -2,17 +2,35 @@ import type { ActorCallOptions, ActorLastRunOptions, ActorRun, ActorStartOptions
 import { ActorClient, RunClient } from 'apify-client';
 
 import { APIFY_PAYLOAD_BYTES_LIMIT } from '../constants.js';
-import type { RunsTracker } from '../tracker.js';
 import { isRunOkStatus } from '../tracker.js';
 import type { ActorRunRequest, ExtendedActorClient, ExtendedRunClient, RunRecord, SplitRules } from '../types.js';
 import { splitIntoChunksWithMaxSize, strBytes } from '../utils/bytes.js';
-import type { CustomLogger } from '../utils/logging.js';
+import type { OrchestratorContext } from '../utils/context.js';
+import type { ExtRunClientOptions } from './run-client.js';
 import { ExtRunClient } from './run-client.js';
 
-export interface RunResult {
-    run: ActorRun | undefined;
-    error: Error | undefined;
-}
+export const RUN_STATUSES = {
+    RUN_STARTED: 'RUN_STARTED',
+    ERROR: 'ERROR',
+    /**
+     * Returned when a run is about to be spawned on the platform
+     */
+    IN_PROGRESS: 'IN_PROGRESS',
+} as const;
+
+export type RunResult =
+    | {
+          kind: typeof RUN_STATUSES.RUN_STARTED;
+          run: ActorRun;
+      }
+    | {
+          kind: typeof RUN_STATUSES.ERROR;
+          error: Error;
+      }
+    | {
+          // returned when a run is about to be spawned on the platform
+          kind: typeof RUN_STATUSES.IN_PROGRESS;
+      };
 
 export interface EnqueuedRequest {
     runName: string;
@@ -25,6 +43,12 @@ export interface EnqueuedRequest {
 
 type EnqueueFunction = (runRequest: EnqueuedRequest) => ExtendedRunClient | undefined;
 type ForcedEnqueueFunction = (runRequest: EnqueuedRequest) => undefined;
+
+export interface ExtActorClientOptions {
+    enqueueRunOnApifyAccount: EnqueueFunction;
+    forceEnqueueRunOnApifyAccount: ForcedEnqueueFunction;
+    fixedInput?: object;
+}
 
 const DEFAULT_SPLIT_RULES: SplitRules = {
     respectApifyMaxPayloadSize: true,
@@ -57,24 +81,18 @@ function generateRunRequests(
 }
 
 export class ExtActorClient extends ActorClient implements ExtendedActorClient {
+    protected context: OrchestratorContext;
+
     protected superClient: ActorClient;
-    protected enqueueFunction: EnqueueFunction;
-    protected forcedEnqueueFunction: ForcedEnqueueFunction;
-    protected customLogger: CustomLogger;
-    protected runsTracker: RunsTracker;
+    protected enqueueRunOnApifyAccount: EnqueueFunction;
+    protected forceEnqueueRunOnApifyAccount: ForcedEnqueueFunction;
     protected fixedInput?: object;
 
     /**
      * @hidden
      */
-    constructor(
-        actorClient: ActorClient,
-        customLogger: CustomLogger,
-        runsTracker: RunsTracker,
-        enqueueFunction: EnqueueFunction,
-        forcedEnqueueFunction: ForcedEnqueueFunction,
-        fixedInput?: object,
-    ) {
+    constructor(context: OrchestratorContext, options: ExtActorClientOptions, actorClient: ActorClient) {
+        const { enqueueRunOnApifyAccount, forceEnqueueRunOnApifyAccount, fixedInput } = options;
         super({
             baseUrl: actorClient.baseUrl,
             publicBaseUrl: actorClient.publicBaseUrl,
@@ -83,15 +101,15 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
             id: actorClient.id,
             params: actorClient.params,
         });
+        this.context = context;
         this.superClient = actorClient;
-        this.customLogger = customLogger;
-        this.runsTracker = runsTracker;
-        this.enqueueFunction = enqueueFunction;
-        this.forcedEnqueueFunction = forcedEnqueueFunction;
+        this.enqueueRunOnApifyAccount = enqueueRunOnApifyAccount;
+        this.forceEnqueueRunOnApifyAccount = forceEnqueueRunOnApifyAccount;
         this.fixedInput = fixedInput;
     }
 
     protected generateRunOrchestratorClient(runName: string, runId: string) {
+        const runClientOptions: ExtRunClientOptions = { runName };
         const runClient = new RunClient(
             this._subResourceOptions({
                 id: runId,
@@ -99,7 +117,7 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
                 resourcePath: 'runs',
             }),
         );
-        return new ExtRunClient(runClient, runName, this.customLogger, this.runsTracker);
+        return new ExtRunClient(this.context, runClientOptions, runClient);
     }
 
     protected generateRunRequests<T>(
@@ -136,37 +154,39 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
 
         let existingRunClient: ExtendedRunClient | undefined;
         let result = await new Promise<RunResult>((resolve) => {
-            existingRunClient = this.enqueueFunction({
+            existingRunClient = this.enqueueRunOnApifyAccount({
                 ...runParams,
                 startCallbacks: [resolve],
             });
             if (existingRunClient) {
-                resolve({ run: undefined, error: undefined });
+                resolve({ kind: RUN_STATUSES.IN_PROGRESS });
             }
         });
 
-        if (!result.run && !result.error && existingRunClient) {
-            result.run = await existingRunClient.get();
+        if (result.kind === RUN_STATUSES.IN_PROGRESS && existingRunClient) {
+            const run = await existingRunClient.get();
 
             // If it was not possible to retrieve the Run from the client, force enqueuing a new Run.
-            if (!result.run) {
+            if (run) {
+                result = { kind: RUN_STATUSES.RUN_STARTED, run };
+            } else {
                 result = await new Promise<RunResult>((resolve) => {
-                    existingRunClient = this.forcedEnqueueFunction({
+                    existingRunClient = this.forceEnqueueRunOnApifyAccount({
                         ...runParams,
                         startCallbacks: [resolve],
                     });
                     if (existingRunClient) {
-                        resolve({ run: undefined, error: undefined });
+                        resolve({ kind: RUN_STATUSES.IN_PROGRESS });
                     }
                 });
             }
         }
 
-        if (result.error) {
+        if (result.kind === RUN_STATUSES.ERROR) {
             throw result.error;
         }
 
-        if (!result.run) {
+        if (result.kind === RUN_STATUSES.IN_PROGRESS) {
             throw new Error(`Error starting Run: ${runName} (${this.id}).`);
         }
 
@@ -174,7 +194,7 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     }
 
     override async start(runName: string, input?: object, options?: ActorStartOptions): Promise<ActorRun> {
-        const existingRunInfo = this.runsTracker.findRunByName(runName);
+        const existingRunInfo = this.context.runsTracker.findRunByName(runName);
 
         // If the Run exists and has not failed, use it
         if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
@@ -198,7 +218,7 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     override lastRun(options?: ActorLastRunOptions): RunClient {
         const runClient = this.superClient.lastRun(options);
         if (runClient.id) {
-            const runName = this.runsTracker.findRunName(runClient.id);
+            const runName = this.context.runsTracker.findRunName(runClient.id);
             if (runName) {
                 return this.generateRunOrchestratorClient(runName, runClient.id);
             }
@@ -208,7 +228,7 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
 
     enqueue(...runRequests: ActorRunRequest[]) {
         for (const { runName, input, options } of runRequests) {
-            this.enqueueFunction({
+            this.enqueueRunOnApifyAccount({
                 runName,
                 defaultMemoryMbytes: this.defaultMemoryMbytes.bind(this),
                 startRun: this.superClient.start.bind(this.superClient),

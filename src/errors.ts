@@ -22,13 +22,9 @@ export class InsufficientMemoryError extends OrchestratorError {
 
     constructor(
         runName: string,
-        public readonly requiredMemoryGBs: number,
-        public readonly availableMemoryGBs: number,
+        public readonly requiredMemoryMBs: number,
     ) {
-        super(
-            `Insufficient memory to start run '${runName}'. Required: ${requiredMemoryGBs}GB, Available: ${availableMemoryGBs}GB`,
-            runName,
-        );
+        super(`Insufficient memory to start run '${runName}'. Required: ${requiredMemoryMBs / 1024}GB.`, runName);
     }
 }
 

@@ -57,7 +57,7 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
 
     override async delete(): Promise<void> {
         // TODO: implement
-        this.context.logger.prfxWarn(this.runName, 'Delete Run is not supported yet in the Orchestrator.');
+        this.context.logger.prefixed(this.runName).warning('Delete Run is not supported yet in the Orchestrator.');
         await this.superClient.delete();
     }
 
@@ -67,7 +67,7 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
         options?: RunMetamorphOptions | undefined,
     ): Promise<ActorRun> {
         // TODO: implement
-        this.context.logger.prfxWarn(this.runName, 'Metamorph Run is not supported yet in the Orchestrator.');
+        this.context.logger.prefixed(this.runName).warning('Metamorph Run is not supported yet in the Orchestrator.');
         return this.superClient.metamorph(targetActorId, input, options);
     }
 
@@ -90,7 +90,7 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
     }
 
     override async waitForFinish(options?: RunWaitForFinishOptions): Promise<ActorRun> {
-        this.context.logger.prfxInfo(this.runName, 'Waiting for finish');
+        this.context.logger.prefixed(this.runName).info('Waiting for finish');
         const run = await this.superClient.waitForFinish(options);
         await this.context.runsTracker.updateRun(this.runName, run);
         return run;

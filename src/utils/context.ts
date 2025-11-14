@@ -1,7 +1,7 @@
 import type { RunsTracker } from '../tracker.js';
-import type { CustomLogger } from './logging.js';
+import type { Logger } from './logging.js';
 
 export interface OrchestratorContext {
-    logger: CustomLogger;
+    logger: Logger;
     runsTracker: RunsTracker;
 }

@@ -13,7 +13,8 @@ import type {
     OrchestratorOptions,
 } from './types.js';
 import type { OrchestratorContext } from './utils/context.js';
-import { CustomLogger } from './utils/logging.js';
+import type { Logger } from './utils/logging.js';
+import { generateLogger } from './utils/logging.js';
 import { makeNameUnique } from './utils/naming.js';
 
 export * from './types.js';
@@ -24,14 +25,16 @@ const takenClientNames = new Set<string>();
 
 export class Orchestrator implements ApifyOrchestrator {
     readonly options: OrchestratorOptions;
-    protected customLogger: CustomLogger;
+    protected logger: Logger;
 
     constructor(options: Partial<OrchestratorOptions> = {}) {
         const fullOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...options };
         fullOptions.persistencePrefix = makeNameUnique(fullOptions.persistencePrefix, takenPersistPrefixes);
         takenPersistPrefixes.add(fullOptions.persistencePrefix);
         this.options = fullOptions;
-        this.customLogger = new CustomLogger(this.options.enableLogs, this.options.hideSensitiveInformation);
+
+        const { enableLogs, hideSensitiveInformation } = this.options;
+        this.logger = generateLogger({ enableLogs, hideSensitiveInformation });
     }
 
     async apifyClient(options: ExtendedClientOptions = {}): Promise<ExtendedApifyClient> {
@@ -41,7 +44,7 @@ export class Orchestrator implements ApifyOrchestrator {
         takenClientNames.add(clientName);
 
         const enableFailedRunsHistory = !this.options.hideSensitiveInformation;
-        const runsTracker = new RunsTracker(this.customLogger, enableFailedRunsHistory, this.options.onUpdate);
+        const runsTracker = new RunsTracker(this.logger, enableFailedRunsHistory, this.options.onUpdate);
 
         await runsTracker.init(
             this.options.persistenceSupport,
@@ -50,7 +53,7 @@ export class Orchestrator implements ApifyOrchestrator {
         );
 
         const context: OrchestratorContext = {
-            logger: this.customLogger,
+            logger: this.logger,
             runsTracker,
         };
 

@@ -5,7 +5,7 @@ import { DEFAULT_ORCHESTRATOR_OPTIONS } from 'src/constants.js';
 import { RunsTracker } from 'src/tracker.js';
 import type { DatasetItem, OrchestratorOptions } from 'src/types.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
-import { CustomLogger } from 'src/utils/logging.js';
+import { generateLogger } from 'src/utils/logging.js';
 
 interface TestItem extends DatasetItem {
     title: string;
@@ -27,7 +27,7 @@ describe('ExtDatasetClient', () => {
 
     beforeEach(async () => {
         vi.useFakeTimers();
-        const logger = new CustomLogger(false, false);
+        const logger = generateLogger({ enableLogs: false, hideSensitiveInformation: false });
         const runsTracker = new RunsTracker(logger, false);
         context = { logger, runsTracker };
         await context.runsTracker.init();

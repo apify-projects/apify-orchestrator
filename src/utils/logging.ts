@@ -36,10 +36,10 @@ function generateBasicLogger(apifyLogger: Log, options: LoggerOptions): BasicLog
     }
     if (options.hideSensitiveInformation) {
         return {
-            debug: (message: string, data?: LogData) => apifyLogger.debug(message, data),
-            info: (message: string, data?: LogData) => apifyLogger.info(message, data),
-            warning: (message: string, data?: LogData) => apifyLogger.warning(message, data),
-            error: (message: string, data?: LogData) => apifyLogger.error(message, data),
+            debug: (message: string, data?: LogData, _sensitiveData?: LogData) => apifyLogger.debug(message, data),
+            info: (message: string, data?: LogData, _sensitiveData?: LogData) => apifyLogger.info(message, data),
+            warning: (message: string, data?: LogData, _sensitiveData?: LogData) => apifyLogger.warning(message, data),
+            error: (message: string, data?: LogData, _sensitiveData?: LogData) => apifyLogger.error(message, data),
         };
     }
     return {

@@ -3,7 +3,7 @@ import { ActorClient, RunClient } from 'apify-client';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
 import type { ExtRunClient } from 'src/clients/run-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
-import { RunsTracker } from 'src/tracker.js';
+import { RunTracker } from 'src/tracker.js';
 import type { OrchestratorOptions, RunInfo } from 'src/types.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
 import { generateLogger } from 'src/utils/logging.js';
@@ -41,16 +41,16 @@ describe('ExtRunClient', () => {
     beforeEach(async () => {
         vi.useFakeTimers();
         const logger = generateLogger({ enableLogs: false, hideSensitiveInformation: false });
-        const runsTracker = await RunsTracker.new(
+        const runTracker = await RunTracker.new(
             { logger },
             { enableFailedHistory: false, persistenceSupport: 'none', persistencePrefix: 'TEST-' },
         );
-        context = { logger, runsTracker };
+        context = { logger, runTracker };
         options = {
             ...DEFAULT_ORCHESTRATOR_OPTIONS,
             enableLogs: false,
         };
-        updateRunSpy = vi.spyOn(RunsTracker.prototype, 'updateRun');
+        updateRunSpy = vi.spyOn(RunTracker.prototype, 'updateRun');
         runClient = await generateExtRunClient('test-run');
     });
 
@@ -71,7 +71,7 @@ describe('ExtRunClient', () => {
 
         it('declares a Run lost if not found', async () => {
             const getSpy = vi.spyOn(RunClient.prototype, 'get').mockImplementation(async () => null);
-            const declareLostRunSpy = vi.spyOn(RunsTracker.prototype, 'declareLostRun');
+            const declareLostRunSpy = vi.spyOn(RunTracker.prototype, 'declareLostRun');
             const run = await runClient.get();
             expect(run).toEqual(null);
             expect(getSpy).toHaveBeenCalledTimes(1);

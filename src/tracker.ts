@@ -30,7 +30,7 @@ export interface RunTrackerOptions {
     enableFailedHistory: boolean;
 }
 
-export class RunsTracker {
+export class RunTracker {
     protected constructor(
         protected readonly context: GlobalContext,
         protected readonly options: RunTrackerOptions,
@@ -64,10 +64,10 @@ export class RunsTracker {
             });
         }
 
-        const runsTracker = new RunsTracker(context, options, currentRunsState, failedRunsHistoryState, onUpdate);
-        await runsTracker.itemsChangedCallback();
+        const runTracker = new RunTracker(context, options, currentRunsState, failedRunsHistoryState, onUpdate);
+        await runTracker.itemsChangedCallback();
 
-        return runsTracker;
+        return runTracker;
     }
 
     protected async itemsChangedCallback(lastChangedRunName?: string, lastChangedRun?: ActorRun) {

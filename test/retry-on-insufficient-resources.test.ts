@@ -4,7 +4,7 @@ import { ExtApifyClient } from 'src/clients/apify-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
 import { InsufficientActorJobsError, InsufficientMemoryError } from 'src/errors.js';
 import type { OrchestratorOptions } from 'src/index.js';
-import { RunsTracker } from 'src/tracker.js';
+import { RunTracker } from 'src/tracker.js';
 import { parseStartRunError } from 'src/utils/apify-client.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
 import { generateLogger } from 'src/utils/logging.js';
@@ -35,11 +35,11 @@ describe('retry on insufficient resources', () => {
     beforeEach(async () => {
         vi.useFakeTimers();
         const logger = generateLogger({ enableLogs: false, hideSensitiveInformation: false });
-        const runsTracker = await RunsTracker.new(
+        const runTracker = await RunTracker.new(
             { logger },
             { enableFailedHistory: false, persistenceSupport: 'none', persistencePrefix: 'TEST-' },
         );
-        context = { logger, runsTracker };
+        context = { logger, runTracker };
         options = {
             ...DEFAULT_ORCHESTRATOR_OPTIONS,
             enableLogs: false,

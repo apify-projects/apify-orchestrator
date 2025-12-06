@@ -80,7 +80,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         const { runName } = runRequest;
 
         if (!force) {
-            const existingRunInfo = this.context.runsTracker.findRunByName(runName);
+            const existingRunInfo = this.context.runTracker.findRunByName(runName);
 
             // If the Run exists and has not failed, keep it
             if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
@@ -130,7 +130,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     protected findStartedRun(runName: string): ExtRunClient | undefined {
-        const startedRunInfo = this.context.runsTracker.currentRuns[runName];
+        const startedRunInfo = this.context.runTracker.currentRuns[runName];
         if (startedRunInfo) {
             return this.trackedRun(runName, startedRunInfo.runId);
         }
@@ -160,7 +160,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     override run(id: string): RunClient {
-        const runName = this.context.runsTracker.findRunName(id);
+        const runName = this.context.runTracker.findRunName(id);
         return runName ? this.trackedRun(runName, id) : super.run(id);
     }
 
@@ -224,7 +224,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                 }
 
                 if (result.kind === RUN_STATUSES.RUN_STARTED) {
-                    await this.context.runsTracker.updateRun(runName, result.run);
+                    await this.context.runTracker.updateRun(runName, result.run);
                     for (const callback of nextRunRequest.startCallbacks) {
                         callback({ kind: RUN_STATUSES.RUN_STARTED, run: result.run });
                     }
@@ -347,9 +347,9 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     async abortAllRuns() {
-        log.info('Aborting runs', this.context.runsTracker.currentRuns);
+        log.info('Aborting runs', this.context.runTracker.currentRuns);
         await Promise.all(
-            Object.entries(this.context.runsTracker.currentRuns).map(async ([runName, runInfo]) => {
+            Object.entries(this.context.runTracker.currentRuns).map(async ([runName, runInfo]) => {
                 try {
                     await this.trackedRun(runName, runInfo.runId).abort();
                 } catch (err) {

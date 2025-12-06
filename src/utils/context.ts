@@ -1,9 +1,9 @@
-import type { RunsTracker } from '../tracker.js';
+import type { RunTracker } from '../tracker.js';
 import type { Logger } from './logging.js';
 
 export interface OrchestratorContext {
     logger: Logger;
-    runsTracker: RunsTracker;
+    runTracker: RunTracker;
 }
 
 export interface GlobalContext {

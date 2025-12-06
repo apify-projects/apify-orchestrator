@@ -134,7 +134,7 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     }
 
     override async start(runName: string, input?: object, options?: ActorStartOptions): Promise<ActorRun> {
-        const existingRunInfo = this.context.runsTracker.findRunByName(runName);
+        const existingRunInfo = this.context.runTracker.findRunByName(runName);
 
         // If the Run exists and has not failed, use it
         if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
@@ -158,7 +158,7 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     override lastRun(options?: ActorLastRunOptions): RunClient {
         const runClient = this.superClient.lastRun(options);
         if (runClient.id) {
-            const runName = this.context.runsTracker.findRunName(runClient.id);
+            const runName = this.context.runTracker.findRunName(runClient.id);
             if (runName) {
                 return this.generateRunOrchestratorClient(runName, runClient.id);
             }

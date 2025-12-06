@@ -3,7 +3,7 @@ import { ActorClient } from 'apify-client';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
 import { ExtRunClient } from 'src/clients/run-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_COOLDOWN_MS } from 'src/constants.js';
-import { RunsTracker } from 'src/tracker.js';
+import { RunTracker } from 'src/tracker.js';
 import type { OrchestratorOptions } from 'src/types.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
 import { generateLogger } from 'src/utils/logging.js';
@@ -28,11 +28,11 @@ describe('ExtActorClient', () => {
     beforeEach(async () => {
         vi.useFakeTimers();
         const logger = generateLogger({ enableLogs: false, hideSensitiveInformation: false });
-        const runsTracker = await RunsTracker.new(
+        const runTracker = await RunTracker.new(
             { logger },
             { enableFailedHistory: false, persistenceSupport: 'none', persistencePrefix: 'TEST-' },
         );
-        context = { logger, runsTracker };
+        context = { logger, runTracker };
         options = {
             ...DEFAULT_ORCHESTRATOR_OPTIONS,
             enableLogs: false,
@@ -51,7 +51,7 @@ describe('ExtActorClient', () => {
 
             // Add an existing run to the tracker
             const existingRun = getMockRun('existing-run-id', 'RUNNING');
-            await context.runsTracker.updateRun('test-run', existingRun);
+            await context.runTracker.updateRun('test-run', existingRun);
 
             // Mock the RunClient.get method to return the existing run
             const getSpy = vi.spyOn(ExtRunClient.prototype, 'get').mockImplementation(async () => {
@@ -71,7 +71,7 @@ describe('ExtActorClient', () => {
 
             // Add an existing run to the tracker with FAILED status so it won't be reused
             const existingRun = getMockRun('existing-run-id', 'FAILED');
-            await context.runsTracker.updateRun('test-run', existingRun);
+            await context.runTracker.updateRun('test-run', existingRun);
 
             const newRun = getMockRun('new-run-id', 'READY');
             const startSpy = vi.spyOn(ActorClient.prototype, 'start').mockImplementation(async () => {
@@ -134,7 +134,7 @@ describe('ExtActorClient', () => {
 
             // Add an existing run to the tracker
             const existingRun = getMockRun('existing-run-id', 'RUNNING');
-            await context.runsTracker.updateRun('test-run', existingRun);
+            await context.runTracker.updateRun('test-run', existingRun);
 
             // Mock the RunClient.get method to return the existing run
             vi.spyOn(ExtRunClient.prototype, 'get').mockImplementation(async () => {
@@ -160,7 +160,7 @@ describe('ExtActorClient', () => {
 
             // Add an existing run to the tracker with FAILED status so it won't be reused
             const existingRun = getMockRun('existing-run-id', 'FAILED');
-            await context.runsTracker.updateRun('test-run', existingRun);
+            await context.runTracker.updateRun('test-run', existingRun);
 
             const newRun = getMockRun('new-run-id', 'READY');
             vi.spyOn(ActorClient.prototype, 'start').mockImplementation(async () => {
@@ -217,7 +217,7 @@ describe('ExtActorClient', () => {
 
             // Add a run to the tracker
             const trackedRun = getMockRun('tracked-run-id', 'SUCCEEDED');
-            await context.runsTracker.updateRun('tracked-run', trackedRun);
+            await context.runTracker.updateRun('tracked-run', trackedRun);
 
             // Mock the superClient's lastRun method
             const mockRunClient = {

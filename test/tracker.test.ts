@@ -1,10 +1,10 @@
 import type { ActorRun } from 'apify';
 import { Actor } from 'apify';
-import { RunsTracker } from 'src/tracker.js';
+import { RunTracker } from 'src/tracker.js';
 import { openEncryptedKeyValueStore } from 'src/utils/key-value-store.js';
 import { generateLogger } from 'src/utils/logging.js';
 
-describe('RunsTracker', () => {
+describe('RunTracker', () => {
     const logger = generateLogger({ enableLogs: false, hideSensitiveInformation: false });
     const prefix = 'TEST-';
     const secret = 'test-secret';
@@ -36,7 +36,7 @@ describe('RunsTracker', () => {
         const openKeyValueStoreSpy = vi.spyOn(Actor, 'openKeyValueStore');
 
         it('works correctly with persistence support none', async () => {
-            await RunsTracker.new(
+            await RunTracker.new(
                 { logger },
                 { enableFailedHistory: false, persistenceSupport: 'none', persistencePrefix: prefix },
             );
@@ -44,7 +44,7 @@ describe('RunsTracker', () => {
         });
 
         it('works correctly with persistence support kvs', async () => {
-            await RunsTracker.new(
+            await RunTracker.new(
                 { logger },
                 { enableFailedHistory: false, persistenceSupport: 'kvs', persistencePrefix: prefix },
             );
@@ -53,7 +53,7 @@ describe('RunsTracker', () => {
         });
 
         it('works correctly with encrypted persistence', async () => {
-            await RunsTracker.new(
+            await RunTracker.new(
                 { logger },
                 {
                     enableFailedHistory: false,
@@ -87,7 +87,7 @@ describe('RunsTracker', () => {
 
             await Actor.setValue(`${prefix}RUNS`, mockRuns);
 
-            const tracker = await RunsTracker.new(
+            const tracker = await RunTracker.new(
                 { logger },
                 { enableFailedHistory: false, persistenceSupport: 'kvs', persistencePrefix: prefix },
             );
@@ -97,7 +97,7 @@ describe('RunsTracker', () => {
     });
 
     it('registers and updates runs correctly', async () => {
-        const tracker = await RunsTracker.new(
+        const tracker = await RunTracker.new(
             { logger },
             { enableFailedHistory: false, persistenceSupport: 'kvs', persistencePrefix: prefix },
         );
@@ -154,7 +154,7 @@ describe('RunsTracker', () => {
             },
         });
 
-        const tracker = await RunsTracker.new(
+        const tracker = await RunTracker.new(
             { logger },
             { enableFailedHistory: false, persistenceSupport: 'kvs', persistencePrefix: prefix },
             mockCallback,
@@ -198,7 +198,7 @@ describe('RunsTracker', () => {
     });
 
     it('allows to query runs', async () => {
-        const tracker = await RunsTracker.new(
+        const tracker = await RunTracker.new(
             { logger },
             { enableFailedHistory: false, persistenceSupport: 'none', persistencePrefix: prefix },
         );
@@ -234,7 +234,7 @@ describe('RunsTracker', () => {
 
         expect(openKeyValueStoreSpy).not.toHaveBeenCalled();
 
-        const tracker = await RunsTracker.new(
+        const tracker = await RunTracker.new(
             { logger },
             { enableFailedHistory: true, persistenceSupport: 'kvs', persistencePrefix: prefix },
         );

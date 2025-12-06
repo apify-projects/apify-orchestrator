@@ -32,57 +32,75 @@ describe('RunsTracker', () => {
         await Actor.setValue(`${prefix}FAILED_RUNS`, null);
     });
 
-    it('inits correctly', async () => {
+    describe('new', async () => {
         const openKeyValueStoreSpy = vi.spyOn(Actor, 'openKeyValueStore');
 
-        const tracker = new RunsTracker(logger, false);
-        expect(openKeyValueStoreSpy).not.toHaveBeenCalled();
+        it('works correctly with persistence support none', async () => {
+            await RunsTracker.new(
+                { logger },
+                { enableFailedHistory: false, persistenceSupport: 'none', persistencePrefix: prefix },
+            );
+            expect(openKeyValueStoreSpy).not.toHaveBeenCalled();
+        });
 
-        await tracker.init('none', prefix);
-        expect(openKeyValueStoreSpy).not.toHaveBeenCalled();
+        it('works correctly with persistence support kvs', async () => {
+            await RunsTracker.new(
+                { logger },
+                { enableFailedHistory: false, persistenceSupport: 'kvs', persistencePrefix: prefix },
+            );
+            expect(await Actor.getValue(`${prefix}RUNS`)).toEqual({});
+            expect(await Actor.getValue(`${prefix}FAILED_RUNS`)).toEqual(null);
+        });
 
-        await tracker.init('kvs', prefix);
-        expect(openKeyValueStoreSpy).toHaveBeenCalledTimes(1);
-        expect(await Actor.getValue(`${prefix}RUNS`)).toEqual({});
-        expect(await Actor.getValue(`${prefix}FAILED_RUNS`)).toEqual(null);
+        it('works correctly with encrypted persistence', async () => {
+            await RunsTracker.new(
+                { logger },
+                {
+                    enableFailedHistory: false,
+                    persistenceSupport: 'kvs',
+                    persistencePrefix: prefix,
+                    persistenceEncryptionKey: secret,
+                },
+            );
+            expect(await Actor.getValue(`${prefix}RUNS`)).not.toEqual({});
+            expect(await Actor.getValue(`${prefix}FAILED_RUNS`)).toEqual(null);
 
-        await tracker.init('kvs', prefix, secret);
-        expect(openKeyValueStoreSpy).toHaveBeenCalledTimes(2);
-        expect(await Actor.getValue(`${prefix}RUNS`)).not.toEqual({});
-        expect(await Actor.getValue(`${prefix}FAILED_RUNS`)).toEqual(null);
+            const encryptedKVS = await openEncryptedKeyValueStore(secret);
+            expect(await encryptedKVS.getValue(`${prefix}RUNS`)).toEqual({});
+        });
 
-        const encryptedKVS = await openEncryptedKeyValueStore(secret);
-        expect(await encryptedKVS.getValue(`${prefix}RUNS`)).toEqual({});
-    });
+        it('works correctly after a resurrection', async () => {
+            const mockRuns = {
+                [run1Name]: {
+                    runId: run1.id,
+                    runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
+                    status: 'RUNNING',
+                    startedAt: mockDate.toISOString(),
+                },
+                [run2Name]: {
+                    runId: run2.id,
+                    runUrl: `https://console.apify.com/actors/runs/${run2.id}`,
+                    status: 'SUCCEEDED',
+                    startedAt: mockDate.toISOString(),
+                },
+            };
 
-    it('inits correctly after a resurrection', async () => {
-        const tracker = new RunsTracker(logger, false);
+            await Actor.setValue(`${prefix}RUNS`, mockRuns);
 
-        const mockRuns = {
-            [run1Name]: {
-                runId: run1.id,
-                runUrl: `https://console.apify.com/actors/runs/${run1.id}`,
-                status: 'RUNNING',
-                startedAt: mockDate.toISOString(),
-            },
-            [run2Name]: {
-                runId: run2.id,
-                runUrl: `https://console.apify.com/actors/runs/${run2.id}`,
-                status: 'SUCCEEDED',
-                startedAt: mockDate.toISOString(),
-            },
-        };
+            const tracker = await RunsTracker.new(
+                { logger },
+                { enableFailedHistory: false, persistenceSupport: 'kvs', persistencePrefix: prefix },
+            );
 
-        await Actor.setValue(`${prefix}RUNS`, mockRuns);
-
-        await tracker.init('kvs', prefix);
-        expect(tracker.currentRuns).toEqual(mockRuns);
+            expect(tracker.currentRuns).toEqual(mockRuns);
+        });
     });
 
     it('registers and updates runs correctly', async () => {
-        const tracker = new RunsTracker(logger, false);
-
-        await tracker.init('kvs', prefix);
+        const tracker = await RunsTracker.new(
+            { logger },
+            { enableFailedHistory: false, persistenceSupport: 'kvs', persistencePrefix: prefix },
+        );
 
         expect(tracker.currentRuns).toEqual({});
 
@@ -126,7 +144,6 @@ describe('RunsTracker', () => {
 
     it('calls the callback upon update', async () => {
         const mockCallback = vi.fn();
-        const tracker = new RunsTracker(logger, false, mockCallback);
 
         await Actor.setValue(`${prefix}RUNS`, {
             [run1Name]: {
@@ -137,8 +154,13 @@ describe('RunsTracker', () => {
             },
         });
 
+        const tracker = await RunsTracker.new(
+            { logger },
+            { enableFailedHistory: false, persistenceSupport: 'kvs', persistencePrefix: prefix },
+            mockCallback,
+        );
+
         // The first update happens after the initialization and report the content fetched from KVS.
-        await tracker.init('kvs', prefix);
         expect(mockCallback).toHaveBeenCalledTimes(1);
         expect(mockCallback).toHaveBeenLastCalledWith(
             {
@@ -176,7 +198,10 @@ describe('RunsTracker', () => {
     });
 
     it('allows to query runs', async () => {
-        const tracker = new RunsTracker(logger, false);
+        const tracker = await RunsTracker.new(
+            { logger },
+            { enableFailedHistory: false, persistenceSupport: 'none', persistencePrefix: prefix },
+        );
 
         await tracker.updateRun(run1Name, run1);
         await tracker.updateRun(run2Name, run2);
@@ -207,10 +232,12 @@ describe('RunsTracker', () => {
     it('works correctly with failed history enabled', async () => {
         const openKeyValueStoreSpy = vi.spyOn(Actor, 'openKeyValueStore');
 
-        const tracker = new RunsTracker(logger, true);
         expect(openKeyValueStoreSpy).not.toHaveBeenCalled();
 
-        await tracker.init('kvs', prefix);
+        const tracker = await RunsTracker.new(
+            { logger },
+            { enableFailedHistory: true, persistenceSupport: 'kvs', persistencePrefix: prefix },
+        );
         expect(openKeyValueStoreSpy).toHaveBeenCalledTimes(2);
         expect(await Actor.getValue(`${prefix}RUNS`)).toEqual({});
         expect(await Actor.getValue(`${prefix}FAILED_RUNS`)).toEqual({});

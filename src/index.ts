@@ -12,8 +12,7 @@ import type {
     ExtendedDatasetClient,
     OrchestratorOptions,
 } from './types.js';
-import type { OrchestratorContext } from './utils/context.js';
-import type { Logger } from './utils/logging.js';
+import type { GlobalContext, OrchestratorContext } from './utils/context.js';
 import { generateLogger } from './utils/logging.js';
 import { makeNameUnique } from './utils/naming.js';
 
@@ -25,7 +24,7 @@ const takenClientNames = new Set<string>();
 
 export class Orchestrator implements ApifyOrchestrator {
     readonly options: OrchestratorOptions;
-    protected logger: Logger;
+    protected readonly context: GlobalContext;
 
     constructor(options: Partial<OrchestratorOptions> = {}) {
         const fullOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...options };
@@ -34,7 +33,9 @@ export class Orchestrator implements ApifyOrchestrator {
         this.options = fullOptions;
 
         const { enableLogs, hideSensitiveInformation } = this.options;
-        this.logger = generateLogger({ enableLogs, hideSensitiveInformation });
+        this.context = {
+            logger: generateLogger({ enableLogs, hideSensitiveInformation }),
+        };
     }
 
     async apifyClient(options: ExtendedClientOptions = {}): Promise<ExtendedApifyClient> {
@@ -43,17 +44,19 @@ export class Orchestrator implements ApifyOrchestrator {
         const clientName = makeNameUnique(name ?? 'CLIENT', takenClientNames);
         takenClientNames.add(clientName);
 
-        const enableFailedRunsHistory = !this.options.hideSensitiveInformation;
-        const runsTracker = new RunsTracker(this.logger, enableFailedRunsHistory, this.options.onUpdate);
-
-        await runsTracker.init(
-            this.options.persistenceSupport,
-            `${this.options.persistencePrefix}${clientName}-`,
-            this.options.persistenceEncryptionKey,
+        const runsTracker = await RunsTracker.new(
+            this.context,
+            {
+                enableFailedHistory: !this.options.hideSensitiveInformation,
+                persistenceSupport: this.options.persistenceSupport,
+                persistencePrefix: `${this.options.persistencePrefix}${clientName}-`,
+                persistenceEncryptionKey: this.options.persistenceEncryptionKey,
+            },
+            this.options.onUpdate,
         );
 
         const context: OrchestratorContext = {
-            logger: this.logger,
+            logger: this.context.logger,
             runsTracker,
         };
 

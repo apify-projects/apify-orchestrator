@@ -1,7 +1,7 @@
 import type { ActorRun } from 'apify-client';
 
 import type { PersistenceSupport, RunInfo, UpdateCallback } from './types.js';
-import type { Logger } from './utils/logging.js';
+import type { GlobalContext } from './utils/context.js';
 import { State } from './utils/persist.js';
 
 const RUNS_KEY = 'RUNS';
@@ -23,19 +23,51 @@ export function isRunFailStatus(status: string): status is RunFailStatus {
     return FAIL_STATUSES.includes(status as RunFailStatus);
 }
 
-export class RunsTracker {
-    protected logger: Logger;
-    protected enableFailedHistory: boolean;
-    protected currentRunsState: State<Record<string, RunInfo>>;
-    protected failedRunsHistoryState: State<Record<string, RunInfo[]>>;
-    protected onUpdate: UpdateCallback | undefined;
+export interface RunTrackerOptions {
+    persistenceSupport: PersistenceSupport;
+    persistencePrefix: string;
+    persistenceEncryptionKey?: string;
+    enableFailedHistory: boolean;
+}
 
-    constructor(logger: Logger, enableFailedHistory: boolean, onUpdate?: UpdateCallback) {
-        this.logger = logger;
-        this.enableFailedHistory = enableFailedHistory;
-        this.currentRunsState = new State<Record<string, RunInfo>>({});
-        this.failedRunsHistoryState = new State<Record<string, RunInfo[]>>({});
-        this.onUpdate = onUpdate;
+export class RunsTracker {
+    protected constructor(
+        protected readonly context: GlobalContext,
+        protected readonly options: RunTrackerOptions,
+        protected readonly currentRunsState: State<Record<string, RunInfo>>,
+        protected readonly failedRunsHistoryState: State<Record<string, RunInfo[]>>,
+        protected readonly onUpdate?: UpdateCallback,
+    ) {}
+
+    static async new(context: GlobalContext, options: RunTrackerOptions, onUpdate?: UpdateCallback) {
+        const currentRunsState = new State<Record<string, RunInfo>>({});
+        const failedRunsHistoryState = new State<Record<string, RunInfo[]>>({});
+
+        let wasSyncSuccessful = await currentRunsState.sync(
+            `${options.persistencePrefix}${RUNS_KEY}`,
+            options.persistenceSupport,
+            options.persistenceEncryptionKey, // We need to encrypt this data because it includes Run IDs and URLs
+        );
+
+        if (options.enableFailedHistory) {
+            wasSyncSuccessful =
+                wasSyncSuccessful &&
+                (await failedRunsHistoryState.sync(
+                    `${options.persistencePrefix}${FAILED_RUNS_KEY}`,
+                    options.persistenceSupport,
+                    options.persistenceEncryptionKey, // We need to encrypt this data because it includes Run IDs and URLs
+                ));
+        }
+        if (!wasSyncSuccessful) {
+            context.logger.error('Some error happened while syncing the Orchestrator with the chosen support', {
+                options,
+            });
+        }
+
+        const runsTracker = new RunsTracker(context, options, currentRunsState, failedRunsHistoryState, onUpdate);
+        await runsTracker.itemsChangedCallback();
+
+        return runsTracker;
     }
 
     protected async itemsChangedCallback(lastChangedRunName?: string, lastChangedRun?: ActorRun) {
@@ -63,36 +95,6 @@ export class RunsTracker {
         await this.failedRunsHistoryState.update((prev) => ({ ...prev, [runName]: failedRunInfos }));
     }
 
-    /**
-     * Sync with the persisted data.
-     */
-    async init(
-        persistenceSupport: PersistenceSupport = 'none',
-        persistencePrefix = 'ORCHESTRATOR-',
-        persistenceEncryptionKey?: string,
-    ) {
-        let wasSyncSuccessful = await this.currentRunsState.sync(
-            `${persistencePrefix}${RUNS_KEY}`,
-            persistenceSupport,
-            persistenceEncryptionKey, // We need to encrypt this data because it includes Run IDs and URLs
-        );
-        if (this.enableFailedHistory) {
-            wasSyncSuccessful =
-                wasSyncSuccessful &&
-                (await this.failedRunsHistoryState.sync(
-                    `${persistencePrefix}${FAILED_RUNS_KEY}`,
-                    persistenceSupport,
-                    persistenceEncryptionKey, // We need to encrypt this data because it includes Run IDs and URLs
-                ));
-        }
-        if (!wasSyncSuccessful) {
-            this.logger.error('Some error happened while syncing the Orchestrator with the chosen support', {
-                persistenceSupport,
-            });
-        }
-        await this.itemsChangedCallback();
-    }
-
     get currentRuns() {
         return this.currentRunsState.value;
     }
@@ -102,7 +104,7 @@ export class RunsTracker {
         if (!runInfo) {
             return undefined;
         }
-        this.logger.prefixed(runName).info('Found existing tracked Run', {}, { url: runInfo.runUrl });
+        this.context.logger.prefixed(runName).info('Found existing tracked Run', {}, { url: runInfo.runUrl });
         return runInfo;
     }
 
@@ -128,12 +130,12 @@ export class RunsTracker {
 
         await this.currentRunsState.update((prev) => ({ ...prev, [runName]: runInfo }));
 
-        if (isRunFailStatus(status) && this.enableFailedHistory) {
+        if (isRunFailStatus(status) && this.options.enableFailedHistory) {
             await this.addOrUpdateFailedRun(runName, runInfo);
         }
 
         if (itemChanged) {
-            this.logger.prefixed(runName).info('Update Run', { status }, { url: runUrl });
+            this.context.logger.prefixed(runName).info('Update Run', { status }, { url: runUrl });
             await this.itemsChangedCallback(runName, run);
         }
 
@@ -146,8 +148,8 @@ export class RunsTracker {
             return;
         }
         runInfo.status = 'LOST';
-        this.logger.prefixed(runName).info('Lost Run', { reason }, { url: runInfo.runUrl });
-        if (this.enableFailedHistory) {
+        this.context.logger.prefixed(runName).info('Lost Run', { reason }, { url: runInfo.runUrl });
+        if (this.options.enableFailedHistory) {
             await this.addOrUpdateFailedRun(runName, runInfo);
         }
         await this.currentRunsState.update((prev) => {

@@ -28,9 +28,11 @@ describe('ExtActorClient', () => {
     beforeEach(async () => {
         vi.useFakeTimers();
         const logger = generateLogger({ enableLogs: false, hideSensitiveInformation: false });
-        const runsTracker = new RunsTracker(logger, false);
+        const runsTracker = await RunsTracker.new(
+            { logger },
+            { enableFailedHistory: false, persistenceSupport: 'none', persistencePrefix: 'TEST-' },
+        );
         context = { logger, runsTracker };
-        await context.runsTracker.init();
         options = {
             ...DEFAULT_ORCHESTRATOR_OPTIONS,
             enableLogs: false,

@@ -5,3 +5,7 @@ export interface OrchestratorContext {
     logger: Logger;
     runsTracker: RunsTracker;
 }
+
+export interface GlobalContext {
+    logger: Logger;
+}

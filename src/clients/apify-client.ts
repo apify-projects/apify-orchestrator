@@ -224,7 +224,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                 }
 
                 if (result.kind === RUN_STATUSES.RUN_STARTED) {
-                    await this.context.runTracker.updateRun(runName, result.run);
+                    this.context.runTracker.updateRun(runName, result.run);
                     for (const callback of nextRunRequest.startCallbacks) {
                         callback({ kind: RUN_STATUSES.RUN_STARTED, run: result.run });
                     }

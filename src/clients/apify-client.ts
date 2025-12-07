@@ -3,7 +3,7 @@ import type { ActorRun, ApifyClientOptions, RunClient } from 'apify-client';
 
 import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
 import { InsufficientActorJobsError, InsufficientMemoryError } from '../errors.js';
-import { isRunOkStatus } from '../tracker.js';
+import { isRunOkStatus } from '../tracking/run-tracker.js';
 import type { DatasetItem, ExtendedApifyClient, RunRecord } from '../types.js';
 import { parseStartRunError } from '../utils/apify-client.js';
 import type { OrchestratorContext } from '../utils/context.js';
@@ -207,7 +207,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                 }
 
                 if (result.kind === RUN_STATUSES.RUN_STARTED) {
-                    await this.context.runTracker.updateRun(runName, result.run);
+                    this.context.runTracker.updateRun(runName, result.run);
                     for (const callback of nextRunRequest.startCallbacks) {
                         callback({ kind: RUN_STATUSES.RUN_STARTED, run: result.run });
                     }

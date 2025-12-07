@@ -1,11 +1,10 @@
 import { DatasetClient } from 'apify-client';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
 import type { ExtDatasetClient } from 'src/clients/dataset-client.js';
-import { DEFAULT_ORCHESTRATOR_OPTIONS } from 'src/constants.js';
-import { RunTracker } from 'src/tracker.js';
+import { buildRunTrackerForOrchestrator } from 'src/tracking/builder.js';
 import type { DatasetItem, OrchestratorOptions } from 'src/types.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
-import { generateLogger } from 'src/utils/logging.js';
+import { getTestGlobalContext, getTestOptions } from 'test/_helpers/context.js';
 
 interface TestItem extends DatasetItem {
     title: string;
@@ -27,16 +26,11 @@ describe('ExtDatasetClient', () => {
 
     beforeEach(async () => {
         vi.useFakeTimers();
-        const logger = generateLogger({ enableLogs: false, hideSensitiveInformation: false });
-        const runTracker = await RunTracker.new(
-            { logger },
-            { enableFailedHistory: false, persistenceSupport: 'none', persistencePrefix: 'TEST-' },
-        );
+        options = getTestOptions();
+        const globalContext = getTestGlobalContext(options);
+        const { logger } = globalContext;
+        const runTracker = await buildRunTrackerForOrchestrator(globalContext, options);
         context = { logger, runTracker };
-        options = {
-            ...DEFAULT_ORCHESTRATOR_OPTIONS,
-            enableLogs: false,
-        };
         datasetClient = generateExtDatasetClient();
     });
 

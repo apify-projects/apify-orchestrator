@@ -2,11 +2,11 @@ import type { ActorRun, RunClient } from 'apify-client';
 import { ActorClient } from 'apify-client';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
 import { ExtRunClient } from 'src/clients/run-client.js';
-import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_COOLDOWN_MS } from 'src/constants.js';
-import { RunTracker } from 'src/tracker.js';
+import { MAIN_LOOP_COOLDOWN_MS } from 'src/constants.js';
+import { buildRunTrackerForOrchestrator } from 'src/tracking/builder.js';
 import type { OrchestratorOptions } from 'src/types.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
-import { generateLogger } from 'src/utils/logging.js';
+import { getTestGlobalContext, getTestOptions } from 'test/_helpers/context.js';
 
 describe('ExtActorClient', () => {
     let context: OrchestratorContext;
@@ -27,16 +27,11 @@ describe('ExtActorClient', () => {
 
     beforeEach(async () => {
         vi.useFakeTimers();
-        const logger = generateLogger({ enableLogs: false, hideSensitiveInformation: false });
-        const runTracker = await RunTracker.new(
-            { logger },
-            { enableFailedHistory: false, persistenceSupport: 'none', persistencePrefix: 'TEST-' },
-        );
+        options = getTestOptions();
+        const globalContext = getTestGlobalContext(options);
+        const { logger } = globalContext;
+        const runTracker = await buildRunTrackerForOrchestrator(globalContext, options);
         context = { logger, runTracker };
-        options = {
-            ...DEFAULT_ORCHESTRATOR_OPTIONS,
-            enableLogs: false,
-        };
     });
 
     afterEach(() => {
@@ -51,7 +46,7 @@ describe('ExtActorClient', () => {
 
             // Add an existing run to the tracker
             const existingRun = getMockRun('existing-run-id', 'RUNNING');
-            await context.runTracker.updateRun('test-run', existingRun);
+            context.runTracker.updateRun('test-run', existingRun);
 
             // Mock the RunClient.get method to return the existing run
             const getSpy = vi.spyOn(ExtRunClient.prototype, 'get').mockImplementation(async () => {
@@ -71,7 +66,7 @@ describe('ExtActorClient', () => {
 
             // Add an existing run to the tracker with FAILED status so it won't be reused
             const existingRun = getMockRun('existing-run-id', 'FAILED');
-            await context.runTracker.updateRun('test-run', existingRun);
+            context.runTracker.updateRun('test-run', existingRun);
 
             const newRun = getMockRun('new-run-id', 'READY');
             const startSpy = vi.spyOn(ActorClient.prototype, 'start').mockImplementation(async () => {
@@ -134,7 +129,7 @@ describe('ExtActorClient', () => {
 
             // Add an existing run to the tracker
             const existingRun = getMockRun('existing-run-id', 'RUNNING');
-            await context.runTracker.updateRun('test-run', existingRun);
+            context.runTracker.updateRun('test-run', existingRun);
 
             // Mock the RunClient.get method to return the existing run
             vi.spyOn(ExtRunClient.prototype, 'get').mockImplementation(async () => {
@@ -160,7 +155,7 @@ describe('ExtActorClient', () => {
 
             // Add an existing run to the tracker with FAILED status so it won't be reused
             const existingRun = getMockRun('existing-run-id', 'FAILED');
-            await context.runTracker.updateRun('test-run', existingRun);
+            context.runTracker.updateRun('test-run', existingRun);
 
             const newRun = getMockRun('new-run-id', 'READY');
             vi.spyOn(ActorClient.prototype, 'start').mockImplementation(async () => {
@@ -217,7 +212,7 @@ describe('ExtActorClient', () => {
 
             // Add a run to the tracker
             const trackedRun = getMockRun('tracked-run-id', 'SUCCEEDED');
-            await context.runTracker.updateRun('tracked-run', trackedRun);
+            context.runTracker.updateRun('tracked-run', trackedRun);
 
             // Mock the superClient's lastRun method
             const mockRunClient = {

@@ -4,10 +4,11 @@ import { ExtApifyClient } from 'src/clients/apify-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
 import { InsufficientActorJobsError, InsufficientMemoryError } from 'src/errors.js';
 import type { OrchestratorOptions } from 'src/index.js';
-import { RunTracker } from 'src/tracker.js';
+import { buildRunTrackerForOrchestrator } from 'src/tracking/builder.js';
 import { parseStartRunError } from 'src/utils/apify-client.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
-import { generateLogger } from 'src/utils/logging.js';
+
+import { getTestGlobalContext, getTestOptions } from './_helpers/context.js';
 
 vi.mock('src/utils/apify-client.js', async (importActual) => {
     return {
@@ -34,11 +35,10 @@ describe('retry on insufficient resources', () => {
 
     beforeEach(async () => {
         vi.useFakeTimers();
-        const logger = generateLogger({ enableLogs: false, hideSensitiveInformation: false });
-        const runTracker = await RunTracker.new(
-            { logger },
-            { enableFailedHistory: false, persistenceSupport: 'none', persistencePrefix: 'TEST-' },
-        );
+        options = getTestOptions();
+        const globalContext = getTestGlobalContext(options);
+        const { logger } = globalContext;
+        const runTracker = await buildRunTrackerForOrchestrator(globalContext, options);
         context = { logger, runTracker };
         options = {
             ...DEFAULT_ORCHESTRATOR_OPTIONS,

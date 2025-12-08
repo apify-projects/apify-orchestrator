@@ -113,5 +113,38 @@ describe('EncryptedKeyValueStore', () => {
                 }),
             );
         });
+
+        it('handles concurrent useState calls for the same key correctly', async () => {
+            const testValue = { counter: 50 };
+            const testKey = 'CONCURRENT_KEY';
+
+            let resolveGetValue: (value: string) => void;
+            const getValuePromise = new Promise<string>((resolve) => {
+                resolveGetValue = resolve;
+            });
+
+            vi.mocked(Actor.getValue).mockReturnValue(getValuePromise);
+
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
+
+            const promise1 = kvs.useState(testKey, { counter: 0 });
+            const promise2 = kvs.useState(testKey, { counter: 0 });
+            const promise3 = kvs.useState(testKey, { counter: 0 });
+
+            expect(Actor.getValue).toHaveBeenCalledTimes(3);
+
+            resolveGetValue(encryptString(JSON.stringify(testValue), encryptionKey));
+
+            const [state1, state2, state3] = await Promise.all([promise1, promise2, promise3]);
+
+            expect(state1).toBe(state2);
+            expect(state2).toBe(state3);
+            expect(state1).toEqual(testValue);
+
+            state1.counter += 1;
+
+            expect(state2.counter).toEqual(51);
+            expect(state3.counter).toEqual(51);
+        });
     });
 });

@@ -21,12 +21,15 @@ export class EncryptedKeyValueStore {
      * Reference: https://github.com/apify/crawlee/blob/649e2a4086556a8f9f5410a0253e773443d1060b/packages/core/src/storages/key_value_store.ts#L249
      */
     async useState<T extends Dictionary>(key: string, defaultValue: T): Promise<T> {
-        const cachedValue = this.cache.get(key) as T;
-        if (cachedValue) {
-            return cachedValue;
-        }
+        let cachedValue = this.cache.get(key) as T;
+        if (cachedValue) return cachedValue;
 
         const value = await this.getValue<T>(key, defaultValue);
+
+        // Check the cache again to avoid creating multiple states for the same key in concurrent scenarios.
+        cachedValue = this.cache.get(key) as T;
+        if (cachedValue) return cachedValue;
+
         this.cache.set(key, value);
 
         return value;

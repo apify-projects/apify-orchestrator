@@ -1,4 +1,4 @@
-import { Actor, ApifyClient, log } from 'apify';
+import { Actor, ApifyClient } from 'apify';
 import type { ActorRun, ApifyClientOptions, RunClient } from 'apify-client';
 
 import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
@@ -330,15 +330,16 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
 
     async abortAllRuns() {
         const currentRunNames = this.context.runTracker.getCurrentRunNames();
-        log.info('Aborting runs', { currentRunNames });
+        this.context.logger.info('Aborting Runs', { currentRunNames });
         await Promise.all(
             currentRunNames.map(async (runName) => {
                 const runInfo = this.context.runTracker.findRunByName(runName);
                 if (!runInfo) return;
                 try {
+                    this.context.logger.prefixed(runName).info('Aborting Run', {}, { url: runInfo.runUrl });
                     await this.trackedRun(runName, runInfo.runId).abort();
-                } catch (err) {
-                    log.exception(err as Error, 'Error aborting the Run', { runName });
+                } catch (error) {
+                    this.context.logger.prefixed(runName).error('Error aborting Run', { error });
                 }
             }),
         );

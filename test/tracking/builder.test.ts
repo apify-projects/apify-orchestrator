@@ -35,7 +35,10 @@ vi.mocked(FailedRunHistoryTracker).mockImplementation(function () {
 const encryptedKeyValueStoreMock = {
     useState: vi.fn(),
 } as unknown as EncryptedKeyValueStore;
-vi.spyOn(EncryptedKeyValueStore, 'new').mockResolvedValue(encryptedKeyValueStoreMock);
+// eslint-disable-next-line prefer-arrow-callback
+vi.mocked(EncryptedKeyValueStore).mockImplementation(function () {
+    return encryptedKeyValueStoreMock;
+});
 
 describe('buildRunTrackerForOrchestrator', () => {
     afterEach(() => {
@@ -49,7 +52,7 @@ describe('buildRunTrackerForOrchestrator', () => {
         const runTracker = await buildRunTrackerForOrchestrator(context, options);
 
         expect(Actor.useState).not.toHaveBeenCalled();
-        expect(EncryptedKeyValueStore.new).not.toHaveBeenCalled();
+        expect(EncryptedKeyValueStore).not.toHaveBeenCalled();
         expect(CurrentRunTracker).toHaveBeenCalledWith(context, {}, options.onUpdate);
         expect(FailedRunHistoryTracker).not.toHaveBeenCalled();
         expect(RunTracker).toHaveBeenCalledWith(context, expect.anything(), undefined);
@@ -107,7 +110,7 @@ describe('buildRunTrackerForOrchestrator', () => {
 
         const runTracker = await buildRunTrackerForOrchestrator(context, options);
 
-        expect(EncryptedKeyValueStore.new).toHaveBeenCalled();
+        expect(EncryptedKeyValueStore).toHaveBeenCalled();
         expect(CurrentRunTracker).toHaveBeenCalledWith(context, {}, options.onUpdate);
         expect(FailedRunHistoryTracker).toHaveBeenCalledWith(context, {});
         expect(RunTracker).toHaveBeenCalledWith(context, expect.anything(), expect.anything());

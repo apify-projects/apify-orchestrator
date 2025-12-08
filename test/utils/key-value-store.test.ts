@@ -1,12 +1,13 @@
 import { Actor, KeyValueStore } from 'apify';
 import { encryptString, processEncryptionKey } from 'src/utils/encryption.js';
 import { EncryptedKeyValueStore } from 'src/utils/key-value-store.js';
-import { getTestGlobalContext, getTestOptions } from 'test/_helpers/context.js';
+import { generateLogger } from 'src/utils/logging.js';
+import { getTestOptions } from 'test/_helpers/context.js';
 import { describe, expect, it, vi } from 'vitest';
 
 describe('EncryptedKeyValueStore', () => {
     const options = getTestOptions();
-    const context = getTestGlobalContext(options);
+    const logger = generateLogger(options);
 
     const secret = 'test-encryption-key';
     const encryptionKey = processEncryptionKey(secret);
@@ -19,7 +20,7 @@ describe('EncryptedKeyValueStore', () => {
                 .spyOn(KeyValueStore.prototype, 'getValue')
                 .mockResolvedValue(encryptString(JSON.stringify(testValue), encryptionKey));
 
-            const kvs = await EncryptedKeyValueStore.new(context, encryptionKey);
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
             const testKey = 'TEST_KEY';
 
             const state = await kvs.useState<{ counter: number }>(testKey, { counter: 0 });
@@ -30,7 +31,7 @@ describe('EncryptedKeyValueStore', () => {
         it('returns default value when key does not exist', async () => {
             const getValueSpy = vi.spyOn(KeyValueStore.prototype, 'getValue').mockResolvedValue(null);
 
-            const kvs = await EncryptedKeyValueStore.new(context, encryptionKey);
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
             const testKey = 'NON_EXISTENT_KEY';
             const defaultValue = { message: 'Hello, World!' };
 
@@ -45,7 +46,7 @@ describe('EncryptedKeyValueStore', () => {
 
             const getValueSpy = vi.spyOn(KeyValueStore.prototype, 'getValue').mockResolvedValue(invalidEncryptedData);
 
-            const kvs = await EncryptedKeyValueStore.new(context, encryptionKey);
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
             const testKey = 'INVALID_ENCRYPTED_KEY';
             const defaultValue = { message: 'Hello, World!' };
 
@@ -58,7 +59,7 @@ describe('EncryptedKeyValueStore', () => {
             const testValue = { counter: 100 };
             const testKey = 'CACHED_KEY';
 
-            const kvs = await EncryptedKeyValueStore.new(context, encryptionKey);
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
 
             const state1 = await kvs.useState(testKey, testValue);
 
@@ -80,7 +81,7 @@ describe('EncryptedKeyValueStore', () => {
                 persistCallback = callback as () => Promise<void>;
             });
 
-            const kvs = await EncryptedKeyValueStore.new(context, encryptionKey);
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
 
             expect(onSpy).toHaveBeenCalledWith('persistState', expect.any(Function));
 

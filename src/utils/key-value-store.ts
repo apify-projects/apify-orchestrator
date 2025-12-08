@@ -1,43 +1,19 @@
-import type { KeyValueStore, RecordOptions } from 'apify';
+import type { RecordOptions } from 'apify';
 import { Actor } from 'apify';
 import type { Dictionary } from 'crawlee';
 
-import type { GlobalContext } from './context.js';
 import type { EncryptionKey } from './encryption.js';
 import { decryptString, encryptString } from './encryption.js';
+import type { Logger } from './logging.js';
 
 export class EncryptedKeyValueStore {
     protected readonly cache = new Map<string, Dictionary>();
 
-    protected constructor(
-        protected readonly context: GlobalContext,
-        protected readonly keyValueStore: KeyValueStore,
+    constructor(
+        protected readonly logger: Logger,
         protected readonly encryptionKey: EncryptionKey,
     ) {
-        const persistStateIntervalMs = keyValueStore.config.get('persistStateIntervalMillis');
-        const timeoutSecs = persistStateIntervalMs ? persistStateIntervalMs / 1_000 / 2 : undefined;
-
-        Actor.on('persistState', async () => {
-            const promises: Promise<void>[] = [];
-
-            for (const [key, value] of this.cache) {
-                promises.push(
-                    this.setValue(key, value, {
-                        timeoutSecs,
-                        doNotRetryTimeouts: true,
-                    }).catch((error) =>
-                        this.context.logger.warning(`Failed to persist the state value to ${key}`, { error }),
-                    ),
-                );
-            }
-
-            await Promise.all(promises);
-        });
-    }
-
-    static async new(context: GlobalContext, encryptionKey: EncryptionKey) {
-        const keyValueStore = await Actor.openKeyValueStore();
-        return new EncryptedKeyValueStore(context, keyValueStore, encryptionKey);
+        Actor.on('persistState', this.persistCache.bind(this));
     }
 
     async useState<T extends Dictionary>(key: string, defaultValue: T): Promise<T> {
@@ -53,7 +29,7 @@ export class EncryptedKeyValueStore {
     }
 
     protected async getValue<T extends Dictionary>(key: string, defaultValue: T): Promise<T> {
-        const encryptedValue = await this.keyValueStore.getValue<string>(key);
+        const encryptedValue = await Actor.getValue<string>(key);
 
         if (encryptedValue == null) {
             return defaultValue;
@@ -63,7 +39,7 @@ export class EncryptedKeyValueStore {
             const decryptedValue = decryptString(encryptedValue, this.encryptionKey);
             return JSON.parse(decryptedValue) as T;
         } catch (error) {
-            this.context.logger.error(`Unable to decrypt key: "${key}". Possibly the wrong secret key is used?`, {
+            this.logger.error(`Unable to decrypt key: "${key}". Possibly the wrong secret key is used?`, {
                 error,
             });
             return defaultValue;
@@ -76,10 +52,29 @@ export class EncryptedKeyValueStore {
         options?: RecordOptions,
     ): Promise<void> {
         if (value === null) {
-            return await this.keyValueStore.setValue(key, null, options);
+            return await Actor.setValue(key, null, options);
         }
+
         const stringifiedValue = JSON.stringify(value);
         const encryptedValue = encryptString(stringifiedValue, this.encryptionKey);
-        return await this.keyValueStore.setValue(key, encryptedValue, options);
+        return await Actor.setValue(key, encryptedValue, options);
+    }
+
+    protected async persistCache(): Promise<void> {
+        const persistStateIntervalMs = Actor.config.get('persistStateIntervalMillis');
+        const timeoutSecs = persistStateIntervalMs ? persistStateIntervalMs / 1_000 / 2 : undefined;
+
+        const promises: Promise<void>[] = [];
+
+        for (const [key, value] of this.cache) {
+            promises.push(
+                this.setValue(key, value, {
+                    timeoutSecs,
+                    doNotRetryTimeouts: true,
+                }).catch((error) => this.logger.warning(`Failed to persist the state value to ${key}`, { error })),
+            );
+        }
+
+        await Promise.all(promises);
     }
 }

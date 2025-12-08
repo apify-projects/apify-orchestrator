@@ -121,7 +121,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     protected findStartedRun(runName: string): ExtRunClient | undefined {
-        const startedRunInfo = this.context.runTracker.currentRuns[runName];
+        const startedRunInfo = this.context.runTracker.findRunByName(runName);
         if (startedRunInfo) {
             return this.trackedRun(runName, startedRunInfo.runId);
         }
@@ -329,9 +329,12 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     async abortAllRuns() {
-        log.info('Aborting runs', this.context.runTracker.currentRuns);
+        const currentRunNames = this.context.runTracker.getCurrentRunNames();
+        log.info('Aborting runs', { currentRunNames });
         await Promise.all(
-            Object.entries(this.context.runTracker.currentRuns).map(async ([runName, runInfo]) => {
+            currentRunNames.map(async (runName) => {
+                const runInfo = this.context.runTracker.findRunByName(runName);
+                if (!runInfo) return;
                 try {
                     await this.trackedRun(runName, runInfo.runId).abort();
                 } catch (err) {

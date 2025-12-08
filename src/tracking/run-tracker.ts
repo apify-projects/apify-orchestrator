@@ -3,7 +3,7 @@ import { isRunFailStatus } from 'src/utils/apify-client.js';
 
 import type { RunInfo } from '../types.js';
 import type { GlobalContext } from '../utils/context.js';
-import type { CurrentRuns, CurrentRunTracker } from './current-run-tracker.js';
+import type { CurrentRunTracker } from './current-run-tracker.js';
 import type { FailedRunHistoryTracker } from './failed-run-history-tracker.js';
 
 export class RunTracker {
@@ -13,8 +13,8 @@ export class RunTracker {
         protected readonly failedRunHistoryTracker?: FailedRunHistoryTracker,
     ) {}
 
-    get currentRuns(): CurrentRuns {
-        return this.currentRunTracker.currentRuns;
+    getCurrentRunNames(): string[] {
+        return this.currentRunTracker.getCurrentRunNames();
     }
 
     findRunByName(runName: string): RunInfo | undefined {

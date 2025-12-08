@@ -30,6 +30,7 @@ describe('CurrentRunTracker', () => {
 
         const foundRunName = currentRunTracker.findRunName(actorRunMock.id);
         expect(foundRunName).toBe(runName);
+        expect(currentRunTracker.getCurrentRunNames()).toEqual([runName]);
     });
 
     it('calls the callback on updates', async () => {

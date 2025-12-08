@@ -253,25 +253,24 @@ describe('ExtApifyClient', () => {
 
             expect(waitForFinishSpy).toHaveBeenCalledTimes(3);
             expect(runRecord).toEqual(expectedRunRecord);
-            expect(context.runTracker.currentRuns).toEqual({
-                'test-run-1': {
-                    runId: 'test-id-1',
-                    runUrl: 'https://console.apify.com/actors/runs/test-id-1',
-                    status: 'SUCCEEDED',
-                    startedAt: mockDate.toISOString(),
-                },
-                'test-run-2': {
-                    runId: 'test-id-2',
-                    runUrl: 'https://console.apify.com/actors/runs/test-id-2',
-                    status: 'SUCCEEDED',
-                    startedAt: mockDate.toISOString(),
-                },
-                'test-run-3': {
-                    runId: 'test-id-3',
-                    runUrl: 'https://console.apify.com/actors/runs/test-id-3',
-                    status: 'SUCCEEDED',
-                    startedAt: mockDate.toISOString(),
-                },
+            expect(context.runTracker.getCurrentRunNames()).toEqual(['test-run-1', 'test-run-2', 'test-run-3']);
+            expect(context.runTracker.findRunByName('test-run-1')).toEqual({
+                runId: 'test-id-1',
+                runUrl: 'https://console.apify.com/actors/runs/test-id-1',
+                status: 'SUCCEEDED',
+                startedAt: mockDate.toISOString(),
+            });
+            expect(context.runTracker.findRunByName('test-run-2')).toEqual({
+                runId: 'test-id-2',
+                runUrl: 'https://console.apify.com/actors/runs/test-id-2',
+                status: 'SUCCEEDED',
+                startedAt: mockDate.toISOString(),
+            });
+            expect(context.runTracker.findRunByName('test-run-3')).toEqual({
+                runId: 'test-id-3',
+                runUrl: 'https://console.apify.com/actors/runs/test-id-3',
+                status: 'SUCCEEDED',
+                startedAt: mockDate.toISOString(),
             });
 
             await client.waitForBatchFinish(['test-run-1', 'test-run-2', 'test-run-3']);

@@ -80,6 +80,8 @@ async function buildFailedRunHistoryTracker(
     options: OrchestratorOptions,
     storage?: Storage,
 ): Promise<FailedRunHistoryTracker | undefined> {
+    // Since failed runs are only stored and never read by the orchestrator itself, we skip initializing the tracker if
+    // the user does not want to store information or sensitive information.
     if (options.hideSensitiveInformation || !storage) {
         return undefined;
     }

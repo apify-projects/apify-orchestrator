@@ -16,6 +16,10 @@ export class EncryptedKeyValueStore {
         Actor.on('persistState', this.persistCache.bind(this));
     }
 
+    /**
+     * Mimics Crawlee's `KeyValueStore.prototype.getAutoSavedValue` method, with encryption support.
+     * Reference: https://github.com/apify/crawlee/blob/649e2a4086556a8f9f5410a0253e773443d1060b/packages/core/src/storages/key_value_store.ts#L249
+     */
     async useState<T extends Dictionary>(key: string, defaultValue: T): Promise<T> {
         const cachedValue = this.cache.get(key) as T;
         if (cachedValue) {

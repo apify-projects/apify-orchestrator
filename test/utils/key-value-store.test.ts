@@ -1,13 +1,13 @@
 import { Actor, KeyValueStore } from 'apify';
 import { encryptString, processEncryptionKey } from 'src/utils/encryption.js';
 import { EncryptedKeyValueStore } from 'src/utils/key-value-store.js';
-import { generateLogger } from 'src/utils/logging.js';
+import { buildLogger } from 'src/utils/logging.js';
 import { getTestOptions } from 'test/_helpers/context.js';
 import { describe, expect, it, vi } from 'vitest';
 
 describe('EncryptedKeyValueStore', () => {
     const options = getTestOptions();
-    const logger = generateLogger(options);
+    const logger = buildLogger(options);
 
     const secret = 'test-encryption-key';
     const encryptionKey = processEncryptionKey(secret);

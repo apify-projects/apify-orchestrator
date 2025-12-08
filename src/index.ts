@@ -13,7 +13,7 @@ import type {
     OrchestratorOptions,
 } from './types.js';
 import type { GlobalContext, OrchestratorContext } from './utils/context.js';
-import { generateLogger } from './utils/logging.js';
+import { buildLogger } from './utils/logging.js';
 import { makeNameUnique } from './utils/naming.js';
 import { buildStorage } from './utils/storage.js';
 
@@ -33,11 +33,8 @@ export class Orchestrator implements ApifyOrchestrator {
         takenPersistPrefixes.add(fullOptions.persistencePrefix);
         this.options = fullOptions;
 
-        const { enableLogs, hideSensitiveInformation } = this.options;
-        const logger = generateLogger({ enableLogs, hideSensitiveInformation });
-
+        const logger = buildLogger(this.options);
         const storage = buildStorage(logger, this.options);
-
         this.context = { logger, storage };
     }
 

@@ -6,7 +6,7 @@ import { ExtDatasetClient } from 'src/clients/dataset-client.js';
 import { ExtRunClient } from 'src/clients/run-client.js';
 import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
 import { InsufficientMemoryError, type OrchestratorOptions } from 'src/index.js';
-import { buildRunTrackerForOrchestrator } from 'src/tracking/builder.js';
+import { RunTracker } from 'src/run-tracker.js';
 import { parseStartRunError } from 'src/utils/apify-client.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
 import { getTestGlobalContext, getTestOptions } from 'test/_helpers/context.js';
@@ -40,7 +40,7 @@ describe('ExtApifyClient', () => {
         options = getTestOptions();
         const globalContext = getTestGlobalContext(options);
         const { logger } = globalContext;
-        const runTracker = await buildRunTrackerForOrchestrator(globalContext, options);
+        const runTracker = await RunTracker.new(globalContext);
         context = { logger, runTracker };
     });
 

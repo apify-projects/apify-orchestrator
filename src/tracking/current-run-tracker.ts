@@ -1,4 +1,5 @@
 import type { ActorRun } from 'apify-client';
+import { getRunUrl } from 'src/utils/apify-console.js';
 
 import type { RunInfo, UpdateCallback } from '../types.js';
 import type { GlobalContext } from '../utils/context.js';
@@ -38,7 +39,7 @@ export class CurrentRunTracker {
     }
 
     addOrUpdateRun(runName: string, run: ActorRun): RunInfo {
-        const runInfo = makeRunInfo(run);
+        const runInfo = buildRunInfo(run);
         const hasChanged = hasRunChanged(this.currentRuns[runName], runInfo);
         this.currentRuns[runName] = runInfo;
         if (hasChanged) {
@@ -68,9 +69,7 @@ export class CurrentRunTracker {
     }
 }
 
-const getRunUrl = (runId: string) => `https://console.apify.com/actors/runs/${runId}`;
-
-function makeRunInfo(run: ActorRun): RunInfo {
+function buildRunInfo(run: ActorRun): RunInfo {
     const { id: runId, status, startedAt } = run;
     const runUrl = getRunUrl(runId);
     const formattedStartedAt = startedAt.toISOString();

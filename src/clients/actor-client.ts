@@ -1,5 +1,6 @@
 import type { ActorCallOptions, ActorLastRunOptions, ActorRun, ActorStartOptions } from 'apify-client';
 import { ActorClient, RunClient } from 'apify-client';
+import { isRunOkStatus } from 'src/utils/apify-client.js';
 
 import { DEFAULT_SPLIT_RULES, RUN_STATUSES } from '../constants.js';
 import { isRunOkStatus } from '../tracker.js';

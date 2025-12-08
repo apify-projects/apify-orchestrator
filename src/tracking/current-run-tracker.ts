@@ -37,11 +37,6 @@ export class CurrentRunTracker {
         return undefined;
     }
 
-    hasRunChanged(runName: string, runInfo: RunInfo): boolean {
-        const existingRunInfo = this.currentRuns[runName];
-        return !existingRunInfo || existingRunInfo.runId !== runInfo.runId || existingRunInfo.status !== runInfo.status;
-    }
-
     addOrUpdateRun(runName: string, run: ActorRun): RunInfo {
         const runInfo = buildRunInfo(run);
         const hasChanged = hasRunChanged(this.currentRuns[runName], runInfo);

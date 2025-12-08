@@ -8,14 +8,20 @@ describe('CurrentRunTracker', () => {
     const options = getTestOptions();
     const context = getTestGlobalContext(options);
 
+    const runName = 'test-run-1';
+    const runInfo: RunInfo = {
+        runId: actorRunMock.id,
+        runUrl: `https://test.com/${actorRunMock.id}`,
+        status: actorRunMock.status,
+        startedAt: actorRunMock.startedAt.toISOString(),
+    };
+
     afterEach(() => {
         vi.clearAllMocks();
     });
 
     it('tracks and retrieves runs correctly', async () => {
         const currentRunTracker = new CurrentRunTracker(context, {});
-
-        const runName = 'test-run-1';
 
         currentRunTracker.addOrUpdateRun(runName, actorRunMock);
 
@@ -34,17 +40,8 @@ describe('CurrentRunTracker', () => {
     });
 
     it('calls the callback on updates', async () => {
-        const initialRuns = {
-            'test-run-1': {
-                runId: 'test-run-1',
-                runUrl: 'https://test.com/test-run-1',
-                status: 'SUCCEEDED',
-                startedAt: new Date().toISOString(),
-            },
-        };
-
+        const initialRuns = { [runName]: runInfo };
         const onUpdateMock = vi.fn();
-
         const currentRunTracker = new CurrentRunTracker(context, initialRuns, onUpdateMock);
 
         expect(onUpdateMock).toHaveBeenCalledWith(initialRuns, undefined, undefined);
@@ -53,7 +50,7 @@ describe('CurrentRunTracker', () => {
 
         expect(onUpdateMock).toHaveBeenCalledWith(
             expect.objectContaining({
-                'test-run-1': initialRuns['test-run-1'],
+                [runName]: runInfo,
                 'test-run-2': expect.objectContaining({
                     runId: actorRunMock.id,
                     status: actorRunMock.status,
@@ -65,39 +62,24 @@ describe('CurrentRunTracker', () => {
         );
     });
 
-    describe('hasRunChanged', () => {
-        it('returns true for a new run', async () => {
-            const currentRunTracker = new CurrentRunTracker(context, {});
-            const runName = 'test-run-1';
-            const runInfo: RunInfo = {
-                runId: actorRunMock.id,
-                runUrl: `https://test.com/${actorRunMock.id}`,
-                status: actorRunMock.status,
-                startedAt: actorRunMock.startedAt.toISOString(),
-            };
-            const changed = currentRunTracker.hasRunChanged(runName, runInfo);
-            expect(changed).toBe(true);
-        });
+    it('does not call the callback if there are no changes', async () => {
+        const onUpdateMock = vi.fn();
+        const currentRunTracker = new CurrentRunTracker(context, {}, onUpdateMock);
 
-        it('returns false for an unchanged run', async () => {
-            const currentRunTracker = new CurrentRunTracker(context, {});
-            const runName = 'test-run-1';
-            const runInfo: RunInfo = {
-                runId: actorRunMock.id,
-                runUrl: `https://test.com/${actorRunMock.id}`,
-                status: actorRunMock.status,
-                startedAt: actorRunMock.startedAt.toISOString(),
-            };
-            currentRunTracker.addOrUpdateRun(runName, actorRunMock);
-            const changed = currentRunTracker.hasRunChanged(runName, runInfo);
-            expect(changed).toBe(false);
-        });
+        expect(onUpdateMock).toHaveBeenCalledTimes(1);
+
+        currentRunTracker.addOrUpdateRun('test-run-1', actorRunMock);
+
+        expect(onUpdateMock).toHaveBeenCalledTimes(2);
+
+        currentRunTracker.addOrUpdateRun('test-run-1', actorRunMock); // same run data
+
+        expect(onUpdateMock).toHaveBeenCalledTimes(2); // no changes, no new call
     });
 
     describe('findAndDeleteRun', () => {
         it('deletes an existing run', async () => {
             const currentRunTracker = new CurrentRunTracker(context, {});
-            const runName = 'test-run-1';
             currentRunTracker.addOrUpdateRun(runName, actorRunMock);
             const deletedRun = currentRunTracker.findAndDeleteRun(runName);
             expect(deletedRun).toEqual(

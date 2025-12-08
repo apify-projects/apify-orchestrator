@@ -11,10 +11,6 @@ describe('EncryptedKeyValueStore', () => {
     const secret = 'test-encryption-key';
     const encryptionKey = processEncryptionKey(secret);
 
-    // afterEach(() => {
-    //     vi.clearAllMocks();
-    // })
-
     describe('useState', () => {
         it('restores state correctly', async () => {
             const testValue = { counter: 42 };
@@ -92,7 +88,13 @@ describe('EncryptedKeyValueStore', () => {
 
             await persistCallback();
 
-            expect(setValueSpy).toHaveBeenCalledWith(testKey, expect.any(String));
+            expect(setValueSpy).toHaveBeenCalledWith(
+                testKey,
+                expect.any(String),
+                expect.objectContaining({
+                    timeoutSecs: expect.any(Number),
+                }),
+            );
         });
     });
 });

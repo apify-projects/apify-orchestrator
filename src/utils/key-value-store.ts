@@ -80,6 +80,6 @@ export class EncryptedKeyValueStore {
         }
         const stringifiedValue = JSON.stringify(value);
         const encryptedValue = encryptString(stringifiedValue, this.encryptionKey);
-        return await this.keyValueStore.setValue(key, encryptedValue);
+        return await this.keyValueStore.setValue(key, encryptedValue, options);
     }
 }

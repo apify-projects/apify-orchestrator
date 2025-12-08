@@ -15,6 +15,7 @@ import type {
 import type { GlobalContext, OrchestratorContext } from './utils/context.js';
 import { generateLogger } from './utils/logging.js';
 import { makeNameUnique } from './utils/naming.js';
+import { buildStorage } from './utils/storage.js';
 
 export * from './types.js';
 export * from './errors.js';
@@ -33,9 +34,11 @@ export class Orchestrator implements ApifyOrchestrator {
         this.options = fullOptions;
 
         const { enableLogs, hideSensitiveInformation } = this.options;
-        this.context = {
-            logger: generateLogger({ enableLogs, hideSensitiveInformation }),
-        };
+        const logger = generateLogger({ enableLogs, hideSensitiveInformation });
+
+        const storage = buildStorage(logger, this.options);
+
+        this.context = { logger, storage };
     }
 
     async apifyClient(options: ExtendedClientOptions = {}): Promise<ExtendedApifyClient> {

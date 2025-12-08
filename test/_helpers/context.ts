@@ -1,6 +1,7 @@
 import type { OrchestratorOptions } from 'src/types.js';
 import type { GlobalContext } from 'src/utils/context.js';
 import { generateLogger } from 'src/utils/logging.js';
+import { buildStorage } from 'src/utils/storage.js';
 
 const DEFAULT_TEST_OPTIONS: OrchestratorOptions = {
     enableLogs: false,
@@ -16,8 +17,7 @@ export function getTestOptions(overrides?: Partial<OrchestratorOptions>): Orches
 }
 
 export function getTestGlobalContext(options: OrchestratorOptions): GlobalContext {
-    const context: GlobalContext = {
-        logger: generateLogger(options),
-    };
-    return context;
+    const logger = generateLogger(options);
+    const storage = buildStorage(logger, options);
+    return { logger, storage };
 }

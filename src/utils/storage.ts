@@ -1,7 +1,7 @@
 import { Actor } from 'apify';
 import type { Dictionary } from 'crawlee';
-import type { OrchestratorOptions } from 'src/types.js';
 
+import type { OrchestratorOptions } from '../types.js';
 import type { EncryptionKey } from './encryption.js';
 import { processEncryptionKey } from './encryption.js';
 import { EncryptedKeyValueStore } from './key-value-store.js';

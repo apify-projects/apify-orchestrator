@@ -9,10 +9,14 @@ export type CurrentRuns = { [runName: string]: RunInfo };
 export class CurrentRunTracker {
     constructor(
         protected readonly context: GlobalContext,
-        readonly currentRuns: CurrentRuns,
+        protected readonly currentRuns: CurrentRuns,
         protected readonly onUpdate?: UpdateCallback,
     ) {
         this.itemsChangedCallback();
+    }
+
+    getCurrentRunNames(): string[] {
+        return Object.keys(this.currentRuns);
     }
 
     findRunByName(runName: string): RunInfo | undefined {

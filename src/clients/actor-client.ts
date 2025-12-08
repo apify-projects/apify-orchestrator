@@ -1,8 +1,8 @@
 import type { ActorCallOptions, ActorLastRunOptions, ActorRun, ActorStartOptions } from 'apify-client';
 import { ActorClient, RunClient } from 'apify-client';
+import { isRunOkStatus } from 'src/utils/apify-client.js';
 
 import { APIFY_PAYLOAD_BYTES_LIMIT } from '../constants.js';
-import { isRunOkStatus } from '../tracking/run-tracker.js';
 import type { ActorRunRequest, ExtendedActorClient, ExtendedRunClient, RunRecord, SplitRules } from '../types.js';
 import { splitIntoChunksWithMaxSize, strBytes } from '../utils/bytes.js';
 import type { OrchestratorContext } from '../utils/context.js';

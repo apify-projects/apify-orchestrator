@@ -23,3 +23,19 @@ export async function parseStartRunError(
     }
     return new Error(`Unknown error occurred while starting the run: ${runName}`);
 }
+
+// We define both OK and FAIL statuses for better type safety: an unknown status is neither.
+
+const OK_STATUSES = ['READY', 'RUNNING', 'SUCCEEDED'] as const;
+const FAIL_STATUSES = ['FAILED', 'ABORTING', 'ABORTED', 'TIMING-OUT', 'TIMED-OUT'] as const;
+
+type RunOkStatus = (typeof OK_STATUSES)[number];
+type RunFailStatus = (typeof FAIL_STATUSES)[number];
+
+export function isRunOkStatus(status: string): status is RunOkStatus {
+    return OK_STATUSES.includes(status as RunOkStatus);
+}
+
+export function isRunFailStatus(status: string): status is RunFailStatus {
+    return FAIL_STATUSES.includes(status as RunFailStatus);
+}

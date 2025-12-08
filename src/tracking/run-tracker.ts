@@ -1,23 +1,10 @@
 import type { ActorRun } from 'apify-client';
+import { isRunFailStatus } from 'src/utils/apify-client.js';
 
 import type { RunInfo } from '../types.js';
 import type { GlobalContext } from '../utils/context.js';
 import type { CurrentRuns, CurrentRunTracker } from './current-run-tracker.js';
 import type { FailedRunHistoryTracker } from './failed-run-history-tracker.js';
-
-const OK_STATUSES = ['READY', 'RUNNING', 'SUCCEEDED'] as const;
-const FAIL_STATUSES = ['FAILED', 'ABORTING', 'ABORTED', 'TIMING-OUT', 'TIMED-OUT'] as const;
-
-type RunOkStatus = (typeof OK_STATUSES)[number];
-type RunFailStatus = (typeof FAIL_STATUSES)[number];
-
-export function isRunOkStatus(status: string): status is RunOkStatus {
-    return OK_STATUSES.includes(status as RunOkStatus);
-}
-
-export function isRunFailStatus(status: string): status is RunFailStatus {
-    return FAIL_STATUSES.includes(status as RunFailStatus);
-}
 
 export class RunTracker {
     constructor(

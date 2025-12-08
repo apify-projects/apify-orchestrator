@@ -1,7 +1,7 @@
 import type { ActorRun } from 'apify-client';
-import { isRunFailStatus } from 'src/utils/apify-client.js';
 
 import type { RunInfo } from '../types.js';
+import { isRunFailStatus } from '../utils/apify-client.js';
 import type { GlobalContext } from '../utils/context.js';
 import type { CurrentRunTracker } from './current-run-tracker.js';
 import type { FailedRunHistoryTracker } from './failed-run-history-tracker.js';

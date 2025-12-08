@@ -1,7 +1,7 @@
 import type { ActorRun } from 'apify-client';
-import { getRunUrl } from 'src/utils/apify-console.js';
 
 import type { RunInfo, UpdateCallback } from '../types.js';
+import { getRunUrl } from '../utils/apify-console.js';
 import type { GlobalContext } from '../utils/context.js';
 
 export type CurrentRuns = { [runName: string]: RunInfo };

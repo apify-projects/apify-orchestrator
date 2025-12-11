@@ -7,11 +7,11 @@ import { decryptString, encryptString } from './encryption.js';
 import type { Logger } from './logging.js';
 
 export class EncryptedKeyValueStore {
-    protected readonly cache = new Map<string, Dictionary>();
+    private readonly cache = new Map<string, Dictionary>();
 
     constructor(
-        protected readonly logger: Logger,
-        protected readonly encryptionKey: EncryptionKey,
+        private readonly logger: Logger,
+        private readonly encryptionKey: EncryptionKey,
     ) {
         Actor.on('persistState', this.persistCache.bind(this));
     }
@@ -35,7 +35,7 @@ export class EncryptedKeyValueStore {
         return value;
     }
 
-    protected async getValue<T extends Dictionary>(key: string, defaultValue: T): Promise<T> {
+    private async getValue<T extends Dictionary>(key: string, defaultValue: T): Promise<T> {
         const encryptedValue = await Actor.getValue<string>(key);
 
         if (encryptedValue == null) {
@@ -53,11 +53,7 @@ export class EncryptedKeyValueStore {
         }
     }
 
-    protected async setValue<T extends Dictionary>(
-        key: string,
-        value: T | null,
-        options?: RecordOptions,
-    ): Promise<void> {
+    private async setValue<T extends Dictionary>(key: string, value: T | null, options?: RecordOptions): Promise<void> {
         if (value === null) {
             return await Actor.setValue(key, null, options);
         }
@@ -67,7 +63,7 @@ export class EncryptedKeyValueStore {
         return await Actor.setValue(key, encryptedValue, options);
     }
 
-    protected async persistCache(): Promise<void> {
+    private async persistCache(): Promise<void> {
         const persistStateIntervalMs = Actor.config.get('persistStateIntervalMillis');
         const timeoutSecs = persistStateIntervalMs ? persistStateIntervalMs / 1_000 / 2 : undefined;
 

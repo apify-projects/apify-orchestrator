@@ -1,6 +1,5 @@
 import type { RunTracker } from '../run-tracker.js';
 import type { Logger } from './logging.js';
-import type { Storage } from './storage.js';
 
 /**
  * @deprecated `runTracker` should not be in the global context, because there is one tracker per Apify client.
@@ -13,5 +12,4 @@ export interface OrchestratorContext {
 
 export interface GlobalContext {
     logger: Logger;
-    storage?: Storage;
 }

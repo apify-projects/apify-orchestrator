@@ -4,6 +4,7 @@ import { getRunUrl } from 'src/utils/apify-console.js';
 import type { RunInfo, UpdateCallback } from './types.js';
 import { isRunFailStatus } from './utils/apify-client.js';
 import type { GlobalContext } from './utils/context.js';
+import type { Storage } from './utils/storage.js';
 
 const TRACKED_RUNS_KEY = 'RUNS';
 
@@ -12,6 +13,12 @@ type RunInfoRecord = { [runName: string]: RunInfo };
 interface TrackedRuns {
     current: RunInfoRecord;
     failedHistory: { [runName: string]: RunInfo[] };
+}
+
+export interface RunTrackerOptions {
+    storage?: Storage;
+    storagePrefix?: string;
+    onUpdate?: UpdateCallback;
 }
 
 export class RunTracker {
@@ -23,11 +30,12 @@ export class RunTracker {
         this.itemsChangedCallback();
     }
 
-    static async new(context: GlobalContext, onUpdate?: UpdateCallback): Promise<RunTracker> {
+    static async new(context: GlobalContext, options?: RunTrackerOptions): Promise<RunTracker> {
         const defaultTrackedRuns = getDefaultTrackedRuns();
+        const storageKey = `${options?.storagePrefix ?? ''}${TRACKED_RUNS_KEY}`;
         const trackedRuns =
-            (await context.storage?.useState<TrackedRuns>(TRACKED_RUNS_KEY, defaultTrackedRuns)) ?? defaultTrackedRuns;
-        return new RunTracker(context, trackedRuns, onUpdate);
+            (await options?.storage?.useState<TrackedRuns>(storageKey, defaultTrackedRuns)) ?? defaultTrackedRuns;
+        return new RunTracker(context, trackedRuns, options?.onUpdate);
     }
 
     getCurrentRunNames(): string[] {

@@ -1,7 +1,7 @@
 import type { ActorRun } from 'apify-client';
 import { RunTracker } from 'src/run-tracker.js';
 import { buildLogger } from 'src/utils/logging.js';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { getTestOptions } from './_helpers/context.js';
 import { actorRunMock, storageMock } from './_helpers/mocks.js';
@@ -25,10 +25,6 @@ describe('RunTracker', async () => {
         failedHistory: {},
     };
 
-    beforeEach(() => {
-        vi.mocked(storageMock.useState).mockImplementation(async (_key, defaultValue) => defaultValue);
-    });
-
     afterEach(() => {
         vi.clearAllMocks();
     });
@@ -36,17 +32,47 @@ describe('RunTracker', async () => {
     it('initializes tracked runs from storage correctly', async () => {
         vi.mocked(storageMock.useState).mockResolvedValue(initialTrackedRuns);
 
-        const tracker = await RunTracker.new(context);
+        const tracker = await RunTracker.new(context, { storage: storageMock });
 
         expect(storageMock.useState).toHaveBeenCalled();
         expect(tracker.findRunByName(runName)).toEqual(runInfo);
     });
 
     it('initializes tracked runs to empty state if no runs are found', async () => {
-        const tracker = await RunTracker.new(context);
+        vi.mocked(storageMock.useState).mockImplementation(async (_key, defaultValue) => defaultValue);
+
+        const tracker = await RunTracker.new(context, { storage: storageMock });
 
         expect(storageMock.useState).toHaveBeenCalled();
         expect(tracker.findRunByName(runName)).toBeUndefined();
+    });
+
+    it('uses the correct storage key', async () => {
+        vi.mocked(storageMock.useState).mockImplementation(async (_key, defaultValue) => defaultValue);
+
+        await RunTracker.new(context, { storage: storageMock });
+
+        expect(storageMock.useState).toHaveBeenCalledWith(
+            'RUNS',
+            expect.objectContaining({
+                current: {},
+                failedHistory: {},
+            }),
+        );
+    });
+
+    it('uses the correct storage key with a prefix', async () => {
+        vi.mocked(storageMock.useState).mockImplementation(async (_key, defaultValue) => defaultValue);
+
+        await RunTracker.new(context, { storage: storageMock, storagePrefix: 'CUSTOM_PREFIX_' });
+
+        expect(storageMock.useState).toHaveBeenCalledWith(
+            'CUSTOM_PREFIX_RUNS',
+            expect.objectContaining({
+                current: {},
+                failedHistory: {},
+            }),
+        );
     });
 
     it('tracks and retrieves current runs correctly', async () => {
@@ -72,7 +98,7 @@ describe('RunTracker', async () => {
         vi.mocked(storageMock.useState).mockResolvedValue(initialTrackedRuns);
         const onUpdateMock = vi.fn();
 
-        const tracker = await RunTracker.new(context, onUpdateMock);
+        const tracker = await RunTracker.new(context, { storage: storageMock, onUpdate: onUpdateMock });
 
         expect(onUpdateMock).toHaveBeenCalledWith(initialTrackedRuns.current, undefined, undefined);
 
@@ -95,7 +121,7 @@ describe('RunTracker', async () => {
     it('does not call the callback if there are no changes', async () => {
         const onUpdateMock = vi.fn();
 
-        const tracker = await RunTracker.new(context, onUpdateMock);
+        const tracker = await RunTracker.new(context, { onUpdate: onUpdateMock });
 
         expect(tracker.findRunByName(runName)).toBeUndefined();
         expect(onUpdateMock).toHaveBeenCalledTimes(1);

@@ -1,7 +1,7 @@
 import { DatasetClient } from 'apify-client';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
 import type { ExtDatasetClient } from 'src/clients/dataset-client.js';
-import { buildRunTrackerForOrchestrator } from 'src/tracking/builder.js';
+import { RunTracker } from 'src/run-tracker.js';
 import type { DatasetItem, OrchestratorOptions } from 'src/types.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
 import { getTestGlobalContext, getTestOptions } from 'test/_helpers/context.js';
@@ -29,7 +29,7 @@ describe('ExtDatasetClient', () => {
         options = getTestOptions();
         const globalContext = getTestGlobalContext(options);
         const { logger } = globalContext;
-        const runTracker = await buildRunTrackerForOrchestrator(globalContext, options);
+        const runTracker = await RunTracker.new(globalContext);
         context = { logger, runTracker };
         datasetClient = generateExtDatasetClient();
     });

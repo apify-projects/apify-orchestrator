@@ -3,8 +3,7 @@ import { ActorClient, RunClient } from 'apify-client';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
 import type { ExtRunClient } from 'src/clients/run-client.js';
 import { MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
-import { buildRunTrackerForOrchestrator } from 'src/tracking/builder.js';
-import { RunTracker } from 'src/tracking/run-tracker.js';
+import { RunTracker } from 'src/run-tracker.js';
 import type { OrchestratorOptions, RunInfo } from 'src/types.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
 import { getTestGlobalContext, getTestOptions } from 'test/_helpers/context.js';
@@ -44,7 +43,7 @@ describe('ExtRunClient', () => {
         options = getTestOptions();
         const globalContext = getTestGlobalContext(options);
         const { logger } = globalContext;
-        const runTracker = await buildRunTrackerForOrchestrator(globalContext, options);
+        const runTracker = await RunTracker.new(globalContext);
         context = { logger, runTracker };
         updateRunSpy = vi.spyOn(RunTracker.prototype, 'updateRun');
         runClient = await generateExtRunClient('test-run');

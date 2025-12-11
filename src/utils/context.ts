@@ -1,4 +1,4 @@
-import type { RunTracker } from '../tracking/run-tracker.js';
+import type { RunTracker } from '../run-tracker.js';
 import type { Logger } from './logging.js';
 import type { Storage } from './storage.js';
 

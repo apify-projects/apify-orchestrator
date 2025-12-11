@@ -2,7 +2,7 @@ import type { ExtApifyClientOptions } from './clients/apify-client.js';
 import { ExtApifyClient } from './clients/apify-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS } from './constants.js';
 import { DatasetGroupClass } from './entities/dataset-group.js';
-import { buildRunTrackerForOrchestrator } from './tracking/builder.js';
+import { RunTracker } from './run-tracker.js';
 import type {
     ApifyOrchestrator,
     DatasetGroup,
@@ -44,7 +44,7 @@ export class Orchestrator implements ApifyOrchestrator {
         const clientName = makeNameUnique(name ?? 'CLIENT', takenClientNames);
         takenClientNames.add(clientName);
 
-        const runTracker = await buildRunTrackerForOrchestrator(this.context, this.options);
+        const runTracker = await RunTracker.new(this.context, this.options.onUpdate);
 
         const context: OrchestratorContext = {
             logger: this.context.logger,

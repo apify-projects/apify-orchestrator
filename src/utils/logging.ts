@@ -1,5 +1,7 @@
 import { type Log, log } from 'apify';
 
+import type { OrchestratorOptions } from '../types.js';
+
 type LogData = Record<string, unknown> | null;
 
 type LogMethod = (message: string, data?: LogData, sensitiveData?: LogData) => void;
@@ -15,17 +17,12 @@ export interface Logger extends BasicLogger {
     prefixed(prefix: string): BasicLogger;
 }
 
-export interface LoggerOptions {
-    enableLogs: boolean;
-    hideSensitiveInformation: boolean;
-}
-
-export const generateLogger = (options: LoggerOptions): Logger => ({
-    ...generateBasicLogger(log, options),
-    prefixed: (prefix: string) => generateBasicLogger(log.child({ prefix: `[${prefix}]` }), options),
+export const buildLogger = (options: OrchestratorOptions): Logger => ({
+    ...buildBasicLogger(log, options),
+    prefixed: (prefix: string) => buildBasicLogger(log.child({ prefix: `[${prefix}]` }), options),
 });
 
-function generateBasicLogger(apifyLogger: Log, options: LoggerOptions): BasicLogger {
+function buildBasicLogger(apifyLogger: Log, options: OrchestratorOptions): BasicLogger {
     if (!options.enableLogs) {
         return {
             debug: noOp,

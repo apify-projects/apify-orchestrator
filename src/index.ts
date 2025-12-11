@@ -2,7 +2,7 @@ import type { ExtApifyClientOptions } from './clients/apify-client.js';
 import { ExtApifyClient } from './clients/apify-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS } from './constants.js';
 import { DatasetGroupClass } from './entities/dataset-group.js';
-import { RunsTracker } from './tracker.js';
+import { RunTracker } from './run-tracker.js';
 import type {
     ApifyOrchestrator,
     DatasetGroup,
@@ -12,10 +12,11 @@ import type {
     ExtendedDatasetClient,
     OrchestratorOptions,
 } from './types.js';
-import type { OrchestratorContext } from './utils/context.js';
-import type { Logger } from './utils/logging.js';
-import { generateLogger } from './utils/logging.js';
+import type { GlobalContext, OrchestratorContext } from './utils/context.js';
+import { buildLogger } from './utils/logging.js';
 import { makeNameUnique } from './utils/naming.js';
+import type { Storage } from './utils/storage.js';
+import { buildStorage } from './utils/storage.js';
 
 export * from './types.js';
 export * from './errors.js';
@@ -25,7 +26,8 @@ const takenClientNames = new Set<string>();
 
 export class Orchestrator implements ApifyOrchestrator {
     readonly options: OrchestratorOptions;
-    protected logger: Logger;
+    protected readonly context: GlobalContext;
+    protected readonly storage?: Storage;
 
     constructor(options: Partial<OrchestratorOptions> = {}) {
         const fullOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...options };
@@ -33,8 +35,9 @@ export class Orchestrator implements ApifyOrchestrator {
         takenPersistPrefixes.add(fullOptions.persistencePrefix);
         this.options = fullOptions;
 
-        const { enableLogs, hideSensitiveInformation } = this.options;
-        this.logger = generateLogger({ enableLogs, hideSensitiveInformation });
+        const logger = buildLogger(this.options);
+        this.context = { logger };
+        this.storage = buildStorage(logger, this.options);
     }
 
     async apifyClient(options: ExtendedClientOptions = {}): Promise<ExtendedApifyClient> {
@@ -43,18 +46,14 @@ export class Orchestrator implements ApifyOrchestrator {
         const clientName = makeNameUnique(name ?? 'CLIENT', takenClientNames);
         takenClientNames.add(clientName);
 
-        const enableFailedRunsHistory = !this.options.hideSensitiveInformation;
-        const runsTracker = new RunsTracker(this.logger, enableFailedRunsHistory, this.options.onUpdate);
-
-        await runsTracker.init(
-            this.options.persistenceSupport,
-            `${this.options.persistencePrefix}${clientName}-`,
-            this.options.persistenceEncryptionKey,
-        );
-
+        const runTracker = await RunTracker.new(this.context, {
+            storage: this.storage,
+            storagePrefix: `${this.options.persistencePrefix}${clientName}-`,
+            onUpdate: this.options.onUpdate,
+        });
         const context: OrchestratorContext = {
-            logger: this.logger,
-            runsTracker,
+            logger: this.context.logger,
+            runTracker,
         };
 
         const extendedClientOptions: ExtApifyClientOptions = {

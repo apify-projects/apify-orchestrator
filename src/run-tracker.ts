@@ -1,8 +1,8 @@
 import type { ActorRun } from 'apify-client';
-import { getRunUrl } from 'src/utils/apify-console.js';
 
 import type { RunInfo, UpdateCallback } from './types.js';
 import { isRunFailStatus } from './utils/apify-client.js';
+import { getRunUrl } from './utils/apify-console.js';
 import type { GlobalContext } from './utils/context.js';
 import type { Storage } from './utils/storage.js';
 

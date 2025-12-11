@@ -8,6 +8,7 @@ import type { Logger } from './logging.js';
 
 export class EncryptedKeyValueStore {
     private readonly cache = new Map<string, Dictionary>();
+    private readonly pendingOperations = new Map<string, Promise<Dictionary>>();
 
     constructor(
         private readonly logger: Logger,
@@ -21,18 +22,26 @@ export class EncryptedKeyValueStore {
      * Reference: https://github.com/apify/crawlee/blob/649e2a4086556a8f9f5410a0253e773443d1060b/packages/core/src/storages/key_value_store.ts#L249
      */
     async useState<T extends Dictionary>(key: string, defaultValue: T): Promise<T> {
-        let cachedValue = this.cache.get(key) as T;
+        const cachedValue = this.cache.get(key) as T;
         if (cachedValue) return cachedValue;
 
-        const value = await this.getValue<T>(key, defaultValue);
+        const pendingOperation = this.pendingOperations.get(key) as Promise<T> | undefined;
+        if (pendingOperation) return await pendingOperation;
 
-        // Check the cache again to avoid creating multiple states for the same key in concurrent scenarios.
-        cachedValue = this.cache.get(key) as T;
-        if (cachedValue) return cachedValue;
+        const operation = this.getValue<T>(key, defaultValue)
+            .then((value) => {
+                this.cache.set(key, value);
+                this.pendingOperations.delete(key);
+                return value;
+            })
+            .catch((error) => {
+                this.pendingOperations.delete(key);
+                throw error;
+            });
 
-        this.cache.set(key, value);
+        this.pendingOperations.set(key, operation);
 
-        return value;
+        return await operation;
     }
 
     private async getValue<T extends Dictionary>(key: string, defaultValue: T): Promise<T> {

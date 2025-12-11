@@ -12,7 +12,7 @@ export interface Storage {
 }
 
 export function buildStorage(logger: Logger, options: OrchestratorOptions): Storage | undefined {
-    const { persistenceSupport, persistencePrefix, persistenceEncryptionKey } = options;
+    const { persistenceSupport, persistenceEncryptionKey } = options;
 
     if (persistenceSupport === 'none') {
         return undefined;
@@ -20,26 +20,26 @@ export function buildStorage(logger: Logger, options: OrchestratorOptions): Stor
 
     if (persistenceEncryptionKey) {
         const encryptionKey = processEncryptionKey(persistenceEncryptionKey);
-        return buildEncryptedStorage(logger, persistencePrefix, encryptionKey);
+        return buildEncryptedStorage(logger, encryptionKey);
     }
 
-    return buildUnencryptedStorage(persistencePrefix);
+    return buildUnencryptedStorage();
 }
 
-function buildEncryptedStorage(logger: Logger, persistencePrefix: string, encryptionKey: EncryptionKey): Storage {
+function buildEncryptedStorage(logger: Logger, encryptionKey: EncryptionKey): Storage {
     const encryptedKeyValueStore = new EncryptedKeyValueStore(logger, encryptionKey);
 
     return {
         useState: async <T extends Dictionary>(key: string, defaultValue: T): Promise<T> => {
-            return encryptedKeyValueStore.useState<T>(`${persistencePrefix}${key}`, defaultValue);
+            return encryptedKeyValueStore.useState<T>(key, defaultValue);
         },
     };
 }
 
-function buildUnencryptedStorage(persistencePrefix: string): Storage {
+function buildUnencryptedStorage(): Storage {
     return {
         useState: async <T extends Dictionary>(key: string, defaultValue: T): Promise<T> => {
-            return Actor.useState<T>(`${persistencePrefix}${key}`, defaultValue);
+            return Actor.useState<T>(key, defaultValue);
         },
     };
 }

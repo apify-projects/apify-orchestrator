@@ -15,6 +15,7 @@ import type {
 import type { GlobalContext, OrchestratorContext } from './utils/context.js';
 import { buildLogger } from './utils/logging.js';
 import { makeNameUnique } from './utils/naming.js';
+import type { Storage } from './utils/storage.js';
 import { buildStorage } from './utils/storage.js';
 
 export * from './types.js';
@@ -26,6 +27,7 @@ const takenClientNames = new Set<string>();
 export class Orchestrator implements ApifyOrchestrator {
     readonly options: OrchestratorOptions;
     protected readonly context: GlobalContext;
+    protected readonly storage?: Storage;
 
     constructor(options: Partial<OrchestratorOptions> = {}) {
         const fullOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...options };
@@ -34,8 +36,8 @@ export class Orchestrator implements ApifyOrchestrator {
         this.options = fullOptions;
 
         const logger = buildLogger(this.options);
-        const storage = buildStorage(logger, this.options);
-        this.context = { logger, storage };
+        this.context = { logger };
+        this.storage = buildStorage(logger, this.options);
     }
 
     async apifyClient(options: ExtendedClientOptions = {}): Promise<ExtendedApifyClient> {
@@ -44,8 +46,11 @@ export class Orchestrator implements ApifyOrchestrator {
         const clientName = makeNameUnique(name ?? 'CLIENT', takenClientNames);
         takenClientNames.add(clientName);
 
-        const runTracker = await RunTracker.new(this.context, this.options.onUpdate);
-
+        const runTracker = await RunTracker.new(this.context, {
+            storage: this.storage,
+            storagePrefix: `${this.options.persistencePrefix}${clientName}-`,
+            onUpdate: this.options.onUpdate,
+        });
         const context: OrchestratorContext = {
             logger: this.context.logger,
             runTracker,

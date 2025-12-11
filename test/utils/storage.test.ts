@@ -29,24 +29,22 @@ describe('buildStorage', () => {
     it('returns unencrypted storage when no encryption key is provided', async () => {
         const options = getTestOptions({
             persistenceSupport: 'kvs',
-            persistencePrefix: 'test-prefix-',
             persistenceEncryptionKey: undefined,
         });
         const storage = buildStorage(logger, options);
         expect(storage).toBeDefined();
         await storage.useState('test-key', { foo: 'bar' });
-        expect(Actor.useState).toHaveBeenCalledWith('test-prefix-test-key', { foo: 'bar' });
+        expect(Actor.useState).toHaveBeenCalledWith('test-key', { foo: 'bar' });
     });
 
     it('returns encrypted storage when encryption key is provided', async () => {
         const options = getTestOptions({
             persistenceSupport: 'kvs',
-            persistencePrefix: 'test-prefix-',
             persistenceEncryptionKey: 'my-secret-key',
         });
         const storage = buildStorage(logger, options);
         expect(storage).toBeDefined();
         await storage.useState('test-key', { foo: 'bar' });
-        expect(encryptedKeyValueStoreMock.useState).toHaveBeenCalledWith('test-prefix-test-key', { foo: 'bar' });
+        expect(encryptedKeyValueStoreMock.useState).toHaveBeenCalledWith('test-key', { foo: 'bar' });
     });
 });

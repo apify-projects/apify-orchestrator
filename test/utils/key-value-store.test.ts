@@ -69,7 +69,7 @@ describe('EncryptedKeyValueStore', () => {
             expect(state).toEqual(defaultValue);
         });
 
-        it('returns the cached value on subsequent calls', async () => {
+        it('clears the pending operation and returns the cached value on subsequent calls', async () => {
             const testValue = { counter: 100 };
             const testKey = 'CACHED_KEY';
 
@@ -131,7 +131,8 @@ describe('EncryptedKeyValueStore', () => {
             const promise2 = kvs.useState(testKey, { counter: 0 });
             const promise3 = kvs.useState(testKey, { counter: 0 });
 
-            expect(Actor.getValue).toHaveBeenCalledTimes(3);
+            // With the lock mechanism, getValue should only be called once
+            expect(Actor.getValue).toHaveBeenCalledTimes(1);
 
             resolveGetValue(encryptString(JSON.stringify(testValue), encryptionKey));
 
@@ -145,6 +146,56 @@ describe('EncryptedKeyValueStore', () => {
 
             expect(state2.counter).toEqual(51);
             expect(state3.counter).toEqual(51);
+        });
+
+        it('clears pending operation after error', async () => {
+            const testKey = 'ERROR_KEY';
+            const error = new Error('Test error');
+
+            vi.mocked(Actor.getValue).mockRejectedValueOnce(error);
+
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
+
+            await expect(kvs.useState(testKey, { data: '' })).rejects.toThrow('Test error');
+
+            // After error, the pending operation should be cleared
+            // Next call should create a new operation
+            vi.mocked(Actor.getValue).mockResolvedValueOnce(
+                encryptString(JSON.stringify({ data: 'success' }), encryptionKey),
+            );
+
+            const state = await kvs.useState(testKey, { data: '' });
+            expect(state).toEqual({ data: 'success' });
+            expect(Actor.getValue).toHaveBeenCalledTimes(2);
+        });
+
+        it('handles interleaved calls for different keys correctly', async () => {
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
+
+            let resolveKey1: (value: string) => void;
+            let resolveKey2: (value: string) => void;
+
+            const promise1 = new Promise<string>((resolve) => {
+                resolveKey1 = resolve;
+            });
+            const promise2 = new Promise<string>((resolve) => {
+                resolveKey2 = resolve;
+            });
+
+            vi.mocked(Actor.getValue).mockReturnValueOnce(promise1).mockReturnValueOnce(promise2);
+
+            const state1Promise = kvs.useState('KEY1', { value: 0 });
+            const state2Promise = kvs.useState('KEY2', { value: 0 });
+
+            expect(Actor.getValue).toHaveBeenCalledTimes(2);
+
+            resolveKey2(encryptString(JSON.stringify({ value: 2 }), encryptionKey));
+            resolveKey1(encryptString(JSON.stringify({ value: 1 }), encryptionKey));
+
+            const [state1, state2] = await Promise.all([state1Promise, state2Promise]);
+
+            expect(state1).toEqual({ value: 1 });
+            expect(state2).toEqual({ value: 2 });
         });
     });
 });

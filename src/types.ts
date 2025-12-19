@@ -363,7 +363,7 @@ export interface ExtendedTaskClient extends TaskClient {
     /**
      * @override
      */
-    start: (runName: string, input?: object, options?: TaskStartOptions) => Promise<ActorRun>;
+    start: (input?: object, options?: TaskStartOptions & { runName: string }) => Promise<ActorRun>;
 
     /**
      * Starts one or more Runs, based on an array of requests.
@@ -393,7 +393,7 @@ export interface ExtendedTaskClient extends TaskClient {
     /**
      * @override
      */
-    call: (runName: string, input?: object, options?: TaskCallOptions) => Promise<ActorRun>;
+    call: (input?: object, options?: TaskCallOptions & { runName: string }) => Promise<ActorRun>;
 
     /**
      * Starts and waits for one or more Runs, based on an array of requests.

@@ -1,35 +1,24 @@
 import type { ActorRun, TaskCallOptions, TaskLastRunOptions, TaskStartOptions } from 'apify-client';
 import { RunClient, TaskClient } from 'apify-client';
 
-import { APIFY_PAYLOAD_BYTES_LIMIT, DEFAULT_SPLIT_RULES, RUN_STATUSES } from '../constants.js';
+import { DEFAULT_SPLIT_RULES, RUN_STATUSES } from '../constants.js';
 import { isRunOkStatus } from '../tracker.js';
-import type { EnqueueFunction, ExtendedRunClient, ExtendedTaskClient, ExtTaskClientOptions, ForcedEnqueueFunction, RunRecord, RunResult, SplitRules, TaskRunRequest } from '../types.js';
-import { splitIntoChunksWithMaxSize, strBytes } from '../utils/bytes.js';
+import type {
+    EnqueueFunction,
+    ExtendedRunClient,
+    ExtendedTaskClient,
+    ExtTaskClientOptions,
+    ForcedEnqueueFunction,
+    RunRecord,
+    RunResult,
+    SplitRules,
+    TaskRunRequest,
+} from '../types.js';
+import { generateInputChunks } from '../utils/bytes.js';
 import type { OrchestratorContext } from '../utils/context.js';
+import { generateRunRequests } from '../utils/run-requests.js';
 import type { ExtRunClientOptions } from './run-client.js';
 import { ExtRunClient } from './run-client.js';
-
-function generateInputChunks<T>(
-    sources: T[],
-    inputGenerator: (chunk: T[]) => object,
-    { respectApifyMaxPayloadSize }: SplitRules,
-    fixedInputToAddLater?: object,
-): object[] {
-    if (respectApifyMaxPayloadSize) {
-        const maxSize = APIFY_PAYLOAD_BYTES_LIMIT - strBytes(JSON.stringify(fixedInputToAddLater));
-        return splitIntoChunksWithMaxSize(sources, inputGenerator, maxSize);
-    }
-
-    // Do not split
-    return [inputGenerator(sources)];
-}
-
-function generateRunRequests(namePrefix: string, inputChunks: object[], options?: TaskStartOptions): TaskRunRequest[] {
-    return Object.entries(inputChunks).map(([index, input]) => {
-        const runName = inputChunks.length > 1 ? `${namePrefix}-${index}/${inputChunks.length}` : namePrefix;
-        return { runName, input, options };
-    });
-}
 
 export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
     protected context: OrchestratorContext;
@@ -148,7 +137,13 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
         return result.run;
     }
 
-    override async start(runName: string, input?: object, options: TaskStartOptions = {}): Promise<ActorRun> {
+    override async start(input?: object, options: TaskStartOptions & { runName?: string } = {}): Promise<ActorRun> {
+        const { runName, ...runOptions } = options;
+
+        if (!runName) {
+            throw new Error('The "runName" option must be provided to start a Run using the orchestrator.');
+        }
+
         const existingRunInfo = this.context.runsTracker.findRunByName(runName);
 
         // If the Run exists and has not failed, use it
@@ -161,11 +156,17 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
             }
         }
 
-        return this.enqueueAndWaitForStart(runName, input, options);
+        return this.enqueueAndWaitForStart(runName, input, runOptions);
     }
 
-    override async call(runName: string, input?: object, options: TaskCallOptions = {}): Promise<ActorRun> {
-        const startedRun = await this.start(runName, input, options);
+    override async call(input?: object, options: TaskCallOptions & { runName?: string } = {}): Promise<ActorRun> {
+        const { runName } = options;
+
+        if (!runName) {
+            throw new Error('The "runName" option must be provided to call a Run using the orchestrator.');
+        }
+
+        const startedRun = await this.start(input, options);
         const { waitSecs } = options;
         return this.generateRunOrchestratorClient(runName, startedRun.id).waitForFinish({ waitSecs });
     }
@@ -187,7 +188,7 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
                 runName,
                 startRun: this.superClient.start.bind(this.superClient) as unknown as (
                     input?: unknown,
-                    options?: TaskStartOptions
+                    options?: TaskStartOptions,
                 ) => Promise<ActorRun>,
                 startCallbacks: [],
                 input,
@@ -214,7 +215,7 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
         const runRecord: RunRecord = {};
         await Promise.all(
             runRequests.map(async ({ runName, input, options }) =>
-                this.start(runName, input, options).then((run) => {
+                this.start(input, { ...(options ?? {}), runName }).then((run) => {
                     runRecord[runName] = run;
                 }),
             ),
@@ -238,7 +239,7 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
         const runRecord: RunRecord = {};
         await Promise.all(
             runRequests.map(async ({ runName, input, options }) =>
-                this.call(runName, input, options).then((run) => {
+                this.call(input, { ...(options ?? {}), runName }).then((run) => {
                     runRecord[runName] = run;
                 }),
             ),

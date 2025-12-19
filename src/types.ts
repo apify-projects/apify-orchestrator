@@ -9,7 +9,51 @@ import type {
     DatasetClient,
     DatasetClientListItemOptions,
     RunClient,
+    TaskCallOptions,
+    TaskClient,
+    TaskLastRunOptions,
+    TaskStartOptions,
 } from 'apify-client';
+
+import type { RUN_STATUSES } from './constants.js';
+
+export type RunResult =
+    | {
+          kind: typeof RUN_STATUSES.RUN_STARTED;
+          run: ActorRun;
+      }
+    | {
+          kind: typeof RUN_STATUSES.ERROR;
+          error: Error;
+      }
+    | {
+          // returned when a run is about to be spawned on the platform
+          kind: typeof RUN_STATUSES.IN_PROGRESS;
+      };
+
+export interface EnqueuedRequest {
+    runName: string;
+    defaultMemoryMbytes: () => Promise<number | undefined>;
+    startRun: (input?: unknown, options?: ActorStartOptions) => Promise<ActorRun>;
+    startCallbacks: ((result: RunResult) => void)[];
+    input?: object;
+    options?: ActorStartOptions;
+}
+
+export type EnqueueFunction = (runRequest: EnqueuedRequest) => ExtendedRunClient | undefined;
+export type ForcedEnqueueFunction = (runRequest: EnqueuedRequest) => undefined;
+
+export interface ExtActorClientOptions {
+    enqueueRunOnApifyAccount: EnqueueFunction;
+    forceEnqueueRunOnApifyAccount: ForcedEnqueueFunction;
+    fixedInput?: object;
+}
+
+export interface ExtTaskClientOptions {
+    enqueueRunOnApifyAccount: EnqueueFunction;
+    forceEnqueueRunOnApifyAccount: ForcedEnqueueFunction;
+    fixedInput?: object;
+}
 
 export interface OrchestratorOptions {
     /**
@@ -139,6 +183,11 @@ export interface ExtendedApifyClient extends ApifyClient {
      * @override
      */
     actor: (id: string) => ExtendedActorClient;
+
+    /**
+     * @override
+     */
+    task: (id: string) => ExtendedTaskClient;
 
     /**
      * @override
@@ -278,6 +327,109 @@ export interface ExtendedActorClient extends ActorClient {
 }
 
 /**
+ * A Task client which enqueues the requests for new Runs, instead of starting them directly.
+ *
+ * @extends TaskClient
+ */
+export interface ExtendedTaskClient extends TaskClient {
+    /**
+     * Enqueues one or more requests for new Runs, and return immediately.
+     *
+     * @param runRequests the requests
+     * @returns the future names of the Runs
+     */
+    enqueue: (...runRequests: TaskRunRequest[]) => string[];
+
+    /**
+     * Enqueues one or more requests for new Runs, given the parameters to generate input batches.
+     *
+     * WARNING: with the current implementation, input splitting may be quite slow.
+     *
+     * @param namePrefix the prefix for each Run's name; if just one Run is enqueued, it is the full name
+     * @param sources an array used to generate the input batches
+     * @param inputGenerator the function used to generate the input batches
+     * @param overrideSplitRules the rules for splitting
+     * @param options the options for starting the Runs
+     * @returns the future names of the Runs
+     */
+    enqueueBatch: <T>(
+        namePrefix: string,
+        sources: T[],
+        inputGenerator: (chunk: T[]) => object,
+        overrideSplitRules?: Partial<SplitRules>,
+        options?: TaskStartOptions,
+    ) => string[];
+
+    /**
+     * @override
+     */
+    start: (input?: object, options?: TaskStartOptions & { runName: string }) => Promise<ActorRun>;
+
+    /**
+     * Starts one or more Runs, based on an array of requests.
+     */
+    startRuns: (...runRequests: TaskRunRequest[]) => Promise<RunRecord>;
+
+    /**
+     * Starts one or more requests for new Runs, given the parameters to generate input batches.
+     *
+     * WARNING: with the current implementation, input splitting may be quite slow.
+     *
+     * @param namePrefix the prefix for each Run's name; if just one Run is started, it is the full name
+     * @param sources an array used to generate the input batches
+     * @param inputGenerator the function used to generate the input batches
+     * @param overrideSplitRules the rules for splitting
+     * @param options the options for starting the Runs
+     * @returns the future names of the Runs
+     */
+    startBatch: <T>(
+        namePrefix: string,
+        sources: T[],
+        inputGenerator: (chunk: T[]) => object,
+        overrideSplitRules?: Partial<SplitRules>,
+        options?: TaskStartOptions,
+    ) => Promise<RunRecord>;
+
+    /**
+     * @override
+     */
+    call: (input?: object, options?: TaskCallOptions & { runName: string }) => Promise<ActorRun>;
+
+    /**
+     * Starts and waits for one or more Runs, based on an array of requests.
+     */
+    callRuns: (...runRequests: TaskRunRequest[]) => Promise<RunRecord>;
+
+    /**
+     * Starts and waits for one or more requests for new Runs, given the parameters to generate input batches.
+     *
+     * WARNING: with the current implementation, input splitting may be quite slow.
+     *
+     * @param namePrefix the prefix for each Run's name; if just one Run is started, it is the full name
+     * @param sources an array used to generate the input batches
+     * @param inputGenerator the function used to generate the input batches
+     * @param overrideSplitRules the rules for splitting
+     * @param options the options for starting the Runs
+     * @returns the future names of the Runs
+     */
+    callBatch: <T>(
+        namePrefix: string,
+        sources: T[],
+        inputGenerator: (chunk: T[]) => object,
+        overrideSplitRules?: Partial<SplitRules>,
+        options?: TaskStartOptions,
+    ) => Promise<RunRecord>;
+
+    /**
+     * If it finds the Run it in the Runs records, it returns a `TrackedRunClient` instead of a `RunClient`,
+     * allowing for tracking an logging Run operations.
+     *
+     * @override
+     */
+    lastRun: (options?: TaskLastRunOptions) => RunClient;
+}
+
+/**
  * A Run Client which tracks and logs any operation regarding the Run.
  *
  * @extends RunClient
@@ -367,6 +519,15 @@ export interface ActorRunRequest {
     runName: string;
     input?: object;
     options?: ActorStartOptions;
+}
+
+/**
+ * A request to be enqueued by the `ExtTaskClient`.
+ */
+export interface TaskRunRequest {
+    runName: string;
+    input?: object;
+    options?: TaskStartOptions;
 }
 
 /**

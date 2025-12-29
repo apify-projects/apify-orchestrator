@@ -1,5 +1,5 @@
-import type { ActorRun, TaskCallOptions, TaskLastRunOptions, TaskStartOptions } from 'apify-client';
-import { RunClient, TaskClient } from 'apify-client';
+import type { ActorRun, RunClient, TaskCallOptions, TaskLastRunOptions, TaskStartOptions } from 'apify-client';
+import { TaskClient } from 'apify-client';
 
 import { DEFAULT_SPLIT_RULES, RUN_STATUSES } from '../constants.js';
 import { isRunOkStatus } from '../tracker.js';
@@ -17,8 +17,6 @@ import type {
 import { generateInputChunks } from '../utils/bytes.js';
 import type { OrchestratorContext } from '../utils/context.js';
 import { generateRunRequests } from '../utils/run-requests.js';
-import type { ExtRunClientOptions } from './run-client.js';
-import { ExtRunClient } from './run-client.js';
 
 export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
     protected context: OrchestratorContext;
@@ -47,18 +45,6 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
         this.enqueueRunOnApifyAccount = enqueueRunOnApifyAccount;
         this.forceEnqueueRunOnApifyAccount = forceEnqueueRunOnApifyAccount;
         this.fixedInput = fixedInput;
-    }
-
-    protected generateRunOrchestratorClient(runName: string, runId: string) {
-        const runClientOptions: ExtRunClientOptions = { runName };
-        const runClient = new RunClient(
-            this._subResourceOptions({
-                id: runId,
-                params: this._params(),
-                resourcePath: 'runs',
-            }),
-        );
-        return new ExtRunClient(this.context, runClientOptions, runClient);
     }
 
     protected generateRunRequests<T>(
@@ -148,7 +134,7 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
 
         // If the Run exists and has not failed, use it
         if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
-            const runClient = this.generateRunOrchestratorClient(runName, existingRunInfo.runId);
+            const runClient = this.apifyClient.run(existingRunInfo.runId);
             const run = await runClient.get();
             // Return the existing Run, if available, otherwise start a new one
             if (run) {
@@ -168,7 +154,7 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
 
         const startedRun = await this.start(input, options);
         const { waitSecs } = options;
-        return this.generateRunOrchestratorClient(runName, startedRun.id).waitForFinish({ waitSecs });
+        return this.apifyClient.run(startedRun.id).waitForFinish({ waitSecs });
     }
 
     override lastRun(options?: TaskLastRunOptions): RunClient {
@@ -176,7 +162,7 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
         if (runClient.id) {
             const runName = this.context.runsTracker.findRunName(runClient.id);
             if (runName) {
-                return this.generateRunOrchestratorClient(runName, runClient.id);
+                return this.apifyClient.run(runClient.id);
             }
         }
         return runClient;

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.1
+
+### Added
+
+- `ExtendedTaskClient`
+
+### Refactored
+
+- Logger implementation.
+
+## 0.7.0
+
+### Fixed
+
+- Avoid using the User API to know the user's limit:
+    - avoid a possible race condition due to checking the limits and starting a run in two separate moments;
+    - allow running the Orchestrator without full permissions on the platform.
+
 ## 0.6.0
 
 ### Breaking changes

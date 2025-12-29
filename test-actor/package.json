@@ -34,7 +34,7 @@
         "format:check": "prettier --check .",
         "test": "echo \"Error: oops, the Actor has no tests yet, sad!\" && exit 1",
         "cp": "rm -rf src/orchestrator && mkdir src/orchestrator && cp -r ../src/* src/orchestrator/",
-        "push": "npm run cp && ./deploy.sh"
+        "push": "npm run cp && ./deploy.js"
     },
     "author": "It's not you it's me",
     "license": "ISC"

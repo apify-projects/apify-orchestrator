@@ -10,6 +10,10 @@
 
 - Logger implementation.
 
+### Testing
+
+- Added `test-actor` to perform e2e testing.
+
 ## 0.7.0
 
 ### Fixed

@@ -1,75 +1,68 @@
-import { log } from 'apify';
+import { type Log, log } from 'apify';
 
-// FIXME: type copied from SDK
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AdditionalData = Record<string, any> | null;
+type LogData = Record<string, unknown> | null;
 
-const prefixMessage = (prefix: string, msg: string) => `[${prefix}] ${msg}`;
+type LogMethod = (message: string, data?: LogData, sensitiveData?: LogData) => void;
 
-export class CustomLogger {
-    readonly isEnabled: boolean;
-    readonly hideSensitiveInformation: boolean;
+interface BasicLogger {
+    debug: LogMethod;
+    info: LogMethod;
+    warning: LogMethod;
+    error: LogMethod;
+}
 
-    constructor(isEnabled: boolean, hideSensitiveInformation: boolean) {
-        this.isEnabled = isEnabled;
-        this.hideSensitiveInformation = hideSensitiveInformation;
+export interface Logger extends BasicLogger {
+    prefixed(prefix: string): BasicLogger;
+}
+
+export interface LoggerOptions {
+    enableLogs: boolean;
+    hideSensitiveInformation: boolean;
+}
+
+export const generateLogger = (options: LoggerOptions): Logger => ({
+    ...generateBasicLogger(log, options),
+    prefixed: (prefix: string) => generateBasicLogger(log.child({ prefix: `[${prefix}]` }), options),
+});
+
+function generateBasicLogger(apifyLogger: Log, options: LoggerOptions): BasicLogger {
+    if (!options.enableLogs) {
+        return {
+            debug: noOp,
+            info: noOp,
+            warning: noOp,
+            error: noOp,
+        };
     }
-
-    protected generateLogData(data?: AdditionalData, sensitiveData?: AdditionalData) {
-        if (this.hideSensitiveInformation) {
-            return data;
-        }
-        if (!data && !sensitiveData) {
-            return undefined;
-        }
-        return { ...(data ?? {}), ...(sensitiveData ?? {}) };
+    if (options.hideSensitiveInformation) {
+        return {
+            debug: (message: string, data?: LogData, _sensitiveData?: LogData) => apifyLogger.debug(message, data),
+            info: (message: string, data?: LogData, _sensitiveData?: LogData) => apifyLogger.info(message, data),
+            warning: (message: string, data?: LogData, _sensitiveData?: LogData) => apifyLogger.warning(message, data),
+            error: (message: string, data?: LogData, _sensitiveData?: LogData) => apifyLogger.error(message, data),
+        };
     }
+    return {
+        debug: (message: string, data?: LogData, sensitiveData?: LogData) => {
+            apifyLogger.debug(message, mergeData(data, sensitiveData));
+        },
+        info: (message: string, data?: LogData, sensitiveData?: LogData) => {
+            apifyLogger.info(message, mergeData(data, sensitiveData));
+        },
+        warning: (message: string, data?: LogData, sensitiveData?: LogData) => {
+            apifyLogger.warning(message, mergeData(data, sensitiveData));
+        },
+        error: (message: string, data?: LogData, sensitiveData?: LogData) => {
+            apifyLogger.error(message, mergeData(data, sensitiveData));
+        },
+    };
+}
 
-    debug(msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
-        if (this.isEnabled) {
-            log.debug(msg, this.generateLogData(data, sensitiveData));
-        }
-    }
+function noOp() {
+    /* no-op */
+}
 
-    info(msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
-        if (this.isEnabled) {
-            log.info(msg, this.generateLogData(data, sensitiveData));
-        }
-    }
-
-    warning(msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
-        if (this.isEnabled) {
-            log.warning(msg, this.generateLogData(data, sensitiveData));
-        }
-    }
-
-    error(msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
-        if (this.isEnabled) {
-            log.error(msg, this.generateLogData(data, sensitiveData));
-        }
-    }
-
-    prfxDebug(prfx: string, msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
-        if (this.isEnabled) {
-            log.debug(prefixMessage(prfx, msg), this.generateLogData(data, sensitiveData));
-        }
-    }
-
-    prfxInfo(prfx: string, msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
-        if (this.isEnabled) {
-            log.info(prefixMessage(prfx, msg), this.generateLogData(data, sensitiveData));
-        }
-    }
-
-    prfxWarn(prfx: string, msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
-        if (this.isEnabled) {
-            log.warning(prefixMessage(prfx, msg), this.generateLogData(data, sensitiveData));
-        }
-    }
-
-    prfxError(prfx: string, msg: string, data?: AdditionalData, sensitiveData?: AdditionalData) {
-        if (this.isEnabled) {
-            log.error(prefixMessage(prfx, msg), this.generateLogData(data, sensitiveData));
-        }
-    }
+function mergeData(data?: LogData, sensitiveData?: LogData): LogData | undefined {
+    if (!data && !sensitiveData) return undefined;
+    return { ...data, ...sensitiveData };
 }

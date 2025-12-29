@@ -96,7 +96,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
             return undefined;
         }
 
-        this.context.logger.prfxInfo(runRequest.runName, 'Enqueuing Run request');
+        this.context.logger.prefixed(runRequest.runName).info('Enqueuing Run request');
         this.runRequestsQueue.enqueue(runRequest);
         return undefined;
     }
@@ -115,7 +115,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         if (startPromise) {
             const runResult = await startPromise;
             if (runResult.kind === RUN_STATUSES.ERROR) {
-                this.context.logger.prfxError(runName, 'Error starting Run from queue', {
+                this.context.logger.prefixed(runName).error('Error starting Run from queue', {
                     message: runResult.error.message,
                 });
                 throw new Error(`Error starting Run: ${runName}. ${runResult.error.message}`);
@@ -208,7 +208,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
 
                 const { runName, input, options } = nextRunRequest;
 
-                this.context.logger.prfxInfo(runName, 'Starting next', { queue: this.runRequestsQueue.length });
+                this.context.logger.prefixed(runName).info('Starting next', { queue: this.runRequestsQueue.length });
 
                 let result: RunResult;
 
@@ -216,7 +216,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                     const run = await nextRunRequest.startRun(input, options);
                     result = { kind: RUN_STATUSES.RUN_STARTED, run };
                 } catch (startError) {
-                    this.context.logger.prfxError(runName, 'Failed to start Run', {
+                    this.context.logger.prefixed(runName).error('Failed to start Run', {
                         message: (startError as Error)?.message,
                     });
                     const error = await parseStartRunError(startError, runName, getRequiredMemoryMbytes);

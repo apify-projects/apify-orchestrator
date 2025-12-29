@@ -37,10 +37,10 @@ if (role === 'root') {
 
     await Promise.all(
         Array.from({ length: numberOfChildren }).map(async (_, index) => {
-            const oneIndex = index + 1;
-            const run = await callChild(client, index);
+            const childNumber = index + 1;
+            const run = await callChild(client, childNumber);
             if (!run) return;
-            randomTotal += await getRunTotalOutput(client, run, oneIndex);
+            randomTotal += await getRunTotalOutput(client, run, childNumber);
         }),
     );
 
@@ -65,10 +65,10 @@ async function callChild(client: ExtendedApifyClient, index: number): Promise<Ac
         } catch (error) {
             log.exception(
                 error as Error,
-                `Error calling child task for child actor ${index + 1}`,
+                `Error calling child task for child actor ${index}`,
                 { taskId: input.childTaskId },
             );
-            return null
+            return null;
         }
     }
     thisActorId ??= await getActorId();
@@ -80,7 +80,7 @@ async function callChild(client: ExtendedApifyClient, index: number): Promise<Ac
     } catch (error) {
         log.exception(
             error as Error,
-            `Error calling child actor ${index + 1}`,
+            `Error calling child actor ${index}`,
             { actorId: thisActorId, input: childInput, options: childOptions },
         );
         return null;

@@ -5,7 +5,7 @@
     "properties": {
         "role": {
             "title": "Role",
-            "description": "The role of the user.",
+            "description": "The role of the Run.",
             "type": "string",
             "enum": ["root", "child"],
             "editor": "select",

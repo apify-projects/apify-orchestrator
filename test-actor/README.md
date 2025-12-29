@@ -15,4 +15,4 @@ If you want to develop this test Actor after some changes to the Apify Orchestra
 npm run cp
 ```
 
-to copy the updated code. The copy will not be excluded from the repository.
+to copy the updated code. The copy will not be included in the repository.

@@ -1,5 +1,5 @@
-import { APIFY_PAYLOAD_BYTES_LIMIT } from 'src/constants.js';
-import type { SplitRules } from 'src/index.js';
+import { APIFY_PAYLOAD_BYTES_LIMIT } from '../constants.js';
+import type { SplitRules } from '../types.js';
 
 export const strBytes = (string: string) => new TextEncoder().encode(string).length;
 

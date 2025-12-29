@@ -28,6 +28,17 @@ export class EncryptedKeyValueStore {
         const pendingOperation = this.pendingOperations.get(key) as Promise<T> | undefined;
         if (pendingOperation) return await pendingOperation;
 
+        const operation = this.generateAndStoreStateLoadingPromise<T>(key, defaultValue);
+
+        return await operation;
+    }
+
+    /**
+     * This method is synchronous to avoid race conditions when multiple parts of the code access the pending operation
+     * map simultaneously: the promise is created and stored in the map without any awaits in between.
+     */
+    // eslint-disable-next-line @typescript-eslint/promise-function-async
+    private generateAndStoreStateLoadingPromise<T extends Dictionary>(key: string, defaultValue: T): Promise<T> {
         const operation = this.getValue<T>(key, defaultValue)
             .then((value) => {
                 this.cache.set(key, value);
@@ -41,7 +52,7 @@ export class EncryptedKeyValueStore {
 
         this.pendingOperations.set(key, operation);
 
-        return await operation;
+        return operation;
     }
 
     private async getValue<T extends Dictionary>(key: string, defaultValue: T): Promise<T> {

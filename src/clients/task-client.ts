@@ -1,8 +1,8 @@
 import type { ActorRun, RunClient, TaskCallOptions, TaskLastRunOptions, TaskStartOptions } from 'apify-client';
 import { TaskClient } from 'apify-client';
+import { isRunOkStatus } from 'src/utils/apify-client.js';
 
 import { DEFAULT_SPLIT_RULES, RUN_STATUSES } from '../constants.js';
-import { isRunOkStatus } from '../tracker.js';
 import type {
     EnqueueFunction,
     ExtendedRunClient,
@@ -130,7 +130,7 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
             throw new Error('The "runName" option must be provided to start a Run using the orchestrator.');
         }
 
-        const existingRunInfo = this.context.runsTracker.findRunByName(runName);
+        const existingRunInfo = this.context.runTracker.findRunByName(runName);
 
         // If the Run exists and has not failed, use it
         if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
@@ -160,7 +160,7 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
     override lastRun(options?: TaskLastRunOptions): RunClient {
         const runClient = super.lastRun(options);
         if (runClient.id) {
-            const runName = this.context.runsTracker.findRunName(runClient.id);
+            const runName = this.context.runTracker.findRunName(runClient.id);
             if (runName) {
                 return this.apifyClient.run(runClient.id);
             }

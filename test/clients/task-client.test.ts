@@ -2,11 +2,11 @@ import type { ActorRun, RunClient } from 'apify-client';
 import { TaskClient } from 'apify-client';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
 import { ExtRunClient } from 'src/clients/run-client.js';
-import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_COOLDOWN_MS } from 'src/constants.js';
-import { RunsTracker } from 'src/tracker.js';
+import { MAIN_LOOP_COOLDOWN_MS } from 'src/constants.js';
+import { RunTracker } from 'src/run-tracker.js';
 import type { OrchestratorOptions } from 'src/types.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
-import { generateLogger } from 'src/utils/logging.js';
+import { getTestGlobalContext, getTestOptions } from 'test/_helpers/context.js';
 
 describe('ExtTaskClient', () => {
     let context: OrchestratorContext;
@@ -27,14 +27,11 @@ describe('ExtTaskClient', () => {
 
     beforeEach(async () => {
         vi.useFakeTimers();
-        const logger = generateLogger({ enableLogs: false, hideSensitiveInformation: false });
-        const runsTracker = new RunsTracker(logger, false);
-        context = { logger, runsTracker };
-        await context.runsTracker.init();
-        options = {
-            ...DEFAULT_ORCHESTRATOR_OPTIONS,
-            enableLogs: false,
-        };
+        options = getTestOptions();
+        const globalContext = getTestGlobalContext(options);
+        const { logger } = globalContext;
+        const runTracker = await RunTracker.new(globalContext);
+        context = { logger, runTracker };
     });
 
     afterEach(() => {
@@ -49,7 +46,7 @@ describe('ExtTaskClient', () => {
 
             // Add an existing run to the tracker
             const existingRun = getMockRun('existing-run-id', 'RUNNING');
-            await context.runsTracker.updateRun('test-run', existingRun);
+            context.runTracker.updateRun('test-run', existingRun);
 
             // Mock the RunClient.get method to return the existing run
             const getSpy = vi.spyOn(ExtRunClient.prototype, 'get').mockImplementation(async () => {
@@ -69,7 +66,7 @@ describe('ExtTaskClient', () => {
 
             // Add an existing run to the tracker with FAILED status so it won't be reused
             const existingRun = getMockRun('existing-run-id', 'FAILED');
-            await context.runsTracker.updateRun('test-run', existingRun);
+            context.runTracker.updateRun('test-run', existingRun);
 
             const newRun = getMockRun('new-run-id', 'READY');
             const startSpy = vi.spyOn(TaskClient.prototype, 'start').mockImplementation(async () => {
@@ -132,7 +129,7 @@ describe('ExtTaskClient', () => {
 
             // Add an existing run to the tracker
             const existingRun = getMockRun('existing-run-id', 'RUNNING');
-            await context.runsTracker.updateRun('test-run', existingRun);
+            context.runTracker.updateRun('test-run', existingRun);
 
             // Mock the RunClient.get method to return the existing run
             vi.spyOn(ExtRunClient.prototype, 'get').mockImplementation(async () => {
@@ -158,7 +155,7 @@ describe('ExtTaskClient', () => {
 
             // Add an existing run to the tracker with FAILED status so it won't be reused
             const existingRun = getMockRun('existing-run-id', 'FAILED');
-            await context.runsTracker.updateRun('test-run', existingRun);
+            context.runTracker.updateRun('test-run', existingRun);
 
             const newRun = getMockRun('new-run-id', 'READY');
             vi.spyOn(TaskClient.prototype, 'start').mockImplementation(async () => {
@@ -215,7 +212,7 @@ describe('ExtTaskClient', () => {
 
             // Add a run to the tracker
             const trackedRun = getMockRun('tracked-run-id', 'SUCCEEDED');
-            await context.runsTracker.updateRun('tracked-run', trackedRun);
+            context.runTracker.updateRun('tracked-run', trackedRun);
 
             // Mock the superClient's lastRun method
             const mockRunClient = {

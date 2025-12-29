@@ -3,7 +3,6 @@ import type { ActorRun, ApifyClientOptions, RunClient } from 'apify-client';
 
 import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS, RUN_STATUSES } from '../constants.js';
 import { InsufficientActorJobsError, InsufficientMemoryError } from '../errors.js';
-import { isRunOkStatus } from '../tracker.js';
 import type {
     DatasetItem,
     EnqueuedRequest,
@@ -13,7 +12,7 @@ import type {
     RunRecord,
     RunResult,
 } from '../types.js';
-import { parseStartRunError } from '../utils/apify-client.js';
+import { isRunOkStatus, parseStartRunError } from '../utils/apify-client.js';
 import type { OrchestratorContext } from '../utils/context.js';
 import { Queue } from '../utils/queue.js';
 import { ExtActorClient } from './actor-client.js';

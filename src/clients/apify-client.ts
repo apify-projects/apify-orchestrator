@@ -1,18 +1,26 @@
 import { Actor, ApifyClient, log } from 'apify';
 import type { ActorRun, ApifyClientOptions, RunClient } from 'apify-client';
 
-import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from '../constants.js';
+import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS, RUN_STATUSES } from '../constants.js';
 import { InsufficientActorJobsError, InsufficientMemoryError } from '../errors.js';
 import { isRunOkStatus } from '../tracker.js';
-import type { DatasetItem, ExtendedApifyClient, RunRecord } from '../types.js';
+import type {
+    DatasetItem,
+    EnqueuedRequest,
+    ExtActorClientOptions,
+    ExtendedApifyClient,
+    ExtTaskClientOptions,
+    RunRecord,
+    RunResult,
+} from '../types.js';
 import { parseStartRunError } from '../utils/apify-client.js';
 import type { OrchestratorContext } from '../utils/context.js';
 import { Queue } from '../utils/queue.js';
-import type { EnqueuedRequest, ExtActorClientOptions, RunResult } from './actor-client.js';
-import { ExtActorClient, RUN_STATUSES } from './actor-client.js';
+import { ExtActorClient } from './actor-client.js';
 import { ExtDatasetClient } from './dataset-client.js';
 import type { ExtRunClientOptions } from './run-client.js';
 import { ExtRunClient } from './run-client.js';
+import { ExtTaskClient } from './task-client.js';
 
 export interface ExtApifyClientOptions {
     clientName: string;
@@ -136,6 +144,15 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
             fixedInput: this.fixedInput,
         };
         return new ExtActorClient(this.context, actorClientOptions, super.actor(id));
+    }
+
+    override task(id: string): ExtTaskClient {
+        const taskClientOptions: ExtTaskClientOptions = {
+            enqueueRunOnApifyAccount: (runRequest) => this.enqueue(runRequest, false),
+            forceEnqueueRunOnApifyAccount: (runRequest) => this.enqueue(runRequest, true),
+            fixedInput: this.fixedInput,
+        };
+        return new ExtTaskClient(this.context, taskClientOptions, super.task(id));
     }
 
     override dataset<T extends DatasetItem>(id: string): ExtDatasetClient<T> {

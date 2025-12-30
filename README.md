@@ -13,12 +13,12 @@ instead, it allows you to trigger one or more new Runs from everywhere in your c
 4. This project is still to be considered in _alpha_ state, and it follows the [semantic versioning](https://semver.org/) rules. This means that:
     - the major version number is `0`;
     - breaking changes are allowed on different minor versions.
-5. If you are working on minor features or patches, ask to merge your work directly into the `main` branch.
-6. If you are working on some feature which introduces breaking changes or is planned for the next major version, ask to merge it into the next major development branch, e.g., `dev/0.5.0`.
-7. Remember to add/fix **unit tests**:
+5. Remember to add/fix **unit tests**:
     - [`vitest`](https://vitest.dev/) is used;
     - take a look at existing tests in the `test` folder and follow the same organization/naming conventions;
     - the `package.json` includes scripts for testing.
+6. Create a **Pull Request** for every change, and merge it to `main`.
+7. Update `CHANGELOG.md` before publishing a new version.
 
 ### About the codebase
 

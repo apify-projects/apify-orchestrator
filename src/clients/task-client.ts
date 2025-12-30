@@ -1,6 +1,5 @@
 import type { ActorRun, RunClient, TaskCallOptions, TaskLastRunOptions, TaskStartOptions } from 'apify-client';
 import { TaskClient } from 'apify-client';
-import { isRunOkStatus } from 'src/utils/apify-client.js';
 
 import { DEFAULT_SPLIT_RULES, RUN_STATUSES } from '../constants.js';
 import type {
@@ -14,6 +13,7 @@ import type {
     SplitRules,
     TaskRunRequest,
 } from '../types.js';
+import { isRunOkStatus } from '../utils/apify-client.js';
 import { generateInputChunks } from '../utils/bytes.js';
 import type { OrchestratorContext } from '../utils/context.js';
 import { generateRunRequests } from '../utils/run-requests.js';

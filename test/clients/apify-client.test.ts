@@ -4,12 +4,12 @@ import { ExtActorClient } from 'src/clients/actor-client.js';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
 import { ExtDatasetClient } from 'src/clients/dataset-client.js';
 import { ExtRunClient } from 'src/clients/run-client.js';
-import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
+import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
 import { InsufficientMemoryError, type OrchestratorOptions } from 'src/index.js';
-import { RunsTracker } from 'src/tracker.js';
+import { RunTracker } from 'src/run-tracker.js';
 import { parseStartRunError } from 'src/utils/apify-client.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
-import { generateLogger } from 'src/utils/logging.js';
+import { getTestGlobalContext, getTestOptions } from 'test/_helpers/context.js';
 
 vi.mock('src/utils/apify-client.js', async (importActual) => {
     return {
@@ -37,14 +37,11 @@ describe('ExtApifyClient', () => {
 
     beforeEach(async () => {
         vi.useFakeTimers();
-        const logger = generateLogger({ enableLogs: false, hideSensitiveInformation: false });
-        const runsTracker = new RunsTracker(logger, false);
-        context = { logger, runsTracker };
-        await context.runsTracker.init();
-        options = {
-            ...DEFAULT_ORCHESTRATOR_OPTIONS,
-            enableLogs: false,
-        };
+        options = getTestOptions();
+        const globalContext = getTestGlobalContext(options);
+        const { logger } = globalContext;
+        const runTracker = await RunTracker.new(globalContext);
+        context = { logger, runTracker };
     });
 
     afterEach(() => {
@@ -77,7 +74,7 @@ describe('ExtApifyClient', () => {
         });
 
         it('generates an extended RunClient if a run with the same ID has been tracked', async () => {
-            await context.runsTracker.updateRun('test-run', getMockRun('test-id', 'READY'));
+            context.runTracker.updateRun('test-run', getMockRun('test-id', 'READY'));
             const client = generateApifyClient('test-client');
             const runClient = client.run('test-id');
             expect(runClient).toBeInstanceOf(ExtRunClient);
@@ -136,7 +133,7 @@ describe('ExtApifyClient', () => {
 
     describe('runByName', () => {
         it('generates an extended RunClient if a Run with the specified name exists', async () => {
-            await context.runsTracker.updateRun('test-run', getMockRun('test-id', 'READY'));
+            context.runTracker.updateRun('test-run', getMockRun('test-id', 'READY'));
             const client = generateApifyClient('test-client');
             const runClient = await client.runByName('test-run');
             expect(runClient).toBeInstanceOf(ExtRunClient);
@@ -151,7 +148,7 @@ describe('ExtApifyClient', () => {
 
     describe('actorRunByName', () => {
         it('generates an ActorRun if a Run with the specified name exists', async () => {
-            await context.runsTracker.updateRun('test-run', getMockRun('test-id', 'READY'));
+            context.runTracker.updateRun('test-run', getMockRun('test-id', 'READY'));
             const client = generateApifyClient('test-client');
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get').mockImplementationOnce(async () => {
                 return getMockRun('test-id');
@@ -162,7 +159,7 @@ describe('ExtApifyClient', () => {
         });
 
         it('returns undefined if a Run with the specified name exists but the Run cannot be created', async () => {
-            await context.runsTracker.updateRun('test-run', getMockRun('test-id', 'READY'));
+            context.runTracker.updateRun('test-run', getMockRun('test-id', 'READY'));
             const client = generateApifyClient('test-client');
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get').mockImplementation(async () => {
                 return undefined;
@@ -183,9 +180,9 @@ describe('ExtApifyClient', () => {
 
     describe('runRecord', () => {
         it('generates a RunRecord with all the existing Runs when calling `runRecord`', async () => {
-            await context.runsTracker.updateRun('test-run-1', getMockRun('test-id-1', 'READY'));
-            await context.runsTracker.updateRun('test-run-2', getMockRun('test-id-2', 'READY'));
-            await context.runsTracker.updateRun('test-run-3', getMockRun('test-id-3', 'READY'));
+            context.runTracker.updateRun('test-run-1', getMockRun('test-id-1', 'READY'));
+            context.runTracker.updateRun('test-run-2', getMockRun('test-id-2', 'READY'));
+            context.runTracker.updateRun('test-run-3', getMockRun('test-id-3', 'READY'));
             const client = generateApifyClient('test-client');
 
             let mockRunIds = ['test-id-1', 'test-id-2', 'test-id-3'];
@@ -207,7 +204,7 @@ describe('ExtApifyClient', () => {
                 'test-run-3': getMockRun('test-id-3', 'READY'),
             });
 
-            await context.runsTracker.declareLostRun('test-run-2');
+            context.runTracker.declareLostRun('test-run-2');
             mockRunIds = ['test-id-1', 'test-id-3'];
             expect(await client.runRecord('test-run-1', 'test-run-2', 'test-run-3')).toEqual({
                 'test-run-1': getMockRun('test-id-1', 'READY'),
@@ -256,25 +253,24 @@ describe('ExtApifyClient', () => {
 
             expect(waitForFinishSpy).toHaveBeenCalledTimes(3);
             expect(runRecord).toEqual(expectedRunRecord);
-            expect(context.runsTracker.currentRuns).toEqual({
-                'test-run-1': {
-                    runId: 'test-id-1',
-                    runUrl: 'https://console.apify.com/actors/runs/test-id-1',
-                    status: 'SUCCEEDED',
-                    startedAt: mockDate.toISOString(),
-                },
-                'test-run-2': {
-                    runId: 'test-id-2',
-                    runUrl: 'https://console.apify.com/actors/runs/test-id-2',
-                    status: 'SUCCEEDED',
-                    startedAt: mockDate.toISOString(),
-                },
-                'test-run-3': {
-                    runId: 'test-id-3',
-                    runUrl: 'https://console.apify.com/actors/runs/test-id-3',
-                    status: 'SUCCEEDED',
-                    startedAt: mockDate.toISOString(),
-                },
+            expect(context.runTracker.getCurrentRunNames()).toEqual(['test-run-1', 'test-run-2', 'test-run-3']);
+            expect(context.runTracker.findRunByName('test-run-1')).toEqual({
+                runId: 'test-id-1',
+                runUrl: 'https://console.apify.com/actors/runs/test-id-1',
+                status: 'SUCCEEDED',
+                startedAt: mockDate.toISOString(),
+            });
+            expect(context.runTracker.findRunByName('test-run-2')).toEqual({
+                runId: 'test-id-2',
+                runUrl: 'https://console.apify.com/actors/runs/test-id-2',
+                status: 'SUCCEEDED',
+                startedAt: mockDate.toISOString(),
+            });
+            expect(context.runTracker.findRunByName('test-run-3')).toEqual({
+                runId: 'test-id-3',
+                runUrl: 'https://console.apify.com/actors/runs/test-id-3',
+                status: 'SUCCEEDED',
+                startedAt: mockDate.toISOString(),
             });
 
             await client.waitForBatchFinish(['test-run-1', 'test-run-2', 'test-run-3']);
@@ -287,9 +283,9 @@ describe('ExtApifyClient', () => {
 
     describe('abortAllRuns', () => {
         it('calls the abort function for each Run in progress when calling `abortAllRuns`', async () => {
-            await context.runsTracker.updateRun('test-run-1', getMockRun('test-id-1', 'READY'));
-            await context.runsTracker.updateRun('test-run-2', getMockRun('test-id-2', 'READY'));
-            await context.runsTracker.updateRun('test-run-3', getMockRun('test-id-3', 'READY'));
+            context.runTracker.updateRun('test-run-1', getMockRun('test-id-1', 'READY'));
+            context.runTracker.updateRun('test-run-2', getMockRun('test-id-2', 'READY'));
+            context.runTracker.updateRun('test-run-3', getMockRun('test-id-3', 'READY'));
             const client = generateApifyClient('test-client');
 
             const mockRunIds = ['test-id-1', 'test-id-2', 'test-id-3'];

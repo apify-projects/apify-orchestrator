@@ -1,254 +1,201 @@
-import type { KeyValueStore } from 'apify';
 import { Actor } from 'apify';
-import type { StorageClient } from 'crawlee';
-import { openEncryptedKeyValueStore } from 'src/utils/key-value-store.js';
+import { encryptString, processEncryptionKey } from 'src/utils/encryption.js';
+import { EncryptedKeyValueStore } from 'src/utils/key-value-store.js';
+import { buildLogger } from 'src/utils/logging.js';
+import { getTestOptions } from 'test/_helpers/context.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-type EncryptedKeyValueStoreType = Awaited<ReturnType<typeof openEncryptedKeyValueStore>>;
+vi.mock('apify', async (importActual) => ({
+    ...(await importActual()),
+    Actor: {
+        getValue: vi.fn(),
+        setValue: vi.fn(),
+        on: vi.fn(),
+        config: {
+            get: vi.fn(),
+        },
+    },
+}));
 
-describe('key-value-store utils', () => {
+describe('EncryptedKeyValueStore', () => {
+    const options = getTestOptions();
+    const logger = buildLogger(options);
+
+    const secret = 'test-encryption-key';
+    const encryptionKey = processEncryptionKey(secret);
+
     afterEach(() => {
-        vi.resetAllMocks();
+        vi.clearAllMocks();
     });
 
-    describe('openEncryptedKeyValueStore', () => {
-        const key = 'test-key';
-        const value = 'test-value';
-        const secret = 'test-secret';
+    describe('useState', () => {
+        it('restores state correctly', async () => {
+            const testValue = { counter: 42 };
 
-        afterEach(async () => {
-            await Actor.setValue(key, null);
+            vi.mocked(Actor.getValue).mockResolvedValue(encryptString(JSON.stringify(testValue), encryptionKey));
+
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
+            const testKey = 'TEST_KEY';
+
+            const state = await kvs.useState<{ counter: number }>(testKey, { counter: 0 });
+            expect(Actor.getValue).toHaveBeenCalledWith(testKey);
+            expect(state).toEqual(testValue);
         });
 
-        it('returns an encrypted KeyValueStore, which works correctly', async () => {
-            const openKeyValueStoreSpy = vi.spyOn(Actor, 'openKeyValueStore');
-            const encryptedKVS = await openEncryptedKeyValueStore(secret);
-            expect(openKeyValueStoreSpy).toHaveBeenCalledTimes(1);
-            await encryptedKVS.setValue(key, value);
-            const encryptedValue = await Actor.getValue(key);
-            expect(encryptedValue).not.toBe(value);
-            const decryptedValue = await encryptedKVS.getValue(key);
-            expect(decryptedValue).toBe(value);
+        it('returns default value when key does not exist', async () => {
+            vi.mocked(Actor.getValue).mockResolvedValueOnce(null);
+
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
+            const testKey = 'NON_EXISTENT_KEY';
+            const defaultValue = { message: 'Hello, World!' };
+
+            const state = await kvs.useState<typeof defaultValue>(testKey, defaultValue);
+            expect(Actor.getValue).toHaveBeenCalledWith(testKey);
+            expect(state).toEqual(defaultValue);
         });
-    });
 
-    describe('EncryptedKeyValueStore', () => {
-        const secret = 'test-encryption-secret';
-        const testKey = 'test-key';
-        const testValue = { message: 'Hello, World!', number: 42, array: [1, 2, 3] };
-        const primitiveValue = 'simple string';
+        it('returns the default value if the decryption fails', async () => {
+            const anotherEncryptionKey = processEncryptionKey('another-encryption-key');
+            const invalidEncryptedData = encryptString(JSON.stringify({ data: 'test' }), anotherEncryptionKey);
 
-        let encryptedKVS: EncryptedKeyValueStoreType;
-        let mockKVStore: {
-            id: string;
-            name: string;
-            config: Record<string, unknown>;
-            getValue: ReturnType<typeof vi.fn>;
-            setValue: ReturnType<typeof vi.fn>;
-        };
+            vi.mocked(Actor.getValue).mockResolvedValueOnce(invalidEncryptedData);
 
-        beforeEach(async () => {
-            // Create a mock KeyValueStore
-            mockKVStore = {
-                id: 'mock-kvs-id',
-                name: 'mock-kvs-name',
-                config: {},
-                getValue: vi.fn(),
-                setValue: vi.fn(),
-            };
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
+            const testKey = 'INVALID_ENCRYPTED_KEY';
+            const defaultValue = { message: 'Hello, World!' };
 
-            // Mock Actor.openKeyValueStore to return our mock
-            vi.spyOn(Actor, 'openKeyValueStore').mockResolvedValue(mockKVStore as unknown as KeyValueStore);
+            const state = await kvs.useState<typeof defaultValue>(testKey, defaultValue);
+            expect(Actor.getValue).toHaveBeenCalledWith(testKey);
+            expect(state).toEqual(defaultValue);
+        });
 
-            // Mock Actor.config.getStorageClient with required methods
-            const mockStorageClient = {
-                keyValueStore: vi.fn().mockReturnValue({
-                    // Mock the required methods for KeyValueStore client
-                    get: vi.fn(),
-                    put: vi.fn(),
-                    delete: vi.fn(),
+        it('clears the pending operation and returns the cached value on subsequent calls', async () => {
+            const testValue = { counter: 100 };
+            const testKey = 'CACHED_KEY';
+
+            vi.mocked(Actor.getValue).mockResolvedValue(encryptString(JSON.stringify(testValue), encryptionKey));
+
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
+
+            const state1 = await kvs.useState(testKey, testValue);
+
+            state1.counter += 1;
+
+            const state2 = await kvs.useState(testKey, { counter: 0 });
+            expect(state2).toEqual({ counter: 101 });
+            expect(Actor.getValue).toHaveBeenCalledTimes(1);
+        });
+
+        it('persists state on corresponding event', async () => {
+            const testValue = { counter: 7 };
+            const testKey = 'PERSIST_KEY';
+
+            let persistCallback: () => Promise<void>;
+
+            vi.mocked(Actor.on).mockImplementationOnce((_event, callback) => {
+                persistCallback = callback as () => Promise<void>;
+            });
+            vi.mocked(Actor.config.get).mockReturnValue(10_000);
+
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
+
+            expect(Actor.on).toHaveBeenCalledWith('persistState', expect.any(Function));
+
+            await kvs.useState(testKey, testValue);
+
+            await persistCallback();
+
+            expect(Actor.setValue).toHaveBeenCalledWith(
+                testKey,
+                expect.any(String),
+                expect.objectContaining({
+                    timeoutSecs: 5,
                 }),
-                // Add other required methods if needed
-            } as unknown as StorageClient;
-            vi.spyOn(Actor.config, 'getStorageClient').mockReturnValue(mockStorageClient);
-
-            // Create the encrypted KVS
-            encryptedKVS = await openEncryptedKeyValueStore(secret);
+            );
         });
 
-        afterEach(() => {
-            vi.resetAllMocks();
+        it('handles concurrent useState calls for the same key correctly', async () => {
+            const testValue = { counter: 50 };
+            const testKey = 'CONCURRENT_KEY';
+
+            let resolveGetValue: (value: string) => void;
+            const getValuePromise = new Promise<string>((resolve) => {
+                resolveGetValue = resolve;
+            });
+
+            vi.mocked(Actor.getValue).mockReturnValue(getValuePromise);
+
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
+
+            const promise1 = kvs.useState(testKey, { counter: 0 });
+            const promise2 = kvs.useState(testKey, { counter: 0 });
+            const promise3 = kvs.useState(testKey, { counter: 0 });
+
+            // With the lock mechanism, getValue should only be called once
+            expect(Actor.getValue).toHaveBeenCalledTimes(1);
+
+            resolveGetValue(encryptString(JSON.stringify(testValue), encryptionKey));
+
+            const [state1, state2, state3] = await Promise.all([promise1, promise2, promise3]);
+
+            expect(state1).toBe(state2);
+            expect(state2).toBe(state3);
+            expect(state1).toEqual(testValue);
+
+            state1.counter += 1;
+
+            expect(state2.counter).toEqual(51);
+            expect(state3.counter).toEqual(51);
         });
 
-        describe('setValue', () => {
-            it('should encrypt values before storing them', async () => {
-                await encryptedKVS.setValue(testKey, testValue);
+        it('clears pending operation after error', async () => {
+            const testKey = 'ERROR_KEY';
+            const error = new Error('Test error');
 
-                expect(mockKVStore.setValue).toHaveBeenCalledTimes(1);
-                expect(mockKVStore.setValue).toHaveBeenCalledWith(testKey, expect.any(String));
+            vi.mocked(Actor.getValue).mockRejectedValueOnce(error);
 
-                const [, encryptedValue] = mockKVStore.setValue.mock.calls[0];
-                expect(encryptedValue).not.toBe(testValue);
-                expect(encryptedValue).not.toContain(testValue.message);
-                expect(typeof encryptedValue).toBe('string');
-            });
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
 
-            it('should store null values as null without encryption', async () => {
-                await encryptedKVS.setValue(testKey, null);
+            await expect(kvs.useState(testKey, { data: '' })).rejects.toThrow('Test error');
 
-                expect(mockKVStore.setValue).toHaveBeenCalledTimes(1);
-                expect(mockKVStore.setValue).toHaveBeenCalledWith(testKey, null);
-            });
+            // After error, the pending operation should be cleared
+            // Next call should create a new operation
+            vi.mocked(Actor.getValue).mockResolvedValueOnce(
+                encryptString(JSON.stringify({ data: 'success' }), encryptionKey),
+            );
 
-            it('should encrypt primitive values correctly', async () => {
-                await encryptedKVS.setValue(testKey, primitiveValue);
-
-                expect(mockKVStore.setValue).toHaveBeenCalledTimes(1);
-                const [, encryptedValue] = mockKVStore.setValue.mock.calls[0];
-                expect(encryptedValue).not.toBe(primitiveValue);
-                expect(typeof encryptedValue).toBe('string');
-            });
+            const state = await kvs.useState(testKey, { data: '' });
+            expect(state).toEqual({ data: 'success' });
+            expect(Actor.getValue).toHaveBeenCalledTimes(2);
         });
 
-        describe('getValue', () => {
-            it('should decrypt values when retrieving them', async () => {
-                // First, store an encrypted value
-                await encryptedKVS.setValue(testKey, testValue);
-                const encryptedValue = mockKVStore.setValue.mock.calls[0][1];
+        it('handles interleaved calls for different keys correctly', async () => {
+            const kvs = new EncryptedKeyValueStore(logger, encryptionKey);
 
-                // Mock the underlying getValue to return the encrypted value
-                mockKVStore.getValue.mockResolvedValue(encryptedValue);
+            let resolveKey1: (value: string) => void;
+            let resolveKey2: (value: string) => void;
 
-                // Retrieve and verify decryption
-                const decryptedValue = await encryptedKVS.getValue(testKey);
-
-                expect(mockKVStore.getValue).toHaveBeenCalledTimes(1);
-                expect(mockKVStore.getValue).toHaveBeenCalledWith(testKey);
-                expect(decryptedValue).toEqual(testValue);
+            const promise1 = new Promise<string>((resolve) => {
+                resolveKey1 = resolve;
+            });
+            const promise2 = new Promise<string>((resolve) => {
+                resolveKey2 = resolve;
             });
 
-            it('should return null when the stored value is null', async () => {
-                mockKVStore.getValue.mockResolvedValue(null);
+            vi.mocked(Actor.getValue).mockReturnValueOnce(promise1).mockReturnValueOnce(promise2);
 
-                const result = await encryptedKVS.getValue(testKey);
+            const state1Promise = kvs.useState('KEY1', { value: 0 });
+            const state2Promise = kvs.useState('KEY2', { value: 0 });
 
-                expect(mockKVStore.getValue).toHaveBeenCalledTimes(1);
-                expect(result).toBeNull();
-            });
+            expect(Actor.getValue).toHaveBeenCalledTimes(2);
 
-            it('should return the default value when stored value is null and default is provided', async () => {
-                const defaultValue = { default: 'value' };
-                mockKVStore.getValue.mockResolvedValue(null);
+            resolveKey2(encryptString(JSON.stringify({ value: 2 }), encryptionKey));
+            resolveKey1(encryptString(JSON.stringify({ value: 1 }), encryptionKey));
 
-                const result = await encryptedKVS.getValue(testKey, defaultValue);
+            const [state1, state2] = await Promise.all([state1Promise, state2Promise]);
 
-                expect(mockKVStore.getValue).toHaveBeenCalledTimes(1);
-                expect(result).toBe(defaultValue);
-            });
-
-            it('should return null when stored value is null and no default is provided', async () => {
-                mockKVStore.getValue.mockResolvedValue(null);
-
-                const result = await encryptedKVS.getValue(testKey);
-
-                expect(result).toBeNull();
-            });
-
-            it('should handle primitive values correctly', async () => {
-                // Store a primitive value
-                await encryptedKVS.setValue(testKey, primitiveValue);
-                const encryptedValue = mockKVStore.setValue.mock.calls[0][1];
-
-                // Mock retrieval
-                mockKVStore.getValue.mockResolvedValue(encryptedValue);
-
-                const decryptedValue = await encryptedKVS.getValue(testKey);
-
-                expect(decryptedValue).toBe(primitiveValue);
-            });
-        });
-
-        describe('error handling', () => {
-            it('should throw a descriptive error when decryption fails with wrong key', async () => {
-                // Create an encrypted value with one secret
-                const anotherSecret = 'different-secret';
-                const anotherKVS = await openEncryptedKeyValueStore(anotherSecret);
-                await anotherKVS.setValue(testKey, testValue);
-                const encryptedWithDifferentKey =
-                    mockKVStore.setValue.mock.calls[mockKVStore.setValue.mock.calls.length - 1][1];
-
-                // Try to decrypt with our original secret
-                mockKVStore.getValue.mockResolvedValue(encryptedWithDifferentKey);
-
-                await expect(encryptedKVS.getValue(testKey)).rejects.toThrow(
-                    `Unable to decrypt key: "${testKey}". Possibly the wrong secret key is used?`,
-                );
-            });
-
-            it('should re-throw other decryption errors', async () => {
-                // Mock an invalid encrypted value that will cause a different error
-                mockKVStore.getValue.mockResolvedValue('invalid-encrypted-data');
-
-                await expect(encryptedKVS.getValue(testKey)).rejects.toThrow();
-            });
-        });
-
-        describe('encryption consistency', () => {
-            it('should produce different encrypted values for the same input (due to random IV)', async () => {
-                await encryptedKVS.setValue('key1', testValue);
-                await encryptedKVS.setValue('key2', testValue);
-
-                const encryptedValue1 = mockKVStore.setValue.mock.calls[0][1];
-                const encryptedValue2 = mockKVStore.setValue.mock.calls[1][1];
-
-                // Should be different due to random IV
-                expect(encryptedValue1).not.toBe(encryptedValue2);
-            });
-
-            it('should consistently decrypt the same encrypted value', async () => {
-                await encryptedKVS.setValue(testKey, testValue);
-                const encryptedValue = mockKVStore.setValue.mock.calls[0][1];
-
-                // Mock multiple retrievals of the same encrypted value
-                mockKVStore.getValue.mockResolvedValue(encryptedValue);
-
-                const result1 = await encryptedKVS.getValue(testKey);
-                const result2 = await encryptedKVS.getValue(testKey);
-
-                expect(result1).toEqual(testValue);
-                expect(result2).toEqual(testValue);
-                expect(result1).toEqual(result2);
-            });
-        });
-
-        describe('type safety', () => {
-            it('should maintain type information through encryption/decryption cycle', async () => {
-                const complexObject = {
-                    string: 'text',
-                    number: 123,
-                    boolean: true,
-                    array: [1, 'two', { three: 3 }],
-                    nested: {
-                        deep: {
-                            value: 'found',
-                        },
-                    },
-                    nullValue: null as null,
-                    undefinedValue: undefined as undefined,
-                };
-
-                await encryptedKVS.setValue(testKey, complexObject);
-                const encryptedValue = mockKVStore.setValue.mock.calls[0][1];
-
-                mockKVStore.getValue.mockResolvedValue(encryptedValue);
-                const decryptedValue = (await encryptedKVS.getValue(testKey)) as typeof complexObject;
-
-                expect(decryptedValue).toEqual(complexObject);
-                expect(typeof decryptedValue.string).toBe('string');
-                expect(typeof decryptedValue.number).toBe('number');
-                expect(typeof decryptedValue.boolean).toBe('boolean');
-                expect(Array.isArray(decryptedValue.array)).toBe(true);
-                expect(decryptedValue.nested.deep.value).toBe('found');
-            });
+            expect(state1).toEqual({ value: 1 });
+            expect(state2).toEqual({ value: 2 });
         });
     });
 });

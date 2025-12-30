@@ -2,17 +2,17 @@ import type { ActorRun } from 'apify-client';
 import { ActorClient, RunClient } from 'apify-client';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
 import type { ExtRunClient } from 'src/clients/run-client.js';
-import { DEFAULT_ORCHESTRATOR_OPTIONS, MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
-import { RunsTracker } from 'src/tracker.js';
+import { MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
+import { RunTracker } from 'src/run-tracker.js';
 import type { OrchestratorOptions, RunInfo } from 'src/types.js';
 import type { OrchestratorContext } from 'src/utils/context.js';
-import { generateLogger } from 'src/utils/logging.js';
+import { getTestGlobalContext, getTestOptions } from 'test/_helpers/context.js';
 import type { MockInstance } from 'vitest';
 
 describe('ExtRunClient', () => {
     let context: OrchestratorContext;
     let options: OrchestratorOptions;
-    let updateRunSpy: MockInstance<(runName: string, run: ActorRun) => Promise<RunInfo>>;
+    let updateRunSpy: MockInstance<(runName: string, run: ActorRun) => RunInfo>;
     let runClient: ExtRunClient;
 
     const mockDate = new Date('2024-09-11T06:00:00.000Z');
@@ -40,15 +40,12 @@ describe('ExtRunClient', () => {
 
     beforeEach(async () => {
         vi.useFakeTimers();
-        const logger = generateLogger({ enableLogs: false, hideSensitiveInformation: false });
-        const runsTracker = new RunsTracker(logger, false);
-        context = { logger, runsTracker };
-        await runsTracker.init();
-        options = {
-            ...DEFAULT_ORCHESTRATOR_OPTIONS,
-            enableLogs: false,
-        };
-        updateRunSpy = vi.spyOn(RunsTracker.prototype, 'updateRun');
+        options = getTestOptions();
+        const globalContext = getTestGlobalContext(options);
+        const { logger } = globalContext;
+        const runTracker = await RunTracker.new(globalContext);
+        context = { logger, runTracker };
+        updateRunSpy = vi.spyOn(RunTracker.prototype, 'updateRun');
         runClient = await generateExtRunClient('test-run');
     });
 
@@ -69,7 +66,7 @@ describe('ExtRunClient', () => {
 
         it('declares a Run lost if not found', async () => {
             const getSpy = vi.spyOn(RunClient.prototype, 'get').mockImplementation(async () => null);
-            const declareLostRunSpy = vi.spyOn(RunsTracker.prototype, 'declareLostRun');
+            const declareLostRunSpy = vi.spyOn(RunTracker.prototype, 'declareLostRun');
             const run = await runClient.get();
             expect(run).toEqual(null);
             expect(getSpy).toHaveBeenCalledTimes(1);

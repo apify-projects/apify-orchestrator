@@ -1,9 +1,8 @@
-import { Actor, ApifyClient, log } from 'apify';
+import { Actor, ApifyClient } from 'apify';
 import type { ActorRun, ApifyClientOptions, RunClient } from 'apify-client';
 
 import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS, RUN_STATUSES } from '../constants.js';
 import { InsufficientActorJobsError, InsufficientMemoryError } from '../errors.js';
-import { isRunOkStatus } from '../tracker.js';
 import type {
     DatasetItem,
     EnqueuedRequest,
@@ -13,7 +12,7 @@ import type {
     RunRecord,
     RunResult,
 } from '../types.js';
-import { parseStartRunError } from '../utils/apify-client.js';
+import { isRunOkStatus, parseStartRunError } from '../utils/apify-client.js';
 import type { OrchestratorContext } from '../utils/context.js';
 import { Queue } from '../utils/queue.js';
 import { ExtActorClient } from './actor-client.js';
@@ -80,7 +79,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         const { runName } = runRequest;
 
         if (!force) {
-            const existingRunInfo = this.context.runsTracker.findRunByName(runName);
+            const existingRunInfo = this.context.runTracker.findRunByName(runName);
 
             // If the Run exists and has not failed, keep it
             if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
@@ -130,7 +129,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     protected findStartedRun(runName: string): ExtRunClient | undefined {
-        const startedRunInfo = this.context.runsTracker.currentRuns[runName];
+        const startedRunInfo = this.context.runTracker.findRunByName(runName);
         if (startedRunInfo) {
             return this.trackedRun(runName, startedRunInfo.runId);
         }
@@ -160,7 +159,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     override run(id: string): RunClient {
-        const runName = this.context.runsTracker.findRunName(id);
+        const runName = this.context.runTracker.findRunName(id);
         return runName ? this.trackedRun(runName, id) : super.run(id);
     }
 
@@ -224,7 +223,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                 }
 
                 if (result.kind === RUN_STATUSES.RUN_STARTED) {
-                    await this.context.runsTracker.updateRun(runName, result.run);
+                    this.context.runTracker.updateRun(runName, result.run);
                     for (const callback of nextRunRequest.startCallbacks) {
                         callback({ kind: RUN_STATUSES.RUN_STARTED, run: result.run });
                     }
@@ -347,13 +346,17 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     async abortAllRuns() {
-        log.info('Aborting runs', this.context.runsTracker.currentRuns);
+        const currentRunNames = this.context.runTracker.getCurrentRunNames();
+        this.context.logger.info('Aborting Runs', { currentRunNames });
         await Promise.all(
-            Object.entries(this.context.runsTracker.currentRuns).map(async ([runName, runInfo]) => {
+            currentRunNames.map(async (runName) => {
+                const runInfo = this.context.runTracker.findRunByName(runName);
+                if (!runInfo) return;
                 try {
+                    this.context.logger.prefixed(runName).info('Aborting Run', {}, { url: runInfo.runUrl });
                     await this.trackedRun(runName, runInfo.runId).abort();
-                } catch (err) {
-                    log.exception(err as Error, 'Error aborting the Run', { runName });
+                } catch (error) {
+                    this.context.logger.prefixed(runName).error('Error aborting Run', { error });
                 }
             }),
         );

@@ -1,120 +1,103 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import type { RecordOptions } from 'apify';
+import { Actor } from 'apify';
+import type { Dictionary } from 'crawlee';
 
-import type { OpenStorageOptions } from 'apify';
-import { Actor, KeyValueStore } from 'apify';
-import type { StorageClient } from 'crawlee';
+import type { EncryptionKey } from './encryption.js';
+import { decryptString, encryptString } from './encryption.js';
+import type { Logger } from './logging.js';
 
-function encrypt(dataToEncrypt: unknown, cryptSecret: string): string {
-    const iv = randomBytes(16);
-    const key = new Uint8Array(Buffer.from(cryptSecret));
-    const cipher = createCipheriv('aes-256-cbc', key, new Uint8Array(iv));
+export class EncryptedKeyValueStore {
+    private readonly cache = new Map<string, Dictionary>();
+    private readonly pendingOperations = new Map<string, Promise<Dictionary>>();
 
-    const inputBuffer = new Uint8Array(Buffer.from(JSON.stringify(dataToEncrypt)));
-    const updateResult = cipher.update(inputBuffer);
-    const finalResult = cipher.final();
-
-    // Combine the results
-    const encrypted = new Uint8Array(updateResult.length + finalResult.length);
-    encrypted.set(updateResult, 0);
-    encrypted.set(finalResult, updateResult.length);
-
-    const result = {
-        data: Buffer.from(encrypted).toString('base64'),
-        iv: iv.toString('base64'),
-    };
-
-    return Buffer.from(JSON.stringify(result)).toString('base64');
-}
-
-function decrypt<T>(dataToDecrypt: string, cryptSecret: string): T {
-    const { data, iv } = JSON.parse(Buffer.from(dataToDecrypt, 'base64').toString());
-
-    const key = new Uint8Array(Buffer.from(cryptSecret));
-    const ivBuffer = new Uint8Array(Buffer.from(iv, 'base64'));
-    const decipher = createDecipheriv('aes-256-cbc', key, ivBuffer);
-
-    const encryptedData = new Uint8Array(Buffer.from(data, 'base64'));
-    const updateResult = decipher.update(encryptedData);
-    const finalResult = decipher.final();
-
-    // Combine the results
-    const decrypted = new Uint8Array(updateResult.length + finalResult.length);
-    decrypted.set(updateResult, 0);
-    decrypted.set(finalResult, updateResult.length);
-
-    return JSON.parse(Buffer.from(decrypted).toString()) as T;
-}
-
-class EncryptedKeyValueStore extends KeyValueStore {
-    private cryptSecret: string;
-    protected kvStore: KeyValueStore;
-
-    /**
-     * `kvStore` and `storageClient` should be coherent: for this reason, only `openEncryptedKeyValueStore` is exported.
-     */
-    constructor(kvStore: KeyValueStore, storageClient: StorageClient, encryptionKey: string) {
-        super(
-            {
-                id: kvStore.id,
-                name: kvStore.name,
-                client: storageClient,
-            },
-            kvStore.config,
-        );
-        this.cryptSecret = createHash('sha256').update(encryptionKey).digest('hex').slice(0, 32);
-        this.kvStore = kvStore;
+    constructor(
+        private readonly logger: Logger,
+        private readonly encryptionKey: EncryptionKey,
+    ) {
+        Actor.on('persistState', this.persistCache.bind(this));
     }
 
-    override async getValue<T = unknown>(key: string, defaultValue?: T) {
-        const encryptedValue = await this.kvStore.getValue<string>(key);
+    /**
+     * Mimics Crawlee's `KeyValueStore.prototype.getAutoSavedValue` method, with encryption support.
+     * Reference: https://github.com/apify/crawlee/blob/649e2a4086556a8f9f5410a0253e773443d1060b/packages/core/src/storages/key_value_store.ts#L249
+     */
+    async useState<T extends Dictionary>(key: string, defaultValue: T): Promise<T> {
+        const cachedValue = this.cache.get(key) as T;
+        if (cachedValue) return cachedValue;
+
+        const pendingOperation = this.pendingOperations.get(key) as Promise<T> | undefined;
+        if (pendingOperation) return await pendingOperation;
+
+        const operation = this.generateAndStoreStateLoadingPromise<T>(key, defaultValue);
+
+        return await operation;
+    }
+
+    /**
+     * This method is synchronous to avoid race conditions when multiple parts of the code access the pending operation
+     * map simultaneously: the promise is created and stored in the map without any awaits in between.
+     */
+    // eslint-disable-next-line @typescript-eslint/promise-function-async
+    private generateAndStoreStateLoadingPromise<T extends Dictionary>(key: string, defaultValue: T): Promise<T> {
+        const operation = this.getValue<T>(key, defaultValue)
+            .then((value) => {
+                this.cache.set(key, value);
+                this.pendingOperations.delete(key);
+                return value;
+            })
+            .catch((error) => {
+                this.pendingOperations.delete(key);
+                throw error;
+            });
+
+        this.pendingOperations.set(key, operation);
+
+        return operation;
+    }
+
+    private async getValue<T extends Dictionary>(key: string, defaultValue: T): Promise<T> {
+        const encryptedValue = await Actor.getValue<string>(key);
 
         if (encryptedValue == null) {
-            if (defaultValue !== undefined) {
-                return defaultValue;
-            }
-            return null;
+            return defaultValue;
         }
 
         try {
-            return decrypt(encryptedValue, this.cryptSecret) as T;
+            const decryptedValue = decryptString(encryptedValue, this.encryptionKey);
+            return JSON.parse(decryptedValue) as T;
         } catch (error) {
-            const errorCode = (error as { code?: string })?.code;
-            const errorMessage = (error as { message?: string })?.message ?? '';
-
-            // Handle various crypto decryption errors
-            if (
-                errorCode === 'ERR_OSSL_EVP_BAD_DECRYPT' ||
-                errorCode === 'ERR_OSSL_BAD_DECRYPT' ||
-                errorMessage.includes('bad decrypt')
-            ) {
-                throw new Error(`Unable to decrypt key: "${key}". Possibly the wrong secret key is used?`);
-            }
-            throw error;
+            this.logger.error(`Unable to decrypt key: "${key}". Possibly the wrong secret key is used?`, {
+                error,
+            });
+            return defaultValue;
         }
     }
 
-    override async setValue<T>(key: string, value: T | null): Promise<void> {
+    private async setValue<T extends Dictionary>(key: string, value: T | null, options?: RecordOptions): Promise<void> {
         if (value === null) {
-            return await this.kvStore.setValue(key, null);
+            return await Actor.setValue(key, null, options);
         }
-        return await this.kvStore.setValue(key, encrypt(value, this.cryptSecret));
+
+        const stringifiedValue = JSON.stringify(value);
+        const encryptedValue = encryptString(stringifiedValue, this.encryptionKey);
+        return await Actor.setValue(key, encryptedValue, options);
     }
-}
 
-/**
- * @param encryptionKey the key to use to read and write encrypted values.
- * @param storeIdOrName ID or name of the key-value store to be opened.
- * If null or undefined, the function returns the default key-value store associated with the Actor run.
- * @param options
- * @returns an instance of the KeyValueStore which allows reading and writing values using encryption.
- */
-export async function openEncryptedKeyValueStore(
-    encryptionKey: string,
-    storeIdOrName?: string,
-    options?: OpenStorageOptions,
-): Promise<EncryptedKeyValueStore> {
-    const kvStore = await Actor.openKeyValueStore(storeIdOrName, options);
-    const storageClient = Actor.config.getStorageClient();
+    private async persistCache(): Promise<void> {
+        const persistStateIntervalMs = Actor.config.get('persistStateIntervalMillis');
+        const timeoutSecs = persistStateIntervalMs ? persistStateIntervalMs / 1_000 / 2 : undefined;
 
-    return new EncryptedKeyValueStore(kvStore, storageClient, encryptionKey);
+        const promises: Promise<void>[] = [];
+
+        for (const [key, value] of this.cache) {
+            promises.push(
+                this.setValue(key, value, {
+                    timeoutSecs,
+                    doNotRetryTimeouts: true,
+                }).catch((error) => this.logger.warning(`Failed to persist the state value to ${key}`, { error })),
+            );
+        }
+
+        await Promise.all(promises);
+    }
 }

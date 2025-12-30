@@ -2,7 +2,6 @@ import type { ActorCallOptions, ActorLastRunOptions, ActorRun, ActorStartOptions
 import { ActorClient, RunClient } from 'apify-client';
 
 import { DEFAULT_SPLIT_RULES, RUN_STATUSES } from '../constants.js';
-import { isRunOkStatus } from '../tracker.js';
 import type {
     ActorRunRequest,
     EnqueueFunction,
@@ -14,6 +13,7 @@ import type {
     RunResult,
     SplitRules,
 } from '../types.js';
+import { isRunOkStatus } from '../utils/apify-client.js';
 import { generateInputChunks } from '../utils/bytes.js';
 import type { OrchestratorContext } from '../utils/context.js';
 import { generateRunRequests } from '../utils/run-requests.js';
@@ -134,7 +134,7 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     }
 
     override async start(runName: string, input?: object, options?: ActorStartOptions): Promise<ActorRun> {
-        const existingRunInfo = this.context.runsTracker.findRunByName(runName);
+        const existingRunInfo = this.context.runTracker.findRunByName(runName);
 
         // If the Run exists and has not failed, use it
         if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
@@ -158,7 +158,7 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     override lastRun(options?: ActorLastRunOptions): RunClient {
         const runClient = this.superClient.lastRun(options);
         if (runClient.id) {
-            const runName = this.context.runsTracker.findRunName(runClient.id);
+            const runName = this.context.runTracker.findRunName(runClient.id);
             if (runName) {
                 return this.generateRunOrchestratorClient(runName, runClient.id);
             }

@@ -12,5 +12,5 @@ export interface Input {
 }
 
 export interface Output extends DatasetItem {
-    randomNumber: number;
+    value: number;
 }

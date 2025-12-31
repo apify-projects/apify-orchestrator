@@ -44,12 +44,12 @@ if (role === 'root') {
         }),
     );
 
-    await Actor.pushData<Output>({ randomNumber: childrenTotal });
+    await Actor.pushData<Output>({ value: childrenTotal });
 } else if (role === 'child') {
     log.info('Generating output in child run');
-    const randomNumber = numberToOutput ?? Math.floor(Math.random() * 100) + 1;
-    log.info(`Generated random number: ${randomNumber}`);
-    await Actor.pushData<Output>({ randomNumber });
+    const outputValue = numberToOutput ?? Math.floor(Math.random() * 100) + 1;
+    log.info(`Output value: ${outputValue}`);
+    await Actor.pushData<Output>({ value: outputValue });
 } else if (role === 'e2e-test') {
     log.info('Starting end-to-end tests');
     const output = await runEndToEndTests();

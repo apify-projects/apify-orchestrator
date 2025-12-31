@@ -34,9 +34,14 @@
             "type": "object",
             "editor": "json"
         },
+        "waitSeconds": {
+            "title": "Wait Seconds",
+            "description": "Number of seconds to wait before finishing.",
+            "type": "integer"
+        },
         "childWaitSeconds": {
             "title": "Child Wait Seconds",
-            "description": "Number of seconds each child actor waits before finishing (only applicable if role is 'child').",
+            "description": "Number of seconds each child actor waits before finishing (only applicable if role is 'root').",
             "type": "integer"
         }
     },

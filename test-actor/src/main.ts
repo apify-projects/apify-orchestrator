@@ -1,6 +1,7 @@
 import { Actor, log } from 'apify';
 import { sleep } from 'crawlee';
 
+import { runEndToEndTests } from './e2e.js';
 import { Orchestrator } from './orchestrator/index.js';
 import { TestActorRunner } from './test-actor-runner.js';
 import { TestTaskRunner } from './test-task-runner.js';
@@ -21,9 +22,11 @@ const {
     orchestratorOptions,
     waitSeconds,
     childWaitSeconds,
+    numberToOutput,
 } = input;
 
 if (role === 'root') {
+    log.info('Starting root orchestrator run');
     const orchestrator = new Orchestrator(orchestratorOptions);
     const client = await orchestrator.apifyClient();
 
@@ -43,9 +46,17 @@ if (role === 'root') {
 
     await Actor.pushData<Output>({ randomNumber: childrenTotal });
 } else if (role === 'child') {
-    const randomNumber = Math.floor(Math.random() * 100) + 1;
+    log.info('Generating output in child run');
+    const randomNumber = numberToOutput ?? Math.floor(Math.random() * 100) + 1;
     log.info(`Generated random number: ${randomNumber}`);
     await Actor.pushData<Output>({ randomNumber });
+} else if (role === 'e2e-test') {
+    log.info('Starting end-to-end tests');
+    const output = await runEndToEndTests();
+    await Actor.pushData(Object.entries(output).map(([testName, result]) => ({ testName, ...result })));
+    if (Object.values(output).some((res) => !res.success)) {
+        await Actor.fail('Some end-to-end tests failed');
+    }
 }
 
 if (waitSeconds) {

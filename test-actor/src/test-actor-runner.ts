@@ -18,7 +18,7 @@ export class TestActorRunner {
         private readonly actorId: string,
         private readonly options: TestActorRunnerOptions,
     ) {
-        this.actorClient = apifyClient.actor('');
+        this.actorClient = apifyClient.actor(actorId);
     }
 
     static async new(client: ExtendedApifyClient, options: TestActorRunnerOptions): Promise<TestActorRunner> {
@@ -26,12 +26,13 @@ export class TestActorRunner {
         return new TestActorRunner(client, actorId, options);
     }
 
-    async call(index: number): Promise<TestRun | null> {
-        const childInput: Input = { role: 'child', waitSeconds: this.options.childWaitSeconds };
+    async call(index: number, numberToOutput?: number): Promise<TestRun | null> {
+        const childInput: Input = { role: 'child', waitSeconds: this.options.childWaitSeconds, numberToOutput };
         const childOptions: ActorCallOptions = { memory: this.options.childMemoryMbytes };
+        const runName = `child-${index}`;
         try {
-            const run = await this.actorClient.call(`child-${index}`, childInput, childOptions);
-            return new TestRun(this.apifyClient, run, index);
+            const run = await this.actorClient.call(runName, childInput, childOptions);
+            return new TestRun(this.apifyClient, run, runName);
         } catch (error) {
             log.exception(error as Error, `Error calling child actor ${index}`, {
                 actorId: this.actorId,

@@ -7,8 +7,8 @@ import type { Output } from './types.js';
 export class TestRun {
     constructor(
         private readonly client: ExtendedApifyClient,
-        private readonly run: ActorRun,
-        private readonly index: number,
+        public readonly run: ActorRun,
+        public readonly runName: string,
     ) {}
 
     async getTotalOutput(): Promise<number> {
@@ -16,11 +16,11 @@ export class TestRun {
         try {
             const outputIterator = this.client.dataset<Output>(this.run.defaultDatasetId).iterate({ pageSize: 100 });
             for await (const item of outputIterator) {
-                log.info(`Received random number from child ${this.index}: ${item.randomNumber}`);
+                log.info(`Received random number from child ${this.runName}: ${item.randomNumber}`);
                 total += item.randomNumber;
             }
         } catch (error) {
-            log.exception(error as Error, `Error retrieving output from child actor ${this.index}`, {
+            log.exception(error as Error, `Error retrieving output from child actor ${this.runName}`, {
                 datasetId: this.run.defaultDatasetId,
             });
         }

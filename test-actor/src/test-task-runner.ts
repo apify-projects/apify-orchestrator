@@ -14,9 +14,10 @@ export class TestTaskRunner {
     }
 
     async call(index: number): Promise<TestRun | null> {
+        const runName = `child-task-${index}`;
         try {
-            const run = await this.taskClient.call(undefined, { runName: `child-task-${index}` });
-            return new TestRun(this.apifyClient, run, index);
+            const run = await this.taskClient.call(undefined, { runName });
+            return new TestRun(this.apifyClient, run, runName);
         } catch (error) {
             log.exception(error as Error, `Error calling child task for child actor ${index}`, {
                 taskId: this.taskId,

@@ -10,7 +10,7 @@ const TRACKED_RUNS_KEY = 'RUNS';
 
 type RunInfoRecord = { [runName: string]: RunInfo };
 
-interface TrackedRuns {
+export interface TrackedRuns {
     current: RunInfoRecord;
     failedHistory: { [runName: string]: RunInfo[] };
 }

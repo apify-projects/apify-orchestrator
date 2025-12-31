@@ -1,9 +1,11 @@
 import { log } from 'apify';
 
 import {
+    checkResurrectionTestOutputCompleteness,
     generateActorTestRunner,
     getOrchestratorAndClient,
     getOrchestratorTrackedValue,
+    runResurrectionTest,
     testLog,
 } from './e2e-utils.js';
 import type { TrackedRuns } from './orchestrator/run-tracker.js';
@@ -22,6 +24,9 @@ export async function runEndToEndTests(): Promise<EndToEndTestOutput> {
         childRunWithPlainPersistence,
         childRunWithEncryptedPersistence,
         childRunFromTask,
+        resurrectedRunWithoutPersistence,
+        resurrectedRunWithPlainPersistence,
+        resurrectedRunWithEncryptedPersistence,
     ];
 
     const output: EndToEndTestOutput = {};
@@ -150,6 +155,90 @@ async function childRunFromTask(): Promise<TestResult> {
     const output = await run.getTotalOutput();
     if (output !== 50) {
         return { success: false, details: `Unexpected output: ${output}` };
+    }
+
+    return { success: true };
+}
+
+async function resurrectedRunWithoutPersistence(): Promise<TestResult> {
+    const { client } = await getOrchestratorAndClient({
+        persistenceSupport: 'none',
+        hideSensitiveInformation: false,
+    });
+
+    const { runsBeforeResurrection, runsAfterResurrection } = await runResurrectionTest(
+        client,
+        'resurrection-without-persistence',
+        { persistenceSupport: 'none', hideSensitiveInformation: false },
+    );
+
+    const checkResult = checkResurrectionTestOutputCompleteness(runsBeforeResurrection, runsAfterResurrection);
+    if (checkResult !== null) {
+        return checkResult;
+    }
+
+    for (const [runName, runOutput] of Object.entries(runsAfterResurrection)) {
+        if (runOutput.runId === runsBeforeResurrection[runName].runId) {
+            return {
+                success: false,
+                details: `Run ID for resurrected run ${runName} is the same as before resurrection`,
+            };
+        }
+    }
+
+    return { success: true };
+}
+
+async function resurrectedRunWithPlainPersistence(): Promise<TestResult> {
+    const { client } = await getOrchestratorAndClient({
+        persistenceSupport: 'none',
+        hideSensitiveInformation: false,
+    });
+
+    const { runsBeforeResurrection, runsAfterResurrection } = await runResurrectionTest(
+        client,
+        'resurrection-with-plain-persistence',
+        { persistenceSupport: 'kvs', hideSensitiveInformation: false },
+    );
+
+    const checkResult = checkResurrectionTestOutputCompleteness(runsBeforeResurrection, runsAfterResurrection);
+    if (checkResult !== null) {
+        return checkResult;
+    }
+
+    for (const [runName, runOutput] of Object.entries(runsAfterResurrection)) {
+        if (runOutput.runId !== runsBeforeResurrection[runName].runId) {
+            return { success: false, details: `Run ID for resurrected run ${runName} changed after resurrection` };
+        }
+    }
+
+    return { success: true };
+}
+
+async function resurrectedRunWithEncryptedPersistence(): Promise<TestResult> {
+    const { client } = await getOrchestratorAndClient({
+        persistenceSupport: 'none',
+        hideSensitiveInformation: false,
+    });
+
+    const { runsBeforeResurrection, runsAfterResurrection } = await runResurrectionTest(
+        client,
+        'resurrection-with-encrypted-persistence',
+        { persistenceSupport: 'kvs', hideSensitiveInformation: true, persistenceEncryptionKey: 'test-key' },
+    );
+
+    const checkResult = checkResurrectionTestOutputCompleteness(runsBeforeResurrection, runsAfterResurrection);
+    if (checkResult !== null) {
+        return checkResult;
+    }
+
+    for (const [runName, runOutput] of Object.entries(runsAfterResurrection)) {
+        if (runOutput.runId !== runsBeforeResurrection[runName].runId) {
+            return {
+                success: false,
+                details: `Run ID for resurrected run ${runName} changed after resurrection`,
+            };
+        }
     }
 
     return { success: true };

@@ -5,7 +5,11 @@ import type { ExtendedApifyClient } from './orchestrator/types.js';
 import { TestTaskRunner } from './test-task-runner.js';
 
 export class TestTransientTaskRunner extends TestTaskRunner {
-    private constructor(apifyClient: ExtendedApifyClient, taskId: string, private readonly taskName: string) {
+    private constructor(
+        apifyClient: ExtendedApifyClient,
+        taskId: string,
+        private readonly taskName: string,
+    ) {
         super(apifyClient, taskId);
     }
 

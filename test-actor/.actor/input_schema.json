@@ -7,7 +7,7 @@
             "title": "Role",
             "description": "The role of the Run.",
             "type": "string",
-            "enum": ["root", "child", "e2e-test"],
+            "enum": ["root", "child", "e2e-test", "resurrection-test"],
             "editor": "select",
             "prefill": "root"
         },

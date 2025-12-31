@@ -3,6 +3,7 @@ import { sleep } from 'crawlee';
 
 import { runEndToEndTests } from './e2e.js';
 import { Orchestrator } from './orchestrator/index.js';
+import { handleResurrectionTest } from './resurrection-test.js';
 import { TestActorRunner } from './test-actor-runner.js';
 import { TestTaskRunner } from './test-task-runner.js';
 import type { Input, Output } from './types.js';
@@ -57,6 +58,9 @@ if (role === 'root') {
     if (Object.values(output).some((res) => !res.success)) {
         await Actor.fail('Some end-to-end tests failed');
     }
+} else if (role === 'resurrection-test') {
+    log.info('Starting resurrection test');
+    await handleResurrectionTest(orchestratorOptions);
 }
 
 if (waitSeconds) {

@@ -27,12 +27,12 @@ export class TestActorRunner {
         return new TestActorRunner(client, actorId, options);
     }
 
-    async call(index: number, numberToOutput?: number): Promise<TestRun | null> {
+    async start(index: number, numberToOutput?: number): Promise<TestRun | null> {
         const childInput: Input = { role: 'child', waitSeconds: this.options.childWaitSeconds, numberToOutput };
         const childOptions: ActorCallOptions = { memory: this.options.childMemoryMbytes };
         const runName = `child-${index}`;
         try {
-            const run = await this.actorClient.call(runName, childInput, childOptions);
+            const run = await this.actorClient.start(runName, childInput, childOptions);
             return new TestRun(this.apifyClient, run, runName);
         } catch (error) {
             log.exception(error as Error, `Error calling child actor ${index}`, {
@@ -42,5 +42,12 @@ export class TestActorRunner {
             });
             return null;
         }
+    }
+
+    async call(index: number, numberToOutput?: number): Promise<TestRun | null> {
+        const startedRun = await this.start(index, numberToOutput);
+        if (!startedRun) return null;
+        const finishedRun = await this.apifyClient.run(startedRun.run.id).waitForFinish();
+        return new TestRun(this.apifyClient, finishedRun, startedRun.runName);
     }
 }

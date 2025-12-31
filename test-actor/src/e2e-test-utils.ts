@@ -43,7 +43,8 @@ export async function getOrchestratorTrackedValue(index: number): Promise<unknow
     eventManager.emit('persistState');
     await eventManager.waitForAllListenersToComplete();
 
-    const key = index <= 1 ? 'ORCHESTRATOR-CLIENT-RUNS' : `ORCHESTRATOR-${index}-CLIENT-${index}-RUNS`;
+    // Indexing starts at 1; for the first orchestrator we use the default key without indices
+    const key = index === 1 ? 'ORCHESTRATOR-CLIENT-RUNS' : `ORCHESTRATOR-${index}-CLIENT-${index}-RUNS`;
 
     log.info('Fetching orchestrator tracked value', { key });
     const value = await Actor.getValue(key);

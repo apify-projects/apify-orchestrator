@@ -2,7 +2,7 @@
 
 An Actor that spawns itself multiple times using the Apify Orchestrator from the same repository.
 
-This actor was designed to run totally or partially on the platform.
+This actor was designed to run totally or partially on the platform (at least the child Runs).
 To use it, push it to the platform with the command:
 
 ```sh

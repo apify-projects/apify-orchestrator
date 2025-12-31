@@ -68,6 +68,10 @@ export class RunTracker {
         this.trackedRuns.current[runName] = runInfo;
 
         if (hasChanged) {
+            const { startedAt, status } = runInfo;
+            this.context.logger
+                .prefixed(runName)
+                .info('Run status update', { startedAt, status }, { url: runInfo.runUrl });
             this.itemsChangedCallback(runName, run);
         }
 

@@ -7,6 +7,7 @@ import {
     testLog,
 } from './e2e-utils.js';
 import type { TrackedRuns } from './orchestrator/run-tracker.js';
+import { TestTransientTaskRunner } from './test-transient-task-runner.js';
 
 export interface TestResult {
     success: boolean;
@@ -16,7 +17,12 @@ export interface TestResult {
 export type EndToEndTestOutput = { [testName: string]: TestResult };
 
 export async function runEndToEndTests(): Promise<EndToEndTestOutput> {
-    const tests = [childRunWithoutPersistence, childRunWithPlainPersistence, childRunWithEncryptedPersistence];
+    const tests = [
+        childRunWithoutPersistence,
+        childRunWithPlainPersistence,
+        childRunWithEncryptedPersistence,
+        childRunFromTask,
+    ];
 
     const output: EndToEndTestOutput = {};
 
@@ -37,6 +43,7 @@ export async function runEndToEndTests(): Promise<EndToEndTestOutput> {
 async function childRunWithoutPersistence(): Promise<TestResult> {
     const { client } = await getOrchestratorAndClient({
         persistenceSupport: 'none',
+        hideSensitiveInformation: false,
     });
 
     const runner = await generateActorTestRunner(client);
@@ -125,4 +132,25 @@ async function childRunWithEncryptedPersistence(): Promise<TestResult> {
     } catch {
         return { success: true };
     }
+}
+
+async function childRunFromTask(): Promise<TestResult> {
+    const { client } = await getOrchestratorAndClient({
+        persistenceSupport: 'none',
+        hideSensitiveInformation: false,
+    });
+
+    using runner = await TestTransientTaskRunner.new(client, 'e2e-child-task-runner', 50);
+
+    const run = await runner.call(1);
+    if (!run) {
+        return { success: false, details: 'Run was not started successfully.' };
+    }
+
+    const output = await run.getTotalOutput();
+    if (output !== 50) {
+        return { success: false, details: `Unexpected output: ${output}` };
+    }
+
+    return { success: true };
 }

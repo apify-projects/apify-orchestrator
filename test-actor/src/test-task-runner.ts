@@ -4,11 +4,11 @@ import type { ExtendedApifyClient, ExtendedTaskClient } from './orchestrator/typ
 import { TestRun } from './test-run.js';
 
 export class TestTaskRunner {
-    private readonly taskClient: ExtendedTaskClient;
+    protected readonly taskClient: ExtendedTaskClient;
 
     constructor(
         private readonly apifyClient: ExtendedApifyClient,
-        private readonly taskId: string,
+        protected readonly taskId: string,
     ) {
         this.taskClient = apifyClient.task(taskId);
     }

@@ -1,3 +1,5 @@
+import { log } from 'apify';
+
 import {
     generateActorTestRunner,
     getOrchestratorAndClient,
@@ -19,18 +21,20 @@ export async function runEndToEndTests(): Promise<EndToEndTestOutput> {
     const output: EndToEndTestOutput = {};
 
     for (const test of tests) {
-        const [testName, result] = await test();
-        testLog(testName).info('Test finished', result);
-        output[testName] = result;
+        try {
+            testLog(test.name).info('Starting test');
+            const result = await test();
+            testLog(test.name).info('Test finished', result);
+            output[test.name] = result;
+        } catch (err) {
+            log.exception(err as Error, 'Error running end-to-end test', { test: test.name });
+        }
     }
 
     return output;
 }
 
-async function childRunWithoutPersistence(): Promise<[string, TestResult]> {
-    const testName = 'child-run-without-persistence';
-    testLog(testName).info('Starting test');
-
+async function childRunWithoutPersistence(): Promise<TestResult> {
     const { client } = await getOrchestratorAndClient({
         persistenceSupport: 'none',
     });
@@ -45,7 +49,7 @@ async function childRunWithoutPersistence(): Promise<[string, TestResult]> {
     );
 
     if (!run1 || !run2 || !run3) {
-        return [testName, { success: false, details: 'One of the runs was not started successfully.' }];
+        return { success: false, details: 'One of the runs was not started successfully.' };
     }
 
     const output1 = await run1.getTotalOutput();
@@ -53,16 +57,13 @@ async function childRunWithoutPersistence(): Promise<[string, TestResult]> {
     const output3 = await run3.getTotalOutput();
 
     if (output1 !== 10 || output2 !== 20 || output3 !== 30) {
-        return [testName, { success: false, details: `Unexpected outputs: ${output1}, ${output2}, ${output3}` }];
+        return { success: false, details: `Unexpected outputs: ${output1}, ${output2}, ${output3}` };
     }
 
-    return [testName, { success: true }];
+    return { success: true };
 }
 
-async function childRunWithPlainPersistence(): Promise<[string, TestResult]> {
-    const testName = 'child-run-with-plain-persistence';
-    testLog(testName).info('Starting test');
-
+async function childRunWithPlainPersistence(): Promise<TestResult> {
     const { client, testIndex } = await getOrchestratorAndClient({
         persistenceSupport: 'kvs',
         hideSensitiveInformation: false,
@@ -72,34 +73,28 @@ async function childRunWithPlainPersistence(): Promise<[string, TestResult]> {
 
     const run = await runner.call(1, 42);
     if (!run) {
-        return [testName, { success: false, details: 'Run was not started successfully.' }];
+        return { success: false, details: 'Run was not started successfully.' };
     }
 
     const output = await run.getTotalOutput();
     if (output !== 42) {
-        return [testName, { success: false, details: `Unexpected output: ${output}` }];
+        return { success: false, details: `Unexpected output: ${output}` };
     }
 
     const trackedValue = await getOrchestratorTrackedValue(testIndex);
     try {
         const trackedRuns = trackedValue as TrackedRuns;
         if (trackedRuns.current[run.runName].status !== 'SUCCEEDED') {
-            return [
-                testName,
-                { success: false, details: `Unexpected run status: ${trackedRuns.current[run.runName].status}` },
-            ];
+            return { success: false, details: `Unexpected run status: ${trackedRuns.current[run.runName].status}` };
         }
     } catch (err) {
-        return [testName, { success: false, details: `Error parsing tracked runs: ${(err as Error).message}` }];
+        return { success: false, details: `Error parsing tracked runs: ${(err as Error).message}` };
     }
 
-    return [testName, { success: true }];
+    return { success: true };
 }
 
-async function childRunWithEncryptedPersistence(): Promise<[string, TestResult]> {
-    const testName = 'child-run-with-encrypted-persistence';
-    testLog(testName).info('Starting test');
-
+async function childRunWithEncryptedPersistence(): Promise<TestResult> {
     const { client, testIndex } = await getOrchestratorAndClient({
         persistenceSupport: 'kvs',
         hideSensitiveInformation: true,
@@ -110,24 +105,24 @@ async function childRunWithEncryptedPersistence(): Promise<[string, TestResult]>
 
     const run = await runner.call(1, 84);
     if (!run) {
-        return [testName, { success: false, details: 'Run was not started successfully.' }];
+        return { success: false, details: 'Run was not started successfully.' };
     }
 
     const output = await run.getTotalOutput();
     if (output !== 84) {
-        return [testName, { success: false, details: `Unexpected output: ${output}` }];
+        return { success: false, details: `Unexpected output: ${output}` };
     }
 
     const trackedValue = await getOrchestratorTrackedValue(testIndex);
     if (trackedValue === null) {
-        return [testName, { success: false, details: 'Tracked runs object is null.' }];
+        return { success: false, details: 'Tracked runs object is null.' };
     }
 
     try {
         const trackedRuns = trackedValue as TrackedRuns;
         const runStatus = trackedRuns.current[run.runName].status;
-        return [testName, { success: false, details: `Expected run status to be hidden, but got: ${runStatus}` }];
+        return { success: false, details: `Expected run status to be hidden, but got: ${runStatus}` };
     } catch {
-        return [testName, { success: true }];
+        return { success: true };
     }
 }

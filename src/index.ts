@@ -14,7 +14,7 @@ import type {
 } from './types.js';
 import type { GlobalContext, OrchestratorContext } from './utils/context.js';
 import { buildLogger } from './utils/logging.js';
-import { makeNameUnique } from './utils/naming.js';
+import { makeNameUnique, makePrefixUnique } from './utils/naming.js';
 import type { Storage } from './utils/storage.js';
 import { buildStorage } from './utils/storage.js';
 
@@ -31,7 +31,7 @@ export class Orchestrator implements ApifyOrchestrator {
 
     constructor(options: Partial<OrchestratorOptions> = {}) {
         const fullOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...options };
-        fullOptions.persistencePrefix = makeNameUnique(fullOptions.persistencePrefix, takenPersistPrefixes);
+        fullOptions.persistencePrefix = makePrefixUnique(fullOptions.persistencePrefix, takenPersistPrefixes);
         takenPersistPrefixes.add(fullOptions.persistencePrefix);
         this.options = fullOptions;
 

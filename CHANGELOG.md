@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0
+
+### Breaking changes
+
+- Fixed unique orchestrator prefix generation: it now adds `${counter}-` instead of `-${counter}`.
+
 ## 0.7.1
 
 ### Added

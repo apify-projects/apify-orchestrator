@@ -1,8 +1,8 @@
-import { Actor, log } from "apify";
+import { Actor, log } from 'apify';
 
-import type { ExtendedApifyClient, OrchestratorOptions } from "./orchestrator/index.js";
-import { Orchestrator } from "./orchestrator/index.js";
-import { TestActorRunner } from "./test-actor-runner.js";
+import type { ExtendedApifyClient, OrchestratorOptions } from './orchestrator/index.js';
+import { Orchestrator } from './orchestrator/index.js';
+import { TestActorRunner } from './test-actor-runner.js';
 
 const CHILD_MEMORY_MB = 256;
 const CHILD_WAIT_SECONDS = 3;

@@ -1,4 +1,9 @@
-import { generateActorTestRunner, getOrchestratorAndClient, getOrchestratorTrackedValue, testLog } from './e2e-utils.js';
+import {
+    generateActorTestRunner,
+    getOrchestratorAndClient,
+    getOrchestratorTrackedValue,
+    testLog,
+} from './e2e-utils.js';
 import type { TrackedRuns } from './orchestrator/run-tracker.js';
 
 export interface TestResult {
@@ -9,11 +14,7 @@ export interface TestResult {
 export type EndToEndTestOutput = { [testName: string]: TestResult };
 
 export async function runEndToEndTests(): Promise<EndToEndTestOutput> {
-    const tests = [
-        childRunWithoutPersistence,
-        childRunWithPlainPersistence,
-        childRunWithEncryptedPersistence,
-    ];
+    const tests = [childRunWithoutPersistence, childRunWithPlainPersistence, childRunWithEncryptedPersistence];
 
     const output: EndToEndTestOutput = {};
 
@@ -100,10 +101,10 @@ async function childRunWithEncryptedPersistence(): Promise<[string, TestResult]>
     testLog(testName).info('Starting test');
 
     const { client, testIndex } = await getOrchestratorAndClient({
-    "persistenceSupport": "kvs",
-    "hideSensitiveInformation": true,
-    "persistenceEncryptionKey": "test-key"
-});
+        persistenceSupport: 'kvs',
+        hideSensitiveInformation: true,
+        persistenceEncryptionKey: 'test-key',
+    });
 
     const runner = await generateActorTestRunner(client);
 
@@ -125,10 +126,7 @@ async function childRunWithEncryptedPersistence(): Promise<[string, TestResult]>
     try {
         const trackedRuns = trackedValue as TrackedRuns;
         const runStatus = trackedRuns.current[run.runName].status;
-            return [
-                testName,
-                { success: false, details: `Expected run status to be hidden, but got: ${runStatus}` },
-            ];
+        return [testName, { success: false, details: `Expected run status to be hidden, but got: ${runStatus}` }];
     } catch {
         return [testName, { success: true }];
     }

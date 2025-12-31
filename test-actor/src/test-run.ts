@@ -16,7 +16,7 @@ export class TestRun {
         try {
             const outputIterator = this.client.dataset<Output>(this.run.defaultDatasetId).iterate({ pageSize: 100 });
             for await (const item of outputIterator) {
-                log.info(`Received random number from child ${this.runName}: ${item.value}`);
+                log.info(`Received output value from child ${this.runName}: ${item.value}`);
                 total += item.value;
             }
         } catch (error) {

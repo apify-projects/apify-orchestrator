@@ -35,7 +35,7 @@ export class TestActorRunner {
             const run = await this.actorClient.start(runName, childInput, childOptions);
             return new TestRun(this.apifyClient, run, runName);
         } catch (error) {
-            log.exception(error as Error, `Error calling child actor ${index}`, {
+            log.exception(error as Error, `Error starting child actor ${index}`, {
                 actorId: this.actorId,
                 input: childInput,
                 options: childOptions,

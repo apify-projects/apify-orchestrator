@@ -9,7 +9,8 @@ const CHILD_WAIT_SECONDS = 3;
 
 /**
  * A counter to ensure unique test indices for each orchestrator/client pair.
- * The counter is global, because tests may create multiple orchestrators/clients, that ensure global uniqueness.
+ * The counter is global because tests may create multiple orchestrators/clients,
+ * each of which is assigned a unique index.
  */
 let testCounter = 0;
 
@@ -44,7 +45,7 @@ export async function getOrchestratorTrackedValue(index: number): Promise<unknow
 
     const key = index <= 1 ? 'ORCHESTRATOR-CLIENT-RUNS' : `ORCHESTRATOR-${index}-CLIENT-${index}-RUNS`;
 
-    log.info(`Fetching orchestrator tracked value`, { key });
+    log.info('Fetching orchestrator tracked value', { key });
     const value = await Actor.getValue(key);
 
     return value;

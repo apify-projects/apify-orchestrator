@@ -38,6 +38,7 @@ export async function runEndToEndTests(): Promise<EndToEndTestOutput> {
             output[test.name] = result;
         } catch (err) {
             log.exception(err as Error, 'Error running end-to-end test', { test: test.name });
+            output[test.name] = { success: false, details: (err as Error).message };
         }
     }
 

@@ -1,13 +1,12 @@
 import { log } from 'apify';
 
+import { checkResurrectionTestOutputCompleteness, runResurrectionTest } from './e2e-test-resurrection.js';
 import {
-    checkResurrectionTestOutputCompleteness,
     generateActorTestRunner,
     getOrchestratorAndClient,
     getOrchestratorTrackedValue,
-    runResurrectionTest,
     testLog,
-} from './e2e-utils.js';
+} from './e2e-test-utils.js';
 import type { TrackedRuns } from './orchestrator/run-tracker.js';
 import { TestTransientTaskRunner } from './test-transient-task-runner.js';
 

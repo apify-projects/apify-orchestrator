@@ -1,7 +1,7 @@
 import { Actor, log } from 'apify';
 import { sleep } from 'crawlee';
 
-import { runEndToEndTests } from './e2e.js';
+import { runEndToEndTests } from './e2e-test.js';
 import { Orchestrator } from './orchestrator/index.js';
 import { handleResurrectionTest } from './resurrection-test.js';
 import { TestActorRunner } from './test-actor-runner.js';

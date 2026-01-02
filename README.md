@@ -17,8 +17,9 @@ instead, it allows you to trigger one or more new Runs from everywhere in your c
     - [`vitest`](https://vitest.dev/) is used;
     - take a look at existing tests in the `test` folder and follow the same organization/naming conventions;
     - the `package.json` includes scripts for testing.
-6. Create a **Pull Request** for every change, and merge it to `main`.
-7. Update `CHANGELOG.md` before publishing a new version.
+6. After every change, run the end-to-end test suite. For more details, check `test-actor`'s readme.
+7. Create a **Pull Request** for every change, and merge it to `main`.
+8. Update `CHANGELOG.md` before publishing a new version.
 
 ### About the codebase
 

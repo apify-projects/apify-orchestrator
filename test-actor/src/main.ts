@@ -1,119 +1,71 @@
 import { Actor, log } from 'apify';
-import type { ActorCallOptions, ActorRun } from 'apify-client';
 import { sleep } from 'crawlee';
 
-import type { DatasetItem, ExtendedApifyClient } from './orchestrator/index.js';
+import { runEndToEndTests } from './e2e-test.js';
 import { Orchestrator } from './orchestrator/index.js';
-
-let thisActorId: string | undefined;
+import { handleResurrectionTest } from './resurrection-test.js';
+import { TestActorRunner } from './test-actor-runner.js';
+import { TestTaskRunner } from './test-task-runner.js';
+import type { Input, Output } from './types.js';
 
 await Actor.init();
-
-interface Input {
-    role: 'root' | 'child';
-    numberOfChildren?: number;
-    childMemoryMbytes?: number;
-    childTaskId?: string;
-    orchestratorOptions?: Record<string, unknown>;
-    childWaitSeconds?: number;
-}
-
-interface Output extends DatasetItem {
-    randomNumber: number;
-}
 
 const input = await Actor.getInput<Input>();
 if (!input) {
     throw new Error('Input is required');
 }
 
-const { role, numberOfChildren = 3, childMemoryMbytes, orchestratorOptions, childWaitSeconds } = input;
+const {
+    role,
+    numberOfChildren = 3,
+    childTaskId,
+    childMemoryMbytes,
+    orchestratorOptions,
+    waitSeconds,
+    childWaitSeconds,
+    numberToOutput,
+} = input;
 
 if (role === 'root') {
+    log.info('Starting root orchestrator run');
     const orchestrator = new Orchestrator(orchestratorOptions);
     const client = await orchestrator.apifyClient();
 
-    let randomTotal = 0;
+    let childrenTotal = 0;
+
+    const runner = childTaskId
+        ? new TestTaskRunner(client, childTaskId)
+        : await TestActorRunner.new(client, { childWaitSeconds, childMemoryMbytes });
 
     await Promise.all(
         Array.from({ length: numberOfChildren }).map(async (_, index) => {
             const childNumber = index + 1;
-            const run = await callChild(client, childNumber);
-            if (!run) return;
-            randomTotal += await getRunTotalOutput(client, run, childNumber);
+            const run = await runner.call(childNumber);
+            if (run) childrenTotal += await run.getTotalOutput();
         }),
     );
 
-    await Actor.pushData<Output>({ randomNumber: randomTotal });
-} else {
-    if (childWaitSeconds) {
-        log.info(`Child actor waiting for ${childWaitSeconds} seconds before generating random number...`);
-        await sleep(childWaitSeconds * 1000);
+    await Actor.pushData<Output>({ value: childrenTotal });
+} else if (role === 'child') {
+    log.info('Generating output in child run');
+    const outputValue = numberToOutput ?? Math.floor(Math.random() * 100) + 1;
+    log.info(`Output value: ${outputValue}`);
+    await Actor.pushData<Output>({ value: outputValue });
+} else if (role === 'e2e-test') {
+    log.info('Starting end-to-end tests');
+    const output = await runEndToEndTests();
+    await Actor.pushData(Object.entries(output).map(([testName, result]) => ({ testName, ...result })));
+    if (Object.values(output).some((res) => !res.success)) {
+        await Actor.fail('Some end-to-end tests failed');
     }
-    const randomNumber = Math.floor(Math.random() * 100) + 1;
-    log.info(`Generated random number: ${randomNumber}`);
-    await Actor.pushData<Output>({ randomNumber });
+} else if (role === 'resurrection-test') {
+    log.info('Starting resurrection test');
+    await handleResurrectionTest(orchestratorOptions);
+}
+
+if (waitSeconds) {
+    log.info(`Waiting for ${waitSeconds} seconds before finishing...`);
+    await sleep(waitSeconds * 1000);
 }
 
 await Actor.exit();
-
-async function callChild(client: ExtendedApifyClient, index: number): Promise<ActorRun | null> {
-    if (input?.childTaskId) {
-        const taskClient = client.task(input.childTaskId);
-        try {
-            return await taskClient.call(undefined, { runName: `child-task-${index}` });
-        } catch (error) {
-            log.exception(
-                error as Error,
-                `Error calling child task for child actor ${index}`,
-                { taskId: input.childTaskId },
-            );
-            return null;
-        }
-    }
-    thisActorId ??= await getActorId();
-    const actorClient = client.actor(thisActorId);
-    const childInput: Input = { role: 'child', childWaitSeconds };
-    const childOptions: ActorCallOptions = { memory: childMemoryMbytes };
-    try {
-        return await actorClient.call(`child-${index}`, childInput, childOptions);
-    } catch (error) {
-        log.exception(
-            error as Error,
-            `Error calling child actor ${index}`,
-            { actorId: thisActorId, input: childInput, options: childOptions },
-        );
-        return null;
-    }
-}
-
-async function getActorId(): Promise<string> {
-    if (Actor.isAtHome()) {
-        const { actorId } = Actor.getEnv();
-        if (!actorId) throw new Error('Actor ID is not defined');
-        return actorId;
-    }
-    const { userId } = Actor.getEnv();
-    if (!userId) throw new Error('User ID is not defined');
-    const user = Actor.apifyClient.user(userId);
-    const { username } = await user.get();
-    return `${username}/test-apify-orchestrator`;
-}
-
-async function getRunTotalOutput(client: ExtendedApifyClient, run: ActorRun, index: number): Promise<number> {
-    let total = 0;
-    try {
-        const outputIterator = client.dataset<Output>(run.defaultDatasetId).iterate({ pageSize: 100 });
-        for await (const item of outputIterator) {
-            log.info(`Received random number from child ${index}: ${item.randomNumber}`);
-            total += item.randomNumber;
-        }
-    } catch (error) {
-        log.exception(
-            error as Error,
-            `Error retrieving output from child actor ${index}`,
-            { datasetId: run.defaultDatasetId },
-        );
-    }
-    return total;
-}

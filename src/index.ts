@@ -1,7 +1,8 @@
-import type { ExtApifyClientOptions } from './clients/apify-client.js';
+import type { ExtApifyClientContext, ExtApifyClientOptions } from './clients/apify-client.js';
 import { ExtApifyClient } from './clients/apify-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS } from './constants.js';
 import { DatasetGroupClass } from './entities/dataset-group.js';
+import { RunScheduler } from './run-scheduler.js';
 import { RunTracker } from './run-tracker.js';
 import type {
     ApifyOrchestrator,
@@ -12,7 +13,7 @@ import type {
     ExtendedDatasetClient,
     OrchestratorOptions,
 } from './types.js';
-import type { GlobalContext, OrchestratorContext } from './utils/context.js';
+import type { OrchestratorContext } from './utils/context.js';
 import { buildLogger } from './utils/logging.js';
 import { makeNameUnique, makePrefixUnique } from './utils/naming.js';
 import type { Storage } from './utils/storage.js';
@@ -26,7 +27,7 @@ const takenClientNames = new Set<string>();
 
 export class Orchestrator implements ApifyOrchestrator {
     readonly options: OrchestratorOptions;
-    protected readonly context: GlobalContext;
+    protected readonly context: OrchestratorContext;
     protected readonly storage?: Storage;
 
     constructor(options: Partial<OrchestratorOptions> = {}) {
@@ -51,11 +52,16 @@ export class Orchestrator implements ApifyOrchestrator {
             storagePrefix: `${this.options.persistencePrefix}${clientName}-`,
             onUpdate: this.options.onUpdate,
         });
-        const context: OrchestratorContext = {
-            logger: this.context.logger,
-            runTracker,
-        };
+        const runScheduler = new RunScheduler(this.context, {
+            retryOnInsufficientResources: this.options.retryOnInsufficientResources,
+            onRunStarted: (runName, run) => runTracker.updateRun(runName, run),
+        });
 
+        const extendedClientContext: ExtApifyClientContext = {
+            ...this.context,
+            runTracker,
+            runScheduler,
+        };
         const extendedClientOptions: ExtApifyClientOptions = {
             clientName,
             fixedInput: this.options.fixedInput,
@@ -64,8 +70,7 @@ export class Orchestrator implements ApifyOrchestrator {
             retryOnInsufficientResources: this.options.retryOnInsufficientResources,
         };
 
-        const client = new ExtApifyClient(context, extendedClientOptions, superClientOptions);
-        client.startScheduler();
+        const client = new ExtApifyClient(extendedClientContext, extendedClientOptions, superClientOptions);
 
         return client;
     }

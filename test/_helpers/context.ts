@@ -1,5 +1,5 @@
 import type { OrchestratorOptions } from 'src/types.js';
-import type { GlobalContext } from 'src/utils/context.js';
+import type { OrchestratorContext } from 'src/utils/context.js';
 import { buildLogger } from 'src/utils/logging.js';
 
 const DEFAULT_TEST_OPTIONS: OrchestratorOptions = {
@@ -15,7 +15,7 @@ export function getTestOptions(overrides?: Partial<OrchestratorOptions>): Orches
     return { ...DEFAULT_TEST_OPTIONS, ...overrides };
 }
 
-export function getTestGlobalContext(options: OrchestratorOptions): GlobalContext {
+export function getTestContext(options: OrchestratorOptions): OrchestratorContext {
     const logger = buildLogger(options);
     return { logger };
 }

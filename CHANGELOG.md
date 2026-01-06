@@ -4,6 +4,10 @@
 
 ### Breaking changes
 
+- Changed the input's type from `unknown` to `Dictionary` for `fixedInput` in `OrchestratorOptions`,
+  `ExtendedActorClient`'s methods `startBatch` and `callBatch`, and `ExtendedTaskClient`'s methods `start`,
+  `startBatch`, `call`, and `callBatch`. The type will be changed for `ExtendedActorClient`'s methods `start` and
+  `call` when this issue will be solved: https://github.com/apify/apify-client-js/issues/818.
 - Fixed unique **orchestrator prefix generation**: the prefix unique tail is now `${counter}-` instead of `-${counter}`.
   This is breaking if you are relying on the previous prefix logic, or if you update and deploy the new Orchestrator
   version between resurrections. Ensure that you migrate any custom logic and don't have pending resurrections

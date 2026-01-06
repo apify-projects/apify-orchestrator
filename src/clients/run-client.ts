@@ -9,21 +9,31 @@ import type {
 } from 'apify-client';
 import { RunClient } from 'apify-client';
 
+import type { RunTracker } from '../run-tracker.js';
 import type { ExtendedRunClient } from '../types.js';
 import type { OrchestratorContext } from '../utils/context.js';
+import type { ExtApifyClient } from './apify-client.js';
+
+export interface ExtRunClientContext extends OrchestratorContext {
+    apifyClient: ExtApifyClient;
+    runTracker: RunTracker;
+}
 
 export interface ExtRunClientOptions {
     runName: string;
 }
 
 export class ExtRunClient extends RunClient implements ExtendedRunClient {
-    protected context: OrchestratorContext;
+    private readonly runName: string;
 
-    readonly runName: string;
-
-    protected superClient: RunClient;
-
-    constructor(context: OrchestratorContext, options: ExtRunClientOptions, runClient: RunClient) {
+    /**
+     * @internal
+     */
+    constructor(
+        private readonly context: ExtRunClientContext,
+        options: ExtRunClientOptions,
+        runClient: RunClient,
+    ) {
         const { runName } = options;
         super({
             baseUrl: runClient.baseUrl,
@@ -34,15 +44,13 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
             id: runClient.id,
             params: runClient.params,
         });
-        this.context = context;
-        this.superClient = runClient;
         this.runName = runName;
     }
 
     override async get(options?: RunGetOptions): Promise<ActorRun | undefined> {
-        const run = await this.superClient.get(options);
+        const run = await super.get(options);
         if (run) {
-            this.context.runTracker.updateRun(this.runName, run);
+            this.updateInfo(run);
         } else {
             this.context.runTracker.declareLostRun(this.runName, 'Actor client could not retrieve the Run');
         }
@@ -50,15 +58,15 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
     }
 
     override async abort(options?: RunAbortOptions | undefined): Promise<ActorRun> {
-        const run = await this.superClient.abort(options);
-        this.context.runTracker.updateRun(this.runName, run);
+        const run = await super.abort(options);
+        this.updateInfo(run);
         return run;
     }
 
     override async delete(): Promise<void> {
         // TODO: implement
         this.context.logger.prefixed(this.runName).warning('Delete Run is not supported yet in the Orchestrator.');
-        await this.superClient.delete();
+        await super.delete();
     }
 
     override async metamorph(
@@ -68,31 +76,34 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
     ): Promise<ActorRun> {
         // TODO: implement
         this.context.logger.prefixed(this.runName).warning('Metamorph Run is not supported yet in the Orchestrator.');
-        return this.superClient.metamorph(targetActorId, input, options);
+        return super.metamorph(targetActorId, input, options);
     }
 
     override async reboot(): Promise<ActorRun> {
-        const run = await this.superClient.reboot();
-        this.context.runTracker.updateRun(this.runName, run);
+        const run = await super.reboot();
+        this.updateInfo(run);
         return run;
     }
 
     override async update(newFields: RunUpdateOptions): Promise<ActorRun> {
-        const run = await this.superClient.update(newFields);
-        this.context.runTracker.updateRun(this.runName, run);
+        const run = await super.update(newFields);
+        this.updateInfo(run);
         return run;
     }
 
     override async resurrect(options?: RunResurrectOptions): Promise<ActorRun> {
-        const run = await this.superClient.resurrect(options);
-        this.context.runTracker.updateRun(this.runName, run);
+        const run = await super.resurrect(options);
+        this.updateInfo(run);
         return run;
     }
 
     override async waitForFinish(options?: RunWaitForFinishOptions): Promise<ActorRun> {
-        this.context.logger.prefixed(this.runName).info('Waiting for finish');
-        const run = await this.superClient.waitForFinish(options);
-        this.context.runTracker.updateRun(this.runName, run);
+        const run = await super.waitForFinish(options);
+        this.updateInfo(run);
         return run;
+    }
+
+    private updateInfo(run: ActorRun): void {
+        this.context.runTracker.updateRun(this.runName, run);
     }
 }

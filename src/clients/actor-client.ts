@@ -1,38 +1,32 @@
-import type { ActorCallOptions, ActorLastRunOptions, ActorRun, ActorStartOptions } from 'apify-client';
-import { ActorClient, RunClient } from 'apify-client';
-
-import { DEFAULT_SPLIT_RULES, RUN_STATUSES } from '../constants.js';
 import type {
-    ActorRunRequest,
-    EnqueueFunction,
-    ExtActorClientOptions,
-    ExtendedActorClient,
-    ExtendedRunClient,
-    ForcedEnqueueFunction,
-    RunRecord,
-    RunResult,
-    SplitRules,
-} from '../types.js';
-import { isRunOkStatus } from '../utils/apify-client.js';
-import { generateInputChunks } from '../utils/bytes.js';
+    ActorCallOptions,
+    ActorLastRunOptions,
+    ActorRun,
+    ActorStartOptions,
+    Dictionary,
+    RunClient,
+} from 'apify-client';
+import { ActorClient } from 'apify-client';
+
+import { RunSource } from '../entities/run-source.js';
+import type { ActorRunRequest, ExtendedActorClient, RunRecord, SplitRules } from '../types.js';
 import type { OrchestratorContext } from '../utils/context.js';
-import { generateRunRequests } from '../utils/run-requests.js';
-import type { ExtRunClientOptions } from './run-client.js';
-import { ExtRunClient } from './run-client.js';
+import type { ExtApifyClient } from './apify-client.js';
+
+export interface ExtActorClientContext extends OrchestratorContext {
+    apifyClient: ExtApifyClient;
+}
 
 export class ExtActorClient extends ActorClient implements ExtendedActorClient {
-    protected context: OrchestratorContext;
-
-    protected superClient: ActorClient;
-    protected enqueueRunOnApifyAccount: EnqueueFunction;
-    protected forceEnqueueRunOnApifyAccount: ForcedEnqueueFunction;
-    protected fixedInput?: object;
+    private readonly runSource = new RunSource(super.start.bind(this), this.defaultMemoryMbytes.bind(this));
 
     /**
-     * @hidden
+     * @internal
      */
-    constructor(context: OrchestratorContext, options: ExtActorClientOptions, actorClient: ActorClient) {
-        const { enqueueRunOnApifyAccount, forceEnqueueRunOnApifyAccount, fixedInput } = options;
+    constructor(
+        private readonly context: ExtActorClientContext,
+        actorClient: ActorClient,
+    ) {
         super({
             baseUrl: actorClient.baseUrl,
             publicBaseUrl: actorClient.publicBaseUrl,
@@ -41,155 +35,80 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
             id: actorClient.id,
             params: actorClient.params,
         });
-        this.context = context;
-        this.superClient = actorClient;
-        this.enqueueRunOnApifyAccount = enqueueRunOnApifyAccount;
-        this.forceEnqueueRunOnApifyAccount = forceEnqueueRunOnApifyAccount;
-        this.fixedInput = fixedInput;
     }
 
-    protected generateRunOrchestratorClient(runName: string, runId: string) {
-        const runClientOptions: ExtRunClientOptions = { runName };
-        const runClient = new RunClient(
-            this._subResourceOptions({
-                id: runId,
-                params: this._params(),
-                resourcePath: 'runs',
-            }),
-        );
-        return new ExtRunClient(this.context, runClientOptions, runClient);
-    }
-
-    protected generateRunRequests<T>(
-        namePrefix: string,
-        sources: T[],
-        inputGenerator: (chunk: T[]) => object,
-        overrideSplitRules: Partial<SplitRules> = {},
-        options?: ActorStartOptions,
-    ) {
-        const splitRules = { ...DEFAULT_SPLIT_RULES, ...overrideSplitRules };
-        const inputChunks = generateInputChunks(sources, inputGenerator, splitRules, this.fixedInput);
-        return generateRunRequests(namePrefix, inputChunks, options);
-    }
-
-    protected async defaultMemoryMbytes() {
-        return (await this.get())?.defaultRunOptions.memoryMbytes;
-    }
-
-    protected async enqueueAndWaitForStart(
-        runName: string,
-        input?: object,
-        options?: ActorStartOptions,
-    ): Promise<ActorRun> {
-        const fullInput: object | undefined =
-            !input && !this.fixedInput ? undefined : { ...(input ?? {}), ...(this.fixedInput ?? {}) };
-
-        const runParams = {
-            runName,
-            defaultMemoryMbytes: this.defaultMemoryMbytes.bind(this),
-            startRun: this.superClient.start.bind(this.superClient),
-            input: fullInput,
-            options,
-        };
-
-        let existingRunClient: ExtendedRunClient | undefined;
-        let result = await new Promise<RunResult>((resolve) => {
-            existingRunClient = this.enqueueRunOnApifyAccount({
-                ...runParams,
-                startCallbacks: [resolve],
-            });
-            if (existingRunClient) {
-                resolve({ kind: RUN_STATUSES.IN_PROGRESS });
+    enqueue(...runRequests: ActorRunRequest[]): string[] {
+        const runNames = new Set<string>();
+        for (const runRequest of runRequests) {
+            if (runNames.has(runRequest.runName)) {
+                this.context.logger.prefixed(runRequest.runName).warning('Skipping enqueuing duplicate run name.');
+                continue;
             }
-        });
-
-        if (result.kind === RUN_STATUSES.IN_PROGRESS && existingRunClient) {
-            const run = await existingRunClient.get();
-
-            // If it was not possible to retrieve the Run from the client, force enqueuing a new Run.
-            if (run) {
-                result = { kind: RUN_STATUSES.RUN_STARTED, run };
-            } else {
-                result = await new Promise<RunResult>((resolve) => {
-                    existingRunClient = this.forceEnqueueRunOnApifyAccount({
-                        ...runParams,
-                        startCallbacks: [resolve],
-                    });
-                    if (existingRunClient) {
-                        resolve({ kind: RUN_STATUSES.IN_PROGRESS });
-                    }
-                });
-            }
-        }
-
-        if (result.kind === RUN_STATUSES.ERROR) {
-            throw result.error;
-        }
-
-        if (result.kind === RUN_STATUSES.IN_PROGRESS) {
-            throw new Error(`Error starting Run: ${runName} (${this.id}).`);
-        }
-
-        return result.run;
-    }
-
-    override async start(runName: string, input?: object, options?: ActorStartOptions): Promise<ActorRun> {
-        const existingRunInfo = this.context.runTracker.findRunByName(runName);
-
-        // If the Run exists and has not failed, use it
-        if (existingRunInfo && isRunOkStatus(existingRunInfo.status)) {
-            const runClient = this.generateRunOrchestratorClient(runName, existingRunInfo.runId);
-            const run = await runClient.get();
-            // Return the existing Run, if available, otherwise start a new one
-            if (run) {
-                return run;
-            }
-        }
-
-        return this.enqueueAndWaitForStart(runName, input, options);
-    }
-
-    override async call(runName: string, input?: object, options: ActorCallOptions = {}): Promise<ActorRun> {
-        const startedRun = await this.start(runName, input, options);
-        const { waitSecs } = options;
-        return this.generateRunOrchestratorClient(runName, startedRun.id).waitForFinish({ waitSecs });
-    }
-
-    override lastRun(options?: ActorLastRunOptions): RunClient {
-        const runClient = this.superClient.lastRun(options);
-        if (runClient.id) {
-            const runName = this.context.runTracker.findRunName(runClient.id);
-            if (runName) {
-                return this.generateRunOrchestratorClient(runName, runClient.id);
-            }
-        }
-        return runClient;
-    }
-
-    enqueue(...runRequests: ActorRunRequest[]) {
-        for (const { runName, input, options } of runRequests) {
-            this.enqueueRunOnApifyAccount({
-                runName,
-                defaultMemoryMbytes: this.defaultMemoryMbytes.bind(this),
-                startRun: this.superClient.start.bind(this.superClient),
-                startCallbacks: [],
-                input,
-                options,
+            runNames.add(runRequest.runName);
+            this.context.apifyClient.findOrStartRun({
+                source: this.runSource,
+                name: runRequest.runName,
+                input: runRequest.input,
+                options: runRequest.options,
             });
         }
-        return runRequests.map(({ runName }) => runName);
+        return Array.from(runNames);
     }
 
     enqueueBatch<T>(
         namePrefix: string,
         sources: T[],
-        inputGenerator: (chunk: T[]) => object,
-        overrideSplitRules: Partial<SplitRules> = {},
+        inputGenerator: (chunk: T[]) => Dictionary,
+        overrideSplitRules?: Partial<SplitRules>,
         options?: ActorStartOptions,
-    ) {
+    ): string[] {
         return this.enqueue(
-            ...this.generateRunRequests(namePrefix, sources, inputGenerator, overrideSplitRules, options),
+            ...this.context.apifyClient.generateRunRequests(
+                namePrefix,
+                sources,
+                inputGenerator,
+                overrideSplitRules,
+                options,
+            ),
         );
+    }
+
+    /**
+     * FIXME: change the `input` parameter type from `object` to `Dictionary` after the `apify-client-js` issue is resolved:
+     * https://github.com/apify/apify-client-js/issues/818.
+     *
+     * FIXME: move `runName` to options, like in `ExtendedTaskClient.start`.
+     *
+     * Note: this method should be consistent with the `apify-client-js`'s `ActorClient.start` method.
+     */
+    override async start(runName: string, input?: object, options?: ActorStartOptions): Promise<ActorRun> {
+        const waitForRun = this.context.apifyClient.findOrStartRun({
+            source: this.runSource,
+            name: runName,
+            input: input as Dictionary,
+            options,
+        });
+        return waitForRun();
+    }
+
+    /**
+     * FIXME: change the `input` parameter type from `object` to `Dictionary` after the `apify-client-js` issue is resolved:
+     * https://github.com/apify/apify-client-js/issues/818.
+     *
+     * FIXME: move `runName` to options, like in `ExtendedTaskClient.call`.
+     *
+     * Note: this method should be consistent with the `apify-client-js`'s `ActorClient.call` method.
+     */
+    override async call(runName: string, input?: object, options?: ActorCallOptions): Promise<ActorRun> {
+        const startedRun = await this.start(runName, input, options);
+        return this.context.apifyClient
+            .extendedRunClient(runName, startedRun.id)
+            .waitForFinish({ waitSecs: options?.waitSecs });
+    }
+
+    override lastRun(options?: ActorLastRunOptions): RunClient {
+        const runClient = super.lastRun(options);
+        return runClient.id ? this.context.apifyClient.run(runClient.id) : runClient;
     }
 
     async startRuns(...runRequests: ActorRunRequest[]): Promise<RunRecord> {
@@ -207,12 +126,18 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     async startBatch<T>(
         namePrefix: string,
         sources: T[],
-        inputGenerator: (chunk: T[]) => object,
-        overrideSplitRules: Partial<SplitRules> = {},
+        inputGenerator: (chunk: T[]) => Dictionary,
+        overrideSplitRules?: Partial<SplitRules>,
         options?: ActorStartOptions,
     ): Promise<RunRecord> {
         return this.startRuns(
-            ...this.generateRunRequests(namePrefix, sources, inputGenerator, overrideSplitRules, options),
+            ...this.context.apifyClient.generateRunRequests(
+                namePrefix,
+                sources,
+                inputGenerator,
+                overrideSplitRules,
+                options,
+            ),
         );
     }
 
@@ -231,12 +156,23 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     async callBatch<T>(
         namePrefix: string,
         sources: T[],
-        inputGenerator: (chunk: T[]) => object,
-        overrideSplitRules: Partial<SplitRules> = {},
+        inputGenerator: (chunk: T[]) => Dictionary,
+        overrideSplitRules?: Partial<SplitRules>,
         options?: ActorStartOptions,
     ): Promise<RunRecord> {
         return this.callRuns(
-            ...this.generateRunRequests(namePrefix, sources, inputGenerator, overrideSplitRules, options),
+            ...this.context.apifyClient.generateRunRequests(
+                namePrefix,
+                sources,
+                inputGenerator,
+                overrideSplitRules,
+                options,
+            ),
         );
+    }
+
+    private async defaultMemoryMbytes(): Promise<number | undefined> {
+        const actor = await this.get();
+        return actor?.defaultRunOptions.memoryMbytes;
     }
 }

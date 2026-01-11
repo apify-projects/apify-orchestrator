@@ -1,10 +1,10 @@
-import type { ActorStartOptions, TaskStartOptions } from 'apify-client';
+import type { ActorStartOptions, Dictionary, TaskStartOptions } from 'apify-client';
 
 import type { ActorRunRequest } from '../types.js';
 
 export function generateRunRequests(
     namePrefix: string,
-    inputChunks: object[],
+    inputChunks: Dictionary[],
     options?: ActorStartOptions | TaskStartOptions,
 ): ActorRunRequest[] {
     return Object.entries(inputChunks).map(([index, input]) => {

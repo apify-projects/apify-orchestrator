@@ -22,9 +22,10 @@ export class InsufficientMemoryError extends OrchestratorError {
 
     constructor(
         runName: string,
-        public readonly requiredMemoryMBs: number,
+        public readonly requiredMemoryMBs?: number,
     ) {
-        super(`Insufficient memory to start run '${runName}'. Required: ${requiredMemoryMBs / 1024}GB.`, runName);
+        const requiredMemoryText = requiredMemoryMBs ? `${requiredMemoryMBs / 1024}GB` : 'unknown';
+        super(`Insufficient memory to start run '${runName}'. Required memory: ${requiredMemoryText}.`, runName);
     }
 }
 
@@ -37,4 +38,10 @@ export class InsufficientActorJobsError extends OrchestratorError {
     constructor(runName: string) {
         super(`Insufficient actor jobs to start run '${runName}'.`, runName);
     }
+}
+
+export function isInsufficientResourcesError(
+    error: unknown,
+): error is InsufficientMemoryError | InsufficientActorJobsError {
+    return error instanceof InsufficientMemoryError || error instanceof InsufficientActorJobsError;
 }

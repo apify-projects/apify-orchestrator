@@ -1,21 +1,24 @@
 import type { ActorRun } from 'apify-client';
 import { RunTracker } from 'src/run-tracker.js';
+import type { RunInfo } from 'src/types.js';
 import { buildLogger } from 'src/utils/logging.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { getTestOptions } from './_helpers/context.js';
-import { actorRunMock, storageMock } from './_helpers/mocks.js';
+import { getMockRun, storageMock } from './_helpers/mocks.js';
 
 describe('RunTracker', async () => {
     const logger = buildLogger(getTestOptions());
     const context = { logger, storage: storageMock };
 
+    const runMock = getMockRun();
+
     const runName = 'test-run-1';
     const runInfo = {
-        runId: actorRunMock.id,
-        runUrl: `https://test.com/${actorRunMock.id}`,
-        status: actorRunMock.status,
-        startedAt: actorRunMock.startedAt.toISOString(),
+        runId: runMock.id,
+        runUrl: `https://test.com/${runMock.id}`,
+        status: runMock.status,
+        startedAt: runMock.startedAt.toISOString(),
     };
 
     const initialTrackedRuns = {
@@ -76,22 +79,22 @@ describe('RunTracker', async () => {
     });
 
     it('tracks and retrieves current runs correctly', async () => {
+        const expectedRunInfo: Partial<RunInfo> = {
+            runId: runMock.id,
+            status: runMock.status,
+            startedAt: runMock.startedAt.toISOString(),
+        };
+
         const tracker = await RunTracker.new(context);
 
-        tracker.updateRun(runName, actorRunMock);
+        tracker.updateRun(runName, runMock);
 
         const storedRun = tracker.findRunByName(runName);
-        expect(storedRun).toEqual(
-            expect.objectContaining({
-                runId: actorRunMock.id,
-                status: actorRunMock.status,
-                startedAt: actorRunMock.startedAt.toISOString(),
-            }),
-        );
+        expect(storedRun).toEqual(expect.objectContaining(expectedRunInfo));
 
-        const foundRunName = tracker.findRunName(actorRunMock.id);
+        const foundRunName = tracker.findRunName(runMock.id);
         expect(foundRunName).toBe(runName);
-        expect(tracker.getCurrentRunNames()).toEqual([runName]);
+        expect(tracker.getCurrentRuns()).toEqual({ [runName]: expect.objectContaining(expectedRunInfo) });
     });
 
     it('calls the callback on updates', async () => {
@@ -102,19 +105,19 @@ describe('RunTracker', async () => {
 
         expect(onUpdateMock).toHaveBeenCalledWith(initialTrackedRuns.current, undefined, undefined);
 
-        tracker.updateRun('test-run-2', actorRunMock);
+        tracker.updateRun('test-run-2', runMock);
 
         expect(onUpdateMock).toHaveBeenCalledWith(
             expect.objectContaining({
                 [runName]: runInfo,
                 'test-run-2': expect.objectContaining({
-                    runId: actorRunMock.id,
-                    status: actorRunMock.status,
-                    startedAt: actorRunMock.startedAt.toISOString(),
+                    runId: runMock.id,
+                    status: runMock.status,
+                    startedAt: runMock.startedAt.toISOString(),
                 }),
             }),
             'test-run-2',
-            actorRunMock,
+            runMock,
         );
     });
 
@@ -126,17 +129,17 @@ describe('RunTracker', async () => {
         expect(tracker.findRunByName(runName)).toBeUndefined();
         expect(onUpdateMock).toHaveBeenCalledTimes(1);
 
-        tracker.updateRun('test-run-1', actorRunMock);
+        tracker.updateRun('test-run-1', runMock);
 
         expect(onUpdateMock).toHaveBeenCalledTimes(2);
 
-        tracker.updateRun('test-run-1', actorRunMock); // same run data
+        tracker.updateRun('test-run-1', runMock); // same run data
 
         expect(onUpdateMock).toHaveBeenCalledTimes(2); // no changes, no new call
     });
 
     it('updates failed runs correctly', async () => {
-        const failedRunMock = { id: actorRunMock.id, status: 'FAILED', startedAt: new Date() } as ActorRun;
+        const failedRunMock = { id: runMock.id, status: 'FAILED', startedAt: new Date() } as ActorRun;
 
         const tracker = await RunTracker.new(context);
 
@@ -145,7 +148,7 @@ describe('RunTracker', async () => {
         expect(updatedRunInfo.status).toBe('FAILED');
         expect(tracker.findRunByName(runName)).toEqual(
             expect.objectContaining({
-                runId: actorRunMock.id,
+                runId: runMock.id,
                 status: 'FAILED',
             }),
         );
@@ -164,7 +167,7 @@ describe('RunTracker', async () => {
     it('declares lost runs correctly', async () => {
         const tracker = await RunTracker.new(context);
 
-        const updatedRunInfo = tracker.updateRun(runName, actorRunMock);
+        const updatedRunInfo = tracker.updateRun(runName, runMock);
 
         tracker.declareLostRun(runName, 'Simulated loss');
 

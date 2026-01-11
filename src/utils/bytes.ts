@@ -1,3 +1,5 @@
+import type { Dictionary } from 'apify-client';
+
 import { APIFY_PAYLOAD_BYTES_LIMIT } from '../constants.js';
 import type { SplitRules } from '../types.js';
 
@@ -5,11 +7,11 @@ export const strBytes = (string: string) => new TextEncoder().encode(string).len
 
 export function splitIntoChunksWithMaxSize<T>(
     sources: T[],
-    inputGenerator: (sources: T[]) => object,
+    inputGenerator: (sources: T[]) => Dictionary,
     maxBytesSize: number,
-): object[] {
+): Dictionary[] {
     let parts = 1;
-    let inputs: object[] = [inputGenerator(sources)];
+    let inputs: Dictionary[] = [inputGenerator(sources)];
 
     while (parts < sources.length && inputs.some((input) => strBytes(JSON.stringify(input)) > maxBytesSize)) {
         parts++;
@@ -25,10 +27,10 @@ export function splitIntoChunksWithMaxSize<T>(
 
 export function generateInputChunks<T>(
     sources: T[],
-    inputGenerator: (chunk: T[]) => object,
+    inputGenerator: (chunk: T[]) => Dictionary,
     { respectApifyMaxPayloadSize }: SplitRules,
-    fixedInputToAddLater?: object,
-): object[] {
+    fixedInputToAddLater?: Dictionary,
+): Dictionary[] {
     if (respectApifyMaxPayloadSize) {
         const maxSize = APIFY_PAYLOAD_BYTES_LIMIT - strBytes(JSON.stringify(fixedInputToAddLater));
         return splitIntoChunksWithMaxSize(sources, inputGenerator, maxSize);

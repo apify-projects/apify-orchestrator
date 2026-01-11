@@ -3,7 +3,7 @@ import type { ActorRun } from 'apify-client';
 import type { RunInfo, UpdateCallback } from './types.js';
 import { isRunFailStatus } from './utils/apify-client.js';
 import { getRunUrl } from './utils/apify-console.js';
-import type { GlobalContext } from './utils/context.js';
+import type { OrchestratorContext } from './utils/context.js';
 import type { Storage } from './utils/storage.js';
 
 const TRACKED_RUNS_KEY = 'RUNS';
@@ -23,14 +23,14 @@ export interface RunTrackerOptions {
 
 export class RunTracker {
     private constructor(
-        private readonly context: GlobalContext,
+        private readonly context: OrchestratorContext,
         private readonly trackedRuns: TrackedRuns,
         private readonly onUpdate?: UpdateCallback,
     ) {
         this.itemsChangedCallback();
     }
 
-    static async new(context: GlobalContext, options?: RunTrackerOptions): Promise<RunTracker> {
+    static async new(context: OrchestratorContext, options?: RunTrackerOptions): Promise<RunTracker> {
         const defaultTrackedRuns = getDefaultTrackedRuns();
         const storageKey = `${options?.storagePrefix ?? ''}${TRACKED_RUNS_KEY}`;
         const trackedRuns =
@@ -38,8 +38,8 @@ export class RunTracker {
         return new RunTracker(context, trackedRuns, options?.onUpdate);
     }
 
-    getCurrentRunNames(): string[] {
-        return Object.keys(this.trackedRuns.current);
+    getCurrentRuns(): { [runName: string]: RunInfo } {
+        return cloneRunInfoRecord(this.trackedRuns.current);
     }
 
     findRunByName(runName: string): RunInfo | undefined {
@@ -84,18 +84,14 @@ export class RunTracker {
 
     declareLostRun(runName: string, reason?: string) {
         const runInfo = this.findAndDeleteRun(runName);
-        if (!runInfo) {
-            return;
-        }
+        if (!runInfo) return;
         this.context.logger.prefixed(runName).info('Lost Run', { reason }, { url: runInfo.runUrl });
         this.addOrUpdateFailedRun(runName, { ...runInfo, status: 'LOST' });
     }
 
     private findAndDeleteRun(runName: string): RunInfo | undefined {
         const runInfo = this.trackedRuns.current[runName];
-        if (!runInfo) {
-            return undefined;
-        }
+        if (!runInfo) return undefined;
         delete this.trackedRuns.current[runName];
         return runInfo;
     }

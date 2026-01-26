@@ -9,6 +9,12 @@
   version between resurrections. Ensure that you migrate any custom logic and don't have pending resurrections
   before updating.
 
+## 0.7.2
+
+### Fixed
+
+- Removed `crawlee` as a dependency to improve startup times.
+
 ## 0.7.1
 
 ### Added

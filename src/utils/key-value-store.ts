@@ -1,6 +1,6 @@
+import type { Dictionary } from '@crawlee/types';
 import type { RecordOptions } from 'apify';
 import { Actor } from 'apify';
-import type { Dictionary } from 'crawlee';
 
 import type { EncryptionKey } from './encryption.js';
 import { decryptString, encryptString } from './encryption.js';

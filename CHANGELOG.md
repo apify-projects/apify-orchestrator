@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.0
+## 0.7.2
 
 ### Breaking changes
 
@@ -8,8 +8,6 @@
   This is breaking if you are relying on the previous prefix logic, or if you update and deploy the new Orchestrator
   version between resurrections. Ensure that you migrate any custom logic and don't have pending resurrections
   before updating.
-
-## 0.7.2
 
 ### Fixed
 

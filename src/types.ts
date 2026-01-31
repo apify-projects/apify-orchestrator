@@ -15,46 +15,6 @@ import type {
     TaskStartOptions,
 } from 'apify-client';
 
-import type { RUN_STATUSES } from './constants.js';
-
-export type RunResult =
-    | {
-          kind: typeof RUN_STATUSES.RUN_STARTED;
-          run: ActorRun;
-      }
-    | {
-          kind: typeof RUN_STATUSES.ERROR;
-          error: Error;
-      }
-    | {
-          // returned when a run is about to be spawned on the platform
-          kind: typeof RUN_STATUSES.IN_PROGRESS;
-      };
-
-export interface EnqueuedRequest {
-    runName: string;
-    defaultMemoryMbytes: () => Promise<number | undefined>;
-    startRun: (input?: unknown, options?: ActorStartOptions) => Promise<ActorRun>;
-    startCallbacks: ((result: RunResult) => void)[];
-    input?: object;
-    options?: ActorStartOptions;
-}
-
-export type EnqueueFunction = (runRequest: EnqueuedRequest) => ExtendedRunClient | undefined;
-export type ForcedEnqueueFunction = (runRequest: EnqueuedRequest) => undefined;
-
-export interface ExtActorClientOptions {
-    enqueueRunOnApifyAccount: EnqueueFunction;
-    forceEnqueueRunOnApifyAccount: ForcedEnqueueFunction;
-    fixedInput?: object;
-}
-
-export interface ExtTaskClientOptions {
-    enqueueRunOnApifyAccount: EnqueueFunction;
-    forceEnqueueRunOnApifyAccount: ForcedEnqueueFunction;
-    fixedInput?: object;
-}
-
 export interface OrchestratorOptions {
     /**
      * @default true

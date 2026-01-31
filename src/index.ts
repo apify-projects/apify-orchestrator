@@ -1,3 +1,5 @@
+import { Actor } from 'apify';
+
 import type { ExtApifyClientOptions } from './clients/apify-client.js';
 import { ExtApifyClient } from './clients/apify-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS } from './constants.js';
@@ -45,6 +47,8 @@ export class Orchestrator implements ApifyOrchestrator {
 
         const clientName = makeNameUnique(name ?? 'CLIENT', takenClientNames);
         takenClientNames.add(clientName);
+
+        superClientOptions.token ??= Actor.getEnv().token ?? undefined;
 
         const runTracker = await RunTracker.new(this.context, {
             storage: this.storage,

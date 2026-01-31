@@ -1,3 +1,5 @@
+import type { ApifyEnv } from 'apify';
+import { Actor } from 'apify';
 import { ActorClient } from 'apify-client';
 import { MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
 import type { DatasetItem } from 'src/index.js';
@@ -24,6 +26,13 @@ describe('Apify Orchestrator', () => {
 
         expect(orchestrator1.options.persistencePrefix).toEqual('TEST-');
         expect(orchestrator2.options.persistencePrefix).toEqual('TEST-2-');
+    });
+
+    it('takes the token from the environment if not provided', async () => {
+        const getEnvSpy = vi.spyOn(Actor, 'getEnv').mockReturnValue({ token: 'my-env-token' } as ApifyEnv);
+        const client = await orchestrator.apifyClient({ name: 'client-without-token' });
+        expect(getEnvSpy).toHaveBeenCalled();
+        expect(client.token).toEqual('my-env-token');
     });
 
     it('starts the scheduler upon client creation', async () => {

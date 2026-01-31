@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.8.0
+
+### Breaking changes
+
+- Changed the input's type from `unknown` to `Dictionary` for `fixedInput` in `OrchestratorOptions`,
+  `ExtendedActorClient`'s methods `startBatch` and `callBatch`, and `ExtendedTaskClient`'s methods `start`,
+  `startBatch`, `call`, and `callBatch`. The type will be changed for `ExtendedActorClient`'s methods `start` and
+  `call` when this issue will be solved: https://github.com/apify/apify-client-js/issues/818.
+- Removed `ExtendedApifyClient`'s public properties `abortAllRunsOnGracefulAbort`, `hideSensitiveInformation`, and
+  `fixedInput`, which reflected the Orchestrator options. `clientName` is still available.
+  If you need to track those values, associate them with the client name or the orchestrator instance.
+
+### Fixed
+
+- When not specifying an Apify token, the token from the Apify environment will be automatically assigned.
+
+### Changed
+
+- When starting a run with the Orchestrator, an attempt will be made immediately, instead of waiting for the scheduler
+  to periodically check the pending requests.
+
 ## 0.7.2
 
 ### Breaking changes

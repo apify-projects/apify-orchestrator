@@ -1,3 +1,6 @@
+// This file contains all the public type definitions for the Apify Orchestrator package.
+// Private types should go elsewhere.
+
 import type {
     ActorCallOptions,
     ActorClient,
@@ -8,6 +11,7 @@ import type {
     ApifyClientOptions,
     DatasetClient,
     DatasetClientListItemOptions,
+    Dictionary,
     RunClient,
     TaskCallOptions,
     TaskClient,
@@ -76,7 +80,7 @@ export interface OrchestratorOptions {
      *
      * @default undefined
      */
-    fixedInput?: object;
+    fixedInput?: Dictionary;
 
     /**
      * Abort all Runs started by the Orchestrator on graceful abort.
@@ -135,9 +139,6 @@ export type ExtendedClientOptions = ApifyClientOptions & {
  */
 export interface ExtendedApifyClient extends ApifyClient {
     readonly clientName: string;
-    readonly abortAllRunsOnGracefulAbort: boolean;
-    readonly hideSensitiveInformation: boolean;
-    readonly fixedInput: object | undefined;
 
     /**
      * @override
@@ -212,7 +213,7 @@ export interface ExtendedActorClient extends ActorClient {
     enqueueBatch: <T>(
         namePrefix: string,
         sources: T[],
-        inputGenerator: (chunk: T[]) => object,
+        inputGenerator: (chunk: T[]) => Dictionary,
         overrideSplitRules?: Partial<SplitRules>,
         options?: ActorStartOptions,
     ) => string[];
@@ -242,7 +243,7 @@ export interface ExtendedActorClient extends ActorClient {
     startBatch: <T>(
         namePrefix: string,
         sources: T[],
-        inputGenerator: (chunk: T[]) => object,
+        inputGenerator: (chunk: T[]) => Dictionary,
         overrideSplitRules?: Partial<SplitRules>,
         options?: ActorStartOptions,
     ) => Promise<RunRecord>;
@@ -272,7 +273,7 @@ export interface ExtendedActorClient extends ActorClient {
     callBatch: <T>(
         namePrefix: string,
         sources: T[],
-        inputGenerator: (chunk: T[]) => object,
+        inputGenerator: (chunk: T[]) => Dictionary,
         overrideSplitRules?: Partial<SplitRules>,
         options?: ActorStartOptions,
     ) => Promise<RunRecord>;
@@ -283,7 +284,7 @@ export interface ExtendedActorClient extends ActorClient {
      *
      * @override
      */
-    lastRun: (options?: ActorLastRunOptions) => RunClient;
+    lastRun: (options?: ActorLastRunOptions) => RunClient | ExtendedRunClient;
 }
 
 /**
@@ -298,7 +299,7 @@ export interface ExtendedTaskClient extends TaskClient {
      * @param runRequests the requests
      * @returns the future names of the Runs
      */
-    enqueue: (...runRequests: TaskRunRequest[]) => string[];
+    enqueue: (...runRequests: ActorRunRequest[]) => string[];
 
     /**
      * Enqueues one or more requests for new Runs, given the parameters to generate input batches.
@@ -315,7 +316,7 @@ export interface ExtendedTaskClient extends TaskClient {
     enqueueBatch: <T>(
         namePrefix: string,
         sources: T[],
-        inputGenerator: (chunk: T[]) => object,
+        inputGenerator: (chunk: T[]) => Dictionary,
         overrideSplitRules?: Partial<SplitRules>,
         options?: TaskStartOptions,
     ) => string[];
@@ -323,7 +324,7 @@ export interface ExtendedTaskClient extends TaskClient {
     /**
      * @override
      */
-    start: (input?: object, options?: TaskStartOptions & { runName: string }) => Promise<ActorRun>;
+    start: (input?: Dictionary, options?: TaskStartOptions & { runName: string }) => Promise<ActorRun>;
 
     /**
      * Starts one or more Runs, based on an array of requests.
@@ -345,7 +346,7 @@ export interface ExtendedTaskClient extends TaskClient {
     startBatch: <T>(
         namePrefix: string,
         sources: T[],
-        inputGenerator: (chunk: T[]) => object,
+        inputGenerator: (chunk: T[]) => Dictionary,
         overrideSplitRules?: Partial<SplitRules>,
         options?: TaskStartOptions,
     ) => Promise<RunRecord>;
@@ -353,7 +354,7 @@ export interface ExtendedTaskClient extends TaskClient {
     /**
      * @override
      */
-    call: (input?: object, options?: TaskCallOptions & { runName: string }) => Promise<ActorRun>;
+    call: (input?: Dictionary, options?: TaskCallOptions & { runName: string }) => Promise<ActorRun>;
 
     /**
      * Starts and waits for one or more Runs, based on an array of requests.
@@ -375,7 +376,7 @@ export interface ExtendedTaskClient extends TaskClient {
     callBatch: <T>(
         namePrefix: string,
         sources: T[],
-        inputGenerator: (chunk: T[]) => object,
+        inputGenerator: (chunk: T[]) => Dictionary,
         overrideSplitRules?: Partial<SplitRules>,
         options?: TaskStartOptions,
     ) => Promise<RunRecord>;
@@ -386,7 +387,7 @@ export interface ExtendedTaskClient extends TaskClient {
      *
      * @override
      */
-    lastRun: (options?: TaskLastRunOptions) => RunClient;
+    lastRun: (options?: TaskLastRunOptions) => RunClient | ExtendedRunClient;
 }
 
 /**
@@ -477,7 +478,7 @@ export type PersistenceSupport = 'kvs' | 'none';
  */
 export interface ActorRunRequest {
     runName: string;
-    input?: object;
+    input?: Dictionary;
     options?: ActorStartOptions;
 }
 
@@ -486,7 +487,7 @@ export interface ActorRunRequest {
  */
 export interface TaskRunRequest {
     runName: string;
-    input?: object;
+    input?: Dictionary;
     options?: TaskStartOptions;
 }
 

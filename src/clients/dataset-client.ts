@@ -1,15 +1,16 @@
 import type { ActorRun, Dataset } from 'apify-client';
 import { DatasetClient } from 'apify-client';
 
+import type { OrchestratorContext } from '../context/orchestrator-context.js';
 import type { DatasetItem, ExtendedDatasetClient, GreedyIterateOptions, IterateOptions } from '../types.js';
-import type { OrchestratorContext } from '../utils/context.js';
 
 export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> implements ExtendedDatasetClient<T> {
-    protected context: OrchestratorContext;
+    private readonly context: OrchestratorContext;
 
-    protected superClient: DatasetClient<T>;
-
-    constructor(context: OrchestratorContext, datasetClient: DatasetClient<T>) {
+    /**
+     * @internal
+     */
+    constructor(context: OrchestratorContext, datasetClient: DatasetClient) {
         super({
             baseUrl: datasetClient.baseUrl,
             publicBaseUrl: datasetClient.publicBaseUrl,
@@ -19,7 +20,6 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             params: datasetClient.params,
         });
         this.context = context;
-        this.superClient = datasetClient;
     }
 
     async *iterate(options: IterateOptions = {}): AsyncGenerator<T, void, void> {
@@ -30,7 +30,7 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
 
         if (pageSize) {
             let offset = 0;
-            let currentPage = await this.superClient.listItems({ ...listItemOptions, offset, limit: pageSize });
+            let currentPage = await super.listItems({ ...listItemOptions, offset, limit: pageSize });
             while (currentPage.items.length > 0) {
                 totalItems += currentPage.items.length;
                 for (const item of currentPage.items) {
@@ -38,10 +38,10 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
                 }
 
                 offset += pageSize;
-                currentPage = await this.superClient.listItems({ offset, limit: pageSize });
+                currentPage = await super.listItems({ offset, limit: pageSize });
             }
         } else {
-            const itemList = await this.superClient.listItems(listItemOptions);
+            const itemList = await super.listItems(listItemOptions);
             totalItems += itemList.items.length;
             for (const item of itemList.items) {
                 yield item;
@@ -79,7 +79,7 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             }
 
             if (dataset.itemCount >= readItemsCount + itemsThreshold) {
-                const itemList = await this.superClient.listItems({
+                const itemList = await super.listItems({
                     ...listItemOptions,
                     offset: readItemsCount,
                     limit: pageSize,
@@ -102,7 +102,7 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
         }
 
         while (readItemsCount < dataset.itemCount) {
-            const itemList = await this.superClient.listItems({
+            const itemList = await super.listItems({
                 ...listItemOptions,
                 offset: readItemsCount,
                 limit: pageSize,

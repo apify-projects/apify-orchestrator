@@ -1,7 +1,7 @@
 import type { Dictionary } from '@crawlee/types';
 import { Actor } from 'apify';
 
-import type { OrchestratorOptions } from '../types.js';
+import type { OrchestratorContext } from '../context/orchestrator-context.js';
 import type { EncryptionKey } from './encryption.js';
 import { processEncryptionKey } from './encryption.js';
 import { EncryptedKeyValueStore } from './key-value-store.js';
@@ -11,8 +11,8 @@ export interface Storage {
     useState<T extends Dictionary>(key: string, defaultValue: T): Promise<T>;
 }
 
-export function buildStorage(logger: Logger, options: OrchestratorOptions): Storage | undefined {
-    const { persistenceSupport, persistenceEncryptionKey } = options;
+export function buildStorage(context: OrchestratorContext): Storage | undefined {
+    const { persistenceSupport, persistenceEncryptionKey } = context.options;
 
     if (persistenceSupport === 'none') {
         return undefined;
@@ -20,7 +20,7 @@ export function buildStorage(logger: Logger, options: OrchestratorOptions): Stor
 
     if (persistenceEncryptionKey) {
         const encryptionKey = processEncryptionKey(persistenceEncryptionKey);
-        return buildEncryptedStorage(logger, encryptionKey);
+        return buildEncryptedStorage(context.logger, encryptionKey);
     }
 
     return buildUnencryptedStorage();

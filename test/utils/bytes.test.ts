@@ -1,14 +1,15 @@
+import type { Dictionary } from 'apify-client';
 import { splitIntoChunksWithMaxSize, strBytes } from 'src/utils/bytes.js';
 
 describe('bytes utils', () => {
     describe('splitIntoChunksWithMaxSize', () => {
         it('correctly generates input batches', () => {
-            const sources = [...Array(1000).keys()];
-            interface Input {
+            const sources = Array.from(new Array(1000).keys()); // [0, 1, 2, ..., 999]
+            interface Input extends Dictionary {
                 startUrls: { url: string }[];
             }
             const inputGenerator = (numbers: number[]): Input => ({
-                startUrls: numbers.map((n) => ({ url: `https://num.com/${`00000${n}`.slice(5)}` })),
+                startUrls: numbers.map(makeUrlFromNumber),
             });
             const sizeLimit = 128;
             const inputBatches = splitIntoChunksWithMaxSize(sources, inputGenerator, sizeLimit);
@@ -24,3 +25,7 @@ describe('bytes utils', () => {
         });
     });
 });
+
+function makeUrlFromNumber(n: number): { url: string } {
+    return { url: `https://num.com/${n.toString().padStart(5, '0')}` };
+}

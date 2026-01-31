@@ -1,10 +1,12 @@
 import { Actor } from 'apify';
 
-import type { ExtApifyClientOptions } from './clients/apify-client.js';
 import { ExtApifyClient } from './clients/apify-client.js';
 import { DEFAULT_ORCHESTRATOR_OPTIONS } from './constants.js';
+import { generateClientContext } from './context/client-context.js';
+import type { OrchestratorContext } from './context/orchestrator-context.js';
+import { generateOrchestratorContext } from './context/orchestrator-context.js';
 import { DatasetGroupClass } from './entities/dataset-group.js';
-import { RunTracker } from './run-tracker.js';
+import type { TrackedRuns } from './run-tracker.js';
 import type {
     ApifyOrchestrator,
     DatasetGroup,
@@ -14,8 +16,6 @@ import type {
     ExtendedDatasetClient,
     OrchestratorOptions,
 } from './types.js';
-import type { GlobalContext, OrchestratorContext } from './utils/context.js';
-import { buildLogger } from './utils/logging.js';
 import { makeNameUnique, makePrefixUnique } from './utils/naming.js';
 import type { Storage } from './utils/storage.js';
 import { buildStorage } from './utils/storage.js';
@@ -26,9 +26,12 @@ export * from './errors.js';
 const takenPersistPrefixes = new Set<string>();
 const takenClientNames = new Set<string>();
 
+const TRACKED_RUNS_KEY = 'RUNS';
+
 export class Orchestrator implements ApifyOrchestrator {
     readonly options: OrchestratorOptions;
-    protected readonly context: GlobalContext;
+
+    protected readonly context: OrchestratorContext;
     protected readonly storage?: Storage;
 
     constructor(options: Partial<OrchestratorOptions> = {}) {
@@ -37,9 +40,8 @@ export class Orchestrator implements ApifyOrchestrator {
         takenPersistPrefixes.add(fullOptions.persistencePrefix);
         this.options = fullOptions;
 
-        const logger = buildLogger(this.options);
-        this.context = { logger };
-        this.storage = buildStorage(logger, this.options);
+        this.context = generateOrchestratorContext(this.options);
+        this.storage = buildStorage(this.context);
     }
 
     async apifyClient(options: ExtendedClientOptions = {}): Promise<ExtendedApifyClient> {
@@ -50,28 +52,20 @@ export class Orchestrator implements ApifyOrchestrator {
 
         superClientOptions.token ??= Actor.getEnv().token ?? undefined;
 
-        const runTracker = await RunTracker.new(this.context, {
-            storage: this.storage,
-            storagePrefix: `${this.options.persistencePrefix}${clientName}-`,
-            onUpdate: this.options.onUpdate,
-        });
-        const context: OrchestratorContext = {
-            logger: this.context.logger,
-            runTracker,
+        // Create the default object here to avoid shared references.
+        const defaultTrackedRuns = {
+            current: {},
+            failedHistory: {},
         };
 
-        const extendedClientOptions: ExtApifyClientOptions = {
-            clientName,
-            fixedInput: this.options.fixedInput,
-            abortAllRunsOnGracefulAbort: this.options.abortAllRunsOnGracefulAbort,
-            hideSensitiveInformation: this.options.hideSensitiveInformation,
-            retryOnInsufficientResources: this.options.retryOnInsufficientResources,
-        };
+        const storagePrefix = `${this.options.persistencePrefix}${clientName}-`;
+        const storageKey = `${storagePrefix}${TRACKED_RUNS_KEY}`;
+        const trackedRuns =
+            (await this.storage?.useState<TrackedRuns>(storageKey, defaultTrackedRuns)) ?? defaultTrackedRuns;
 
-        const client = new ExtApifyClient(context, extendedClientOptions, superClientOptions);
-        client.startScheduler();
+        const clientContext = generateClientContext(this.context, trackedRuns);
 
-        return client;
+        return new ExtApifyClient(clientName, clientContext, superClientOptions);
     }
 
     mergeDatasets<T extends DatasetItem>(...datasets: ExtendedDatasetClient<T>[]): DatasetGroup<T> {

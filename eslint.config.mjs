@@ -24,7 +24,7 @@ export default [
             '@typescript-eslint': tsEslint.plugin,
         },
         rules: {
-            'no-console': 0,
+            'max-classes-per-file': 0,
         },
     },
 ];

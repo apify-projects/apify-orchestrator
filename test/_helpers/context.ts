@@ -1,21 +1,35 @@
+import type { ClientContext } from 'src/context/client-context.js';
+import { generateClientContext } from 'src/context/client-context.js';
+import type { OrchestratorContext } from 'src/context/orchestrator-context.js';
+import { generateOrchestratorContext } from 'src/context/orchestrator-context.js';
 import type { OrchestratorOptions } from 'src/types.js';
-import type { GlobalContext } from 'src/utils/context.js';
-import { buildLogger } from 'src/utils/logging.js';
 
 const DEFAULT_TEST_OPTIONS: OrchestratorOptions = {
     enableLogs: false,
     hideSensitiveInformation: false,
     persistenceSupport: 'none',
     persistencePrefix: 'TEST-',
-    abortAllRunsOnGracefulAbort: true,
-    retryOnInsufficientResources: true,
+    abortAllRunsOnGracefulAbort: false,
+    retryOnInsufficientResources: false,
 };
 
 export function getTestOptions(overrides?: Partial<OrchestratorOptions>): OrchestratorOptions {
     return { ...DEFAULT_TEST_OPTIONS, ...overrides };
 }
 
-export function getTestGlobalContext(options: OrchestratorOptions): GlobalContext {
-    const logger = buildLogger(options);
-    return { logger };
+export function getTestContext(overrideOptions?: Partial<OrchestratorOptions>): OrchestratorContext {
+    const options = getTestOptions(overrideOptions);
+    return generateOrchestratorContext(options);
+}
+
+export function getClientContext(overrideOptions?: Partial<OrchestratorOptions>): ClientContext {
+    const orchestratorContext = getTestContext(overrideOptions);
+
+    // Create empty tracked runs for testing
+    const trackedRuns = {
+        current: {},
+        failedHistory: {},
+    };
+
+    return generateClientContext(orchestratorContext, trackedRuns);
 }

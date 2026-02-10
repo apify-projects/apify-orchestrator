@@ -5,6 +5,7 @@ import type { ClientContext } from '../context/client-context.js';
 import type { RunStartRequest } from '../run-scheduler.js';
 import type { DatasetItem, ExtendedApifyClient, RunRecord } from '../types.js';
 import { isRunOkStatus } from '../utils/apify-client.js';
+import { isDefined } from '../utils/typing.js';
 import { ExtActorClient } from './actor-client.js';
 import { ExtDatasetClient } from './dataset-client.js';
 import type { ExtRunClient } from './run-client.js';
@@ -42,7 +43,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     override run(id: string): RunClient {
         const runName = this.context.runTracker.findRunName(id);
         const runClient = super.run(id);
-        return runName ? this.context.extendRunClient(runName, runClient) : runClient;
+        return isDefined(runName) ? this.context.extendRunClient(runName, runClient) : runClient;
     }
 
     async runByName(runName: string): Promise<ExtRunClient | undefined> {

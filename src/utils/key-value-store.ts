@@ -5,6 +5,7 @@ import { Actor } from 'apify';
 import type { EncryptionKey } from './encryption.js';
 import { decryptString, encryptString } from './encryption.js';
 import type { Logger } from './logging.js';
+import { isDefined } from './typing.js';
 
 export class EncryptedKeyValueStore {
     private readonly cache = new Map<string, Dictionary>();
@@ -86,7 +87,7 @@ export class EncryptedKeyValueStore {
 
     private async persistCache(): Promise<void> {
         const persistStateIntervalMs = Actor.config.get('persistStateIntervalMillis');
-        const timeoutSecs = persistStateIntervalMs ? persistStateIntervalMs / 1_000 / 2 : undefined;
+        const timeoutSecs = isDefined(persistStateIntervalMs) ? persistStateIntervalMs / 1_000 / 2 : undefined;
 
         const promises: Promise<void>[] = [];
 

@@ -13,6 +13,7 @@ import { stringifyError } from './utils/errors.js';
 import { RequestOutcome } from './utils/request-management/request.js';
 import { RequestPool } from './utils/request-management/request-pool.js';
 import { onActorShuttingDown } from './utils/run-lifecycle.js';
+import { isDefined } from './utils/typing.js';
 
 export interface RunStartRequest {
     source: RunSource;
@@ -73,7 +74,7 @@ export class RunScheduler {
     findRunStartRequest(runName: string): (() => Promise<ActorRun>) | undefined {
         const request = this.pool.findRequest(runName);
         // Prefer `async () => request.wait()` to `request.wait` to avoid unbound method reference.
-        return request ? async () => request.wait() : undefined;
+        return isDefined(request) ? async () => request.wait() : undefined;
     }
 
     /**

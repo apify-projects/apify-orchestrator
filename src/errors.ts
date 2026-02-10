@@ -1,3 +1,5 @@
+import { isDefined } from './utils/typing.js';
+
 /**
  * Base class for all Apify Orchestrator errors
  */
@@ -20,7 +22,7 @@ export class InsufficientMemoryError extends OrchestratorError {
     readonly requiredMemoryMBs?: number;
 
     constructor(runName: string, requiredMemoryMBs?: number) {
-        const requiredMemoryText = requiredMemoryMBs ? `${requiredMemoryMBs / 1024}GB` : 'unknown';
+        const requiredMemoryText = isDefined(requiredMemoryMBs) ? `${requiredMemoryMBs / 1024}GB` : 'unknown';
         super(`Insufficient memory to start run '${runName}'. Required memory: ${requiredMemoryText}.`, runName);
         this.requiredMemoryMBs = requiredMemoryMBs;
     }

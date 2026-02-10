@@ -11,6 +11,7 @@ import { ActorClient } from 'apify-client';
 import type { ClientContext } from '../context/client-context.js';
 import { RunSource } from '../entities/run-source.js';
 import type { ActorRunRequest, ExtendedActorClient, RunRecord, SplitRules } from '../types.js';
+import { isDefined } from '../utils/typing.js';
 import type { ExtApifyClient } from './apify-client.js';
 import type { ExtRunClient } from './run-client.js';
 
@@ -105,7 +106,7 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
 
     override lastRun(options?: ActorLastRunOptions): RunClient | ExtRunClient {
         const runClient = super.lastRun(options);
-        return runClient.id ? this.apifyClient.run(runClient.id) : runClient;
+        return isDefined(runClient.id) ? this.apifyClient.run(runClient.id) : runClient;
     }
 
     async startRuns(...runRequests: ActorRunRequest[]): Promise<RunRecord> {

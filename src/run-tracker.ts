@@ -22,11 +22,14 @@ export interface RunTrackerOptions {
 }
 
 export class RunTracker {
-    private constructor(
-        private readonly context: GlobalContext,
-        private readonly trackedRuns: TrackedRuns,
-        private readonly onUpdate?: UpdateCallback,
-    ) {
+    context: GlobalContext;
+    trackedRuns: TrackedRuns;
+    onUpdate?: UpdateCallback;
+
+    private constructor(context: GlobalContext, trackedRuns: TrackedRuns, onUpdate?: UpdateCallback) {
+        this.context = context;
+        this.trackedRuns = trackedRuns;
+        this.onUpdate = onUpdate;
         this.itemsChangedCallback();
     }
 

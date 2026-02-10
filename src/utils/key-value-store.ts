@@ -9,11 +9,12 @@ import type { Logger } from './logging.js';
 export class EncryptedKeyValueStore {
     private readonly cache = new Map<string, Dictionary>();
     private readonly pendingOperations = new Map<string, Promise<Dictionary>>();
+    private readonly logger: Logger;
+    private readonly encryptionKey: EncryptionKey;
 
-    constructor(
-        private readonly logger: Logger,
-        private readonly encryptionKey: EncryptionKey,
-    ) {
+    constructor(logger: Logger, encryptionKey: EncryptionKey) {
+        this.logger = logger;
+        this.encryptionKey = encryptionKey;
         Actor.on('persistState', this.persistCache.bind(this));
     }
 

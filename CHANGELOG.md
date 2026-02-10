@@ -11,6 +11,9 @@
 - Removed `ExtendedApifyClient`'s public properties `abortAllRunsOnGracefulAbort`, `hideSensitiveInformation`, and
   `fixedInput`, which reflected the Orchestrator options. `clientName` is still available.
   If you need to track those values, associate them with the client name or the orchestrator instance.
+- Fixed the Run names generated when splitting Runs in batches: indexes will start from 1 instead of 0, e.g.,
+  1/2 and 2/2 instead of 0/2 and 1/2. If you are relying on parsing the generated names in your code, take into account
+  this change, or provide Run names yourself.
 
 ### Fixed
 

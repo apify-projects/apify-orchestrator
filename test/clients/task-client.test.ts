@@ -181,7 +181,7 @@ describe('ExtTaskClient', () => {
     });
 
     describe('startBatch', () => {
-        it('splits the input and starts multiple Runs', async () => {
+        it('starts a single Run if the Apify API limit is not reached', async () => {
             const sources = ['item1', 'item2'];
             const inputGenerator = (chunk: string[]) => ({ items: chunk });
 
@@ -190,6 +190,19 @@ describe('ExtTaskClient', () => {
             expect(apifyClient.findOrStartRun).toHaveBeenCalled();
             expect(result).toEqual({
                 'batch-test': mockRun,
+            });
+        });
+
+        it('splits the input and starts multiple Runs', async () => {
+            const sources = Array.from({ length: 100 }, (_, i) => ({ id: i, data: 'x'.repeat(100000) })); // size: ~10 MB
+            const inputGenerator = (chunk: { id: number; data: string }[]) => ({ items: chunk });
+
+            const result = await taskClient.startBatch('batch-test', sources, inputGenerator);
+
+            expect(apifyClient.findOrStartRun).toHaveBeenCalled();
+            expect(result).toEqual({
+                'batch-test-1/2': mockRun,
+                'batch-test-2/2': mockRun,
             });
         });
     });

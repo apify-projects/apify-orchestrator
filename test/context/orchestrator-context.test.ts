@@ -36,7 +36,7 @@ describe('OrchestratorContext', () => {
 
             expect(runRequests.length).toBeGreaterThan(1);
             runRequests.forEach((request, index) => {
-                expect(request.runName).toMatch(new RegExp(`test-run-${index}/${runRequests.length}`));
+                expect(request.runName).toMatch(new RegExp(`test-run-${index + 1}/${runRequests.length}`));
                 expect(request.input).toHaveProperty('items');
             });
         });

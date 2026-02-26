@@ -1,6 +1,6 @@
 import { Actor } from 'apify';
+import { generateOrchestratorContext } from 'src/context/orchestrator-context.js';
 import { EncryptedKeyValueStore } from 'src/utils/key-value-store.js';
-import { buildLogger } from 'src/utils/logging.js';
 import { buildStorage } from 'src/utils/storage.js';
 import { getTestOptions } from 'test/_helpers/context.js';
 import { describe, expect, it, vi } from 'vitest';
@@ -18,11 +18,10 @@ vi.mocked(EncryptedKeyValueStore).mockImplementation(function () {
 });
 
 describe('buildStorage', () => {
-    const logger = buildLogger(getTestOptions());
-
     it('returns undefined when persistenceSupport is none', () => {
         const options = getTestOptions({ persistenceSupport: 'none' });
-        const storage = buildStorage(logger, options);
+        const context = generateOrchestratorContext(options);
+        const storage = buildStorage(context);
         expect(storage).toBeUndefined();
     });
 
@@ -31,7 +30,8 @@ describe('buildStorage', () => {
             persistenceSupport: 'kvs',
             persistenceEncryptionKey: undefined,
         });
-        const storage = buildStorage(logger, options);
+        const context = generateOrchestratorContext(options);
+        const storage = buildStorage(context);
         expect(storage).toBeDefined();
         await storage.useState('test-key', { foo: 'bar' });
         expect(Actor.useState).toHaveBeenCalledWith('test-key', { foo: 'bar' });
@@ -42,7 +42,8 @@ describe('buildStorage', () => {
             persistenceSupport: 'kvs',
             persistenceEncryptionKey: 'my-secret-key',
         });
-        const storage = buildStorage(logger, options);
+        const context = generateOrchestratorContext(options);
+        const storage = buildStorage(context);
         expect(storage).toBeDefined();
         await storage.useState('test-key', { foo: 'bar' });
         expect(encryptedKeyValueStoreMock.useState).toHaveBeenCalledWith('test-key', { foo: 'bar' });

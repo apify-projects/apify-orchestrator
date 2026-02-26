@@ -1,31 +1,32 @@
 import { ApifyApiError } from 'apify-client';
 
-import { InsufficientActorJobsError, InsufficientMemoryError } from '../errors.js';
-
 export const MEMORY_LIMIT_EXCEEDED_ERROR_TYPE = 'actor-memory-limit-exceeded';
 export const CONCURRENT_RUNS_LIMIT_EXCEEDED_ERROR_TYPE = 'concurrent-runs-limit-exceeded';
 
-export async function parseStartRunError(
-    error: unknown,
-    runName: string,
-    getRequiredMemoryMbytes: () => Promise<number>,
-): Promise<Error> {
+export const START_RUN_ERROR_TYPE = {
+    MEMORY: Symbol('memory'),
+    CONCURRENT_RUNS: Symbol('concurrent-runs'),
+    OTHER: Symbol('other'),
+} as const;
+
+export type StartRunErrorType = (typeof START_RUN_ERROR_TYPE)[keyof typeof START_RUN_ERROR_TYPE];
+
+/**
+ * Identifies known error types, from the Apify client, when starting a run.
+ */
+export function getStartRunErrorType(error: unknown): StartRunErrorType {
     if (error instanceof ApifyApiError) {
         if (error.type === MEMORY_LIMIT_EXCEEDED_ERROR_TYPE) {
-            return new InsufficientMemoryError(runName, await getRequiredMemoryMbytes());
+            return START_RUN_ERROR_TYPE.MEMORY;
         }
         if (error.type === CONCURRENT_RUNS_LIMIT_EXCEEDED_ERROR_TYPE) {
-            return new InsufficientActorJobsError(runName);
+            return START_RUN_ERROR_TYPE.CONCURRENT_RUNS;
         }
     }
-    if (error instanceof Error) {
-        return error;
-    }
-    return new Error(`Unknown error occurred while starting the run: ${runName}`);
+    return START_RUN_ERROR_TYPE.OTHER;
 }
 
 // We define both OK and FAIL statuses for better type safety: an unknown status is neither.
-
 const OK_STATUSES = ['READY', 'RUNNING', 'SUCCEEDED'] as const;
 const FAIL_STATUSES = ['FAILED', 'ABORTING', 'ABORTED', 'TIMING-OUT', 'TIMED-OUT'] as const;
 

@@ -8,6 +8,7 @@
         "noUnusedLocals": false,
         "skipLibCheck": true,
         "lib": ["DOM", "ES2021.String"],
+        "erasableSyntaxOnly": true,
         "baseUrl": ".",
         "paths": {
             "apify-orchestrator": ["src"]

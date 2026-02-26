@@ -1,12 +1,9 @@
 import type { ActorRun } from 'apify-client';
 
-import type { RunInfo, UpdateCallback } from './types.js';
+import type { OrchestratorContext } from './context/orchestrator-context.js';
+import type { RunInfo } from './types.js';
 import { isRunFailStatus } from './utils/apify-client.js';
 import { getRunUrl } from './utils/apify-console.js';
-import type { GlobalContext } from './utils/context.js';
-import type { Storage } from './utils/storage.js';
-
-const TRACKED_RUNS_KEY = 'RUNS';
 
 type RunInfoRecord = { [runName: string]: RunInfo };
 
@@ -15,31 +12,18 @@ export interface TrackedRuns {
     failedHistory: { [runName: string]: RunInfo[] };
 }
 
-export interface RunTrackerOptions {
-    storage?: Storage;
-    storagePrefix?: string;
-    onUpdate?: UpdateCallback;
-}
-
 export class RunTracker {
-    private constructor(
-        private readonly context: GlobalContext,
-        private readonly trackedRuns: TrackedRuns,
-        private readonly onUpdate?: UpdateCallback,
-    ) {
+    private readonly context: OrchestratorContext;
+    private readonly trackedRuns: TrackedRuns;
+
+    constructor(context: OrchestratorContext, trackedRuns: TrackedRuns) {
+        this.context = context;
+        this.trackedRuns = trackedRuns;
         this.itemsChangedCallback();
     }
 
-    static async new(context: GlobalContext, options?: RunTrackerOptions): Promise<RunTracker> {
-        const defaultTrackedRuns = getDefaultTrackedRuns();
-        const storageKey = `${options?.storagePrefix ?? ''}${TRACKED_RUNS_KEY}`;
-        const trackedRuns =
-            (await options?.storage?.useState<TrackedRuns>(storageKey, defaultTrackedRuns)) ?? defaultTrackedRuns;
-        return new RunTracker(context, trackedRuns, options?.onUpdate);
-    }
-
-    getCurrentRunNames(): string[] {
-        return Object.keys(this.trackedRuns.current);
+    getCurrentRuns(): { [runName: string]: RunInfo } {
+        return cloneRunInfoRecord(this.trackedRuns.current);
     }
 
     findRunByName(runName: string): RunInfo | undefined {
@@ -60,7 +44,12 @@ export class RunTracker {
         return undefined;
     }
 
-    updateRun(runName: string, run: ActorRun): RunInfo {
+    updateRun(runName: string, run?: ActorRun): void {
+        if (!run) {
+            this.trackLostRun(runName);
+            return;
+        }
+
         const runInfo = buildRunInfo(run);
 
         const hasChanged = hasRunChanged(this.trackedRuns.current[runName], runInfo);
@@ -78,24 +67,18 @@ export class RunTracker {
         if (isRunFailStatus(runInfo.status)) {
             this.addOrUpdateFailedRun(runName, runInfo);
         }
-
-        return runInfo;
     }
 
-    declareLostRun(runName: string, reason?: string) {
+    private trackLostRun(runName: string): void {
         const runInfo = this.findAndDeleteRun(runName);
-        if (!runInfo) {
-            return;
-        }
-        this.context.logger.prefixed(runName).info('Lost Run', { reason }, { url: runInfo.runUrl });
+        if (!runInfo) return;
+        this.context.logger.prefixed(runName).info('Lost Run', undefined, { url: runInfo.runUrl });
         this.addOrUpdateFailedRun(runName, { ...runInfo, status: 'LOST' });
     }
 
     private findAndDeleteRun(runName: string): RunInfo | undefined {
         const runInfo = this.trackedRuns.current[runName];
-        if (!runInfo) {
-            return undefined;
-        }
+        if (!runInfo) return undefined;
         delete this.trackedRuns.current[runName];
         return runInfo;
     }
@@ -113,8 +96,8 @@ export class RunTracker {
     }
 
     private itemsChangedCallback(lastChangedRunName?: string, lastChangedRun?: ActorRun) {
-        if (this.onUpdate) {
-            this.onUpdate(
+        if (this.context.options.onUpdate) {
+            this.context.options.onUpdate(
                 // Pass a copy to avoid allowing direct changes to the tracker's data
                 cloneRunInfoRecord(this.trackedRuns.current),
                 lastChangedRunName,
@@ -122,13 +105,6 @@ export class RunTracker {
             );
         }
     }
-}
-
-function getDefaultTrackedRuns(): TrackedRuns {
-    return {
-        current: {},
-        failedHistory: {},
-    };
 }
 
 function buildRunInfo(run: ActorRun): RunInfo {
@@ -139,7 +115,7 @@ function buildRunInfo(run: ActorRun): RunInfo {
 }
 
 function hasRunChanged(existingRun: RunInfo | undefined, newRun: RunInfo): boolean {
-    return !existingRun || existingRun.runId !== newRun.runId || existingRun.status !== newRun.status;
+    return existingRun?.runId !== newRun.runId || existingRun.status !== newRun.status;
 }
 
 function cloneRunInfoRecord(record: RunInfoRecord): RunInfoRecord {

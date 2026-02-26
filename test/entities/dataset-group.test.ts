@@ -1,59 +1,66 @@
 import type { PaginatedList } from 'apify-client';
 import { DatasetClient } from 'apify-client';
-import type { DatasetItem } from 'src/index.js';
+import type { DatasetItem, ExtendedApifyClient } from 'src/index.js';
 import { Orchestrator } from 'src/index.js';
+import { getTestOptions } from 'test/_helpers/context.js';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-describe('grouping-utils', () => {
-    describe('DatasetGroupClass', () => {
-        it('can iterate over items from all the datasets, in order', async () => {
-            interface Item extends DatasetItem {
-                title: string;
-            }
-            const dataset1: PaginatedList<Item> = {
-                count: 1,
-                desc: true,
-                items: [{ title: 'A' }],
-                limit: 0,
-                offset: 0,
-                total: 1,
-            };
-            const dataset2: PaginatedList<Item> = {
-                count: 1,
-                desc: true,
-                items: [{ title: 'B' }],
-                limit: 0,
-                offset: 0,
-                total: 1,
-            };
-            const dataset3: PaginatedList<Item> = {
-                count: 1,
-                desc: true,
-                items: [{ title: 'C' }],
-                limit: 0,
-                offset: 0,
-                total: 1,
-            };
+describe('DatasetGroupClass', () => {
+    let orchestrator: Orchestrator;
+    let client: ExtendedApifyClient;
 
-            vi.spyOn(DatasetClient.prototype, 'listItems')
-                .mockImplementationOnce(async () => dataset1)
-                .mockImplementationOnce(async () => dataset2)
-                .mockImplementationOnce(async () => dataset3);
+    beforeEach(async () => {
+        const options = getTestOptions();
+        orchestrator = new Orchestrator(options);
+        client = await orchestrator.apifyClient({ name: 'test-client' });
+    });
 
-            const orchestrator = new Orchestrator();
-            const client = await orchestrator.apifyClient();
-            const mergedDatasets = orchestrator.mergeDatasets(
-                client.dataset<Item>('test-id1'),
-                client.dataset<Item>('test-id2'),
-                client.dataset<Item>('test-id3'),
-            );
+    it('can iterate over items from all the datasets, in order', async () => {
+        interface Item extends DatasetItem {
+            title: string;
+        }
+        const dataset1: PaginatedList<Item> = {
+            count: 1,
+            desc: true,
+            items: [{ title: 'A' }],
+            limit: 0,
+            offset: 0,
+            total: 1,
+        };
+        const dataset2: PaginatedList<Item> = {
+            count: 1,
+            desc: true,
+            items: [{ title: 'B' }],
+            limit: 0,
+            offset: 0,
+            total: 1,
+        };
+        const dataset3: PaginatedList<Item> = {
+            count: 1,
+            desc: true,
+            items: [{ title: 'C' }],
+            limit: 0,
+            offset: 0,
+            total: 1,
+        };
 
-            const datasetIterator = mergedDatasets.iterate({});
-            const readItems: Item[] = [];
-            for await (const item of datasetIterator) {
-                readItems.push(item);
-            }
+        vi.spyOn(DatasetClient.prototype, 'listItems')
+            .mockResolvedValueOnce(dataset1)
+            .mockResolvedValueOnce(dataset2)
+            .mockResolvedValueOnce(dataset3);
 
-            expect(readItems).toEqual([{ title: 'A' }, { title: 'B' }, { title: 'C' }]);
-        });
+        const mergedDatasets = orchestrator.mergeDatasets(
+            client.dataset<Item>('test-id1'),
+            client.dataset<Item>('test-id2'),
+            client.dataset<Item>('test-id3'),
+        );
+
+        const datasetIterator = mergedDatasets.iterate({});
+        const readItems: Item[] = [];
+        for await (const item of datasetIterator) {
+            readItems.push(item);
+        }
+
+        expect(readItems).toEqual([{ title: 'A' }, { title: 'B' }, { title: 'C' }]);
     });
 });

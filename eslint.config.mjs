@@ -27,4 +27,10 @@ export default [
             'max-classes-per-file': 0,
         },
     },
+    {
+        files: ['**/*.test.ts', '**/__test-helpers__/**'],
+        rules: {
+            'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
+        },
+    },
 ];

@@ -12,7 +12,14 @@ export default defineConfig({
         coverage: {
             provider: 'v8',
             reporter: ['text', 'lcov', 'cobertura'],
-            exclude: ['**/node_modules/**', '**/dist/**', '**/test/**', 'vitest.config.ts', 'eslint.config.mjs'],
+            exclude: [
+                '**/node_modules/**',
+                '**/dist/**',
+                '**/*.test.ts',
+                '**/__test-helpers__/**',
+                'vitest.config.ts',
+                'eslint.config.mjs',
+            ],
         },
         restoreMocks: true,
         testTimeout: 60_000,

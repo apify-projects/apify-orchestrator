@@ -4,9 +4,18 @@
 
 ### Breaking changes
 
+- Increased the required Node.js version from 16 to 20.
+  Specifically, `vitest` >= 4, used for testing, requires Node.js >= 20.
+  Since the newly introduced GitHub Actions run the test suite against various Node.js versions,
+  from now on the library will only support versions that are fully testable.
 - Removed option `itemsThreshold` from `ExtendedDatasetClient`'s method `iterate`: the method now never relies on
   `dataset.itemCount`, because it may be inaccurate, and instead always fetches the next batch of items until there are
   no more items to fetch. This makes it unfeasible to support such option.
+
+### Development
+
+- Moved all unit tests inside the `src` folder.
+- Set up GitHub Actions.
 
 ## 0.8.1
 

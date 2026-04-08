@@ -1,23 +1,14 @@
 import { log } from 'apify';
 
-import { checkResurrectionTestOutputCompleteness, runResurrectionTest } from './e2e-test-resurrection.js';
-import {
-    generateActorTestRunner,
-    getOrchestratorAndClient,
-    getOrchestratorTrackedValue,
-    testLog,
-} from './e2e-test-utils.js';
-import type { TrackedRuns } from './orchestrator/run-tracker.js';
-import { TestTransientTaskRunner } from './test-transient-task-runner.js';
+import type { TrackedRuns } from '../run-tracker.js';
+import { checkResurrectionTestOutputCompleteness, runResurrectionTest } from './resurrection.js';
+import { TestTransientTaskRunner } from './transient-task-runner.js';
+import type { TestResult } from './types.js';
+import { generateActorTestRunner, getOrchestratorAndClient, getOrchestratorTrackedValue, testLog } from './utils.js';
 
-export interface TestResult {
-    success: boolean;
-    details?: string;
-}
+type EndToEndTestOutput = { [testName: string]: TestResult };
 
-export type EndToEndTestOutput = { [testName: string]: TestResult };
-
-export async function runEndToEndTests(): Promise<EndToEndTestOutput> {
+export async function runEndToEndTestSuite(): Promise<EndToEndTestOutput> {
     const tests = [
         childRunWithoutPersistence,
         childRunWithPlainPersistence,

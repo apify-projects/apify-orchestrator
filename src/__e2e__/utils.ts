@@ -1,7 +1,7 @@
 import { Actor, log } from 'apify';
 
-import type { ExtendedApifyClient, OrchestratorOptions } from './orchestrator/index.js';
-import { Orchestrator } from './orchestrator/index.js';
+import type { ExtendedApifyClient, OrchestratorOptions } from '../index.js';
+import { Orchestrator } from '../index.js';
 import { TestActorRunner } from './test-actor-runner.js';
 
 const CHILD_MEMORY_MB = 256;
@@ -50,4 +50,10 @@ export async function getOrchestratorTrackedValue(index: number): Promise<unknow
     const value = await Actor.getValue(key);
 
     return value;
+}
+
+export async function sleep(seconds: number): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(resolve, seconds * 1000);
+    });
 }

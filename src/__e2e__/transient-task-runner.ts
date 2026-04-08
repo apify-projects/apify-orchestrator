@@ -1,16 +1,15 @@
 import { log } from 'apify';
 
+import type { ExtendedApifyClient } from '../types.js';
 import { getActorId } from './actor-id.js';
-import type { ExtendedApifyClient } from './orchestrator/types.js';
 import { TestTaskRunner } from './test-task-runner.js';
 
 export class TestTransientTaskRunner extends TestTaskRunner {
-    private constructor(
-        apifyClient: ExtendedApifyClient,
-        taskId: string,
-        private readonly taskName: string,
-    ) {
+    private readonly taskName: string;
+
+    private constructor(apifyClient: ExtendedApifyClient, taskId: string, taskName: string) {
         super(apifyClient, taskId);
+        this.taskName = taskName;
     }
 
     static async new(

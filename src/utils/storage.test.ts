@@ -1,7 +1,7 @@
 import { Actor } from 'apify';
 import { describe, expect, it, vi } from 'vitest';
 
-import { getTestOptions } from '../__test-helpers__/context.js';
+import { getTestOptions } from '../__unit__/context.js';
 import { generateOrchestratorContext } from '../context/orchestrator-context.js';
 import { buildStorage } from './storage.js';
 

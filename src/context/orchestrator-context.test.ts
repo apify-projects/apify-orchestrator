@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getTestOptions } from '../__test-helpers__/context.js';
+import { getTestOptions } from '../__unit__/context.js';
 import { generateOrchestratorContext } from './orchestrator-context.js';
 
 describe('OrchestratorContext', () => {

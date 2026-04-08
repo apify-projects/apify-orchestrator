@@ -1,7 +1,7 @@
 import { Actor } from 'apify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { getTestOptions } from '../__test-helpers__/context.js';
+import { getTestOptions } from '../__unit__/context.js';
 import { encryptString, processEncryptionKey } from './encryption.js';
 import { EncryptedKeyValueStore } from './key-value-store.js';
 import { buildLogger } from './logging.js';

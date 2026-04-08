@@ -1,8 +1,8 @@
 import { ApifyClient, RunClient, TaskClient } from 'apify-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getClientContext } from '../__test-helpers__/context.js';
-import { createActorRunMock } from '../__test-helpers__/mocks.js';
+import { getClientContext } from '../__unit__/context.js';
+import { createActorRunMock } from '../__unit__/mocks.js';
 import type { ClientContext } from '../context/client-context.js';
 import type { RunSource } from '../entities/run-source.js';
 import { ExtApifyClient } from './apify-client.js';

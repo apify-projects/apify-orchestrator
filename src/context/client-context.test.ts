@@ -1,8 +1,8 @@
 import { RunClient } from 'apify-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { getClientContext } from '../__test-helpers__/context.js';
-import { createActorRunMock } from '../__test-helpers__/mocks.js';
+import { getClientContext } from '../__unit__/context.js';
+import { createActorRunMock } from '../__unit__/mocks.js';
 import { ExtRunClient } from '../clients/run-client.js';
 import { RunSource } from '../entities/run-source.js';
 import { Orchestrator } from '../index.js';

@@ -37,7 +37,7 @@ export default [
         },
     },
     {
-        files: ['**/*.test.ts', '**/__test-helpers__/**'],
+        files: ['**/*.test.ts', '**/__unit__/**'],
         rules: {
             'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
         },

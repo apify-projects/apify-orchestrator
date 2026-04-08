@@ -2,7 +2,7 @@ import type { PaginatedList } from 'apify-client';
 import { DatasetClient } from 'apify-client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getTestOptions } from '../__test-helpers__/context.js';
+import { getTestOptions } from '../__unit__/context.js';
 import type { DatasetItem, ExtendedApifyClient } from '../index.js';
 import { Orchestrator } from '../index.js';
 

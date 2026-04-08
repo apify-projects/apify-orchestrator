@@ -16,7 +16,7 @@ export default defineConfig({
                 '**/node_modules/**',
                 '**/dist/**',
                 '**/*.test.ts',
-                '**/__test-helpers__/**',
+                '**/__unit__/**',
                 'vitest.config.ts',
                 'eslint.config.mjs',
             ],

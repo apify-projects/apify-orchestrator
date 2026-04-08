@@ -1,8 +1,8 @@
 import type { ActorRun } from 'apify-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { getTestContext } from './__test-helpers__/context.js';
-import { createActorRunMock } from './__test-helpers__/mocks.js';
+import { getTestContext } from './__unit__/context.js';
+import { createActorRunMock } from './__unit__/mocks.js';
 import { RunTracker } from './run-tracker.js';
 import type { RunInfo } from './types.js';
 

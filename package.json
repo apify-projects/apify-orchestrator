@@ -11,7 +11,7 @@
         "dist"
     ],
     "scripts": {
-        "build": "tsc",
+        "build": "tsc --build tsconfig.build.json",
         "lint": "eslint",
         "lint:fix": "eslint --fix",
         "format": "prettier --write .",
@@ -40,6 +40,7 @@
         "@apify/tsconfig": "^0.1.1",
         "@crawlee/types": "^3.16.0",
         "@vitest/coverage-v8": "^4.1.2",
+        "apify-cli": "^1.4.1",
         "axios": "^1.14.0",
         "eslint": "^9.39.4",
         "eslint-config-prettier": "^10.1.8",

@@ -1,0 +1,13 @@
+{
+    "extends": "./tsconfig.json",
+    "include": ["./src/**/*"],
+    "exclude": [
+        "**/node_modules",
+        "**/dist",
+        "**/coverage",
+        "**/*.test.ts",
+        "**/__test-helpers__",
+        "**/__e2e__",
+        "src/e2e-test.ts"
+    ]
+}

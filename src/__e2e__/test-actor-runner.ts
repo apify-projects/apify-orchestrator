@@ -1,8 +1,8 @@
 import { log } from 'apify';
 import type { ActorCallOptions } from 'apify-client';
 
+import type { ExtendedActorClient, ExtendedApifyClient } from '../types.js';
 import { getActorId } from './actor-id.js';
-import type { ExtendedActorClient, ExtendedApifyClient } from './orchestrator/types.js';
 import { TestRun } from './test-run.js';
 import type { Input } from './types.js';
 
@@ -12,13 +12,15 @@ export interface TestActorRunnerOptions {
 }
 
 export class TestActorRunner {
+    private readonly apifyClient: ExtendedApifyClient;
+    private readonly actorId: string;
+    private readonly options: TestActorRunnerOptions;
     private readonly actorClient: ExtendedActorClient;
 
-    private constructor(
-        private readonly apifyClient: ExtendedApifyClient,
-        private readonly actorId: string,
-        private readonly options: TestActorRunnerOptions,
-    ) {
+    private constructor(apifyClient: ExtendedApifyClient, actorId: string, options: TestActorRunnerOptions) {
+        this.apifyClient = apifyClient;
+        this.actorId = actorId;
+        this.options = options;
         this.actorClient = apifyClient.actor(actorId);
     }
 

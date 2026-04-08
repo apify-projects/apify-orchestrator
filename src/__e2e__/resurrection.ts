@@ -1,9 +1,9 @@
 import { log } from 'apify';
 
+import type { ExtendedApifyClient, OrchestratorOptions } from '../types.js';
 import { getActorId } from './actor-id.js';
-import type { TestResult } from './e2e-test.js';
-import type { ExtendedApifyClient, OrchestratorOptions } from './orchestrator/types.js';
 import type { RunOutput } from './resurrection-test.js';
+import type { TestResult } from './types.js';
 
 export interface ResurrectionTestOutput {
     runsBeforeResurrection: { [runName: string]: RunOutput };

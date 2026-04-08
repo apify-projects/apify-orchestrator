@@ -1,7 +1,7 @@
 import { Actor, log } from 'apify';
 
-import type { DatasetItem, OrchestratorOptions } from './orchestrator/index.js';
-import { Orchestrator } from './orchestrator/index.js';
+import type { DatasetItem, OrchestratorOptions } from '../index.js';
+import { Orchestrator } from '../index.js';
 import { TestActorRunner } from './test-actor-runner.js';
 
 const ABORTED_FLAG_KEY = 'ABORTED';

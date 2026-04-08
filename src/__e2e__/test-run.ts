@@ -1,15 +1,19 @@
 import { log } from 'apify';
 import type { ActorRun } from 'apify-client';
 
-import type { ExtendedApifyClient } from './orchestrator/types.js';
+import type { ExtendedApifyClient } from '../types.js';
 import type { Output } from './types.js';
 
 export class TestRun {
-    constructor(
-        private readonly client: ExtendedApifyClient,
-        public readonly run: ActorRun,
-        public readonly runName: string,
-    ) {}
+    private readonly client: ExtendedApifyClient;
+    public readonly run: ActorRun;
+    public readonly runName: string;
+
+    constructor(client: ExtendedApifyClient, run: ActorRun, runName: string) {
+        this.client = client;
+        this.run = run;
+        this.runName = runName;
+    }
 
     async getTotalOutput(): Promise<number> {
         let total = 0;

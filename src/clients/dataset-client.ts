@@ -1,5 +1,7 @@
-import type { ActorRun, Dataset } from 'apify-client';
 import { DatasetClient } from 'apify-client';
+import { isDefined } from 'src/utils/typing.js';
+
+import { ACTOR_JOB_TERMINAL_STATUSES } from '@apify/consts';
 
 import type { OrchestratorContext } from '../context/orchestrator-context.js';
 import type { DatasetItem, ExtendedDatasetClient, GreedyIterateOptions, IterateOptions } from '../types.js';
@@ -52,56 +54,48 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
     }
 
     async *greedyIterate(options: GreedyIterateOptions = {}): AsyncGenerator<T, void, void> {
-        const { pageSize = 100, itemsThreshold = 100, pollIntervalSecs = 10, ...listItemOptions } = options;
+        const { pageSize = 100, pollIntervalSecs = 10, ...listItemOptions } = options;
         this.context.logger.info('Greedily iterating Dataset', { pageSize }, { url: this.url });
 
         let readItemsCount = 0;
 
-        let dataset: Dataset | undefined;
-        let run: ActorRun | undefined;
-
-        // TODO: breaking change - remove itemsThreshold and just listItems at every iteration
+        // Poll the run status and fetch newly available items at each interval.
         while (true) {
-            dataset = await this.get();
-            if (!dataset || !dataset.actRunId) {
+            const dataset = await this.get();
+            if (!isDefined(dataset?.actRunId)) {
                 this.context.logger.error('Error getting Dataset while iterating greedily', { id: this.id });
                 return;
             }
 
-            run = await this.apifyClient.run(dataset.actRunId).get();
-            if (!run) {
+            const run = await this.apifyClient.run(dataset.actRunId).get();
+            if (!isDefined(run)) {
                 this.context.logger.error('Error getting Run while iterating Dataset greedily', { id: this.id });
                 return;
             }
 
-            if (run.status !== 'READY' && run.status !== 'RUNNING') {
+            const itemList = await super.listItems({
+                ...listItemOptions,
+                offset: readItemsCount,
+                limit: pageSize,
+            });
+            readItemsCount += itemList.count;
+            for (const item of itemList.items) {
+                yield item;
+            }
+
+            const isTerminal = (ACTOR_JOB_TERMINAL_STATUSES as readonly string[]).includes(run.status);
+            if (isTerminal) {
                 break;
             }
 
-            if (dataset.itemCount >= readItemsCount + itemsThreshold) {
-                const itemList = await super.listItems({
-                    ...listItemOptions,
-                    offset: readItemsCount,
-                    limit: pageSize,
-                });
-                readItemsCount += itemList.count;
-                for (const item of itemList.items) {
-                    yield item;
-                }
-            }
-
-            await new Promise((resolve) => {
+            await new Promise<void>((resolve) => {
                 setTimeout(resolve, pollIntervalSecs * 1000);
             });
         }
 
-        dataset = await this.get();
-        if (!dataset || !dataset.actRunId) {
-            this.context.logger.error('Error getting Dataset while iterating greedily', { id: this.id });
-            return;
-        }
-
-        while (readItemsCount < dataset.itemCount) {
+        // Drain any remaining items. We cannot rely on dataset.itemCount here because it is
+        // eventually consistent — instead we keep fetching pages until we receive an empty one.
+        while (true) {
             const itemList = await super.listItems({
                 ...listItemOptions,
                 offset: readItemsCount,

@@ -420,25 +420,19 @@ export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetCli
     iterate: (options: IterateOptions) => AsyncGenerator<T, void, void>;
 
     /**
-     * Iterates over the items in the dataset. Fetches the items as soon as they are available
+     * Iterates over the items in the dataset as they become available, polling the run status
+     * at a regular interval and yielding any new items found at each poll.
      *
      * The option `pageSize` will help avoiding the JavaScript's string limit when deserializing the content.
-     * The default value is 100 items.
-     *
-     * The option `itemsThreshold` will define the batch size of new items to trigger a fetch.
-     * Set to 0 to fetch any amount of new items as soon as they are available.
      * The default value is 100 items.
      *
      * The option `pollIntervalSecs` allows customizing how frequently to call the API to check for new items.
      * The default value is 10 seconds.
      *
-     * ### Example
+     * Once the run reaches a terminal status, any remaining items are drained page-by-page until
+     * no more are returned.
      *
-     * With the default settings, this function will check every 10 seconds if at least 100 new items are available.
-     * If yes, it will read a "page" of 100 items from the dataset, then resume polling every 10 seconds.
-     * If the Run terminates, it will fetch all the remaining items using a pagination of 100 items.
-     *
-     * @param options includes all the options in `DatasetClientListItemOptions`, `pageSize`, `itemsThreshold`, and `pollIntervalSecs`
+     * @param options includes all the options in `DatasetClientListItemOptions`, `pageSize`, and `pollIntervalSecs`
      * @returns an `AsyncGenerator` which iterates the items in the dataset
      *
      * @example
@@ -518,13 +512,6 @@ export type IterateOptions = DatasetClientListItemOptions & {
 };
 
 export type GreedyIterateOptions = IterateOptions & {
-    /**
-     * Download new items when they are more than the specified threshold, or when the Run terminates.\
-     * If zero, the new items are downloaded as soon as they are detected.
-     *
-     * @default 100
-     */
-    itemsThreshold?: number;
     /**
      * Check the run's status regularly at the specified interval, in seconds.
      *

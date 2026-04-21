@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0
+
+### Breaking changes
+
+- Removed option `itemsThreshold` from `ExtendedDatasetClient`'s method `iterate`: the method now never relies on
+  `dataset.itemCount`, because it may be inaccurate, and instead always fetches the next batch of items until there are
+  no more items to fetch. This makes it unfeasible to support such option.
+
 ## 0.8.1
 
 ### Chore

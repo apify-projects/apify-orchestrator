@@ -6,14 +6,23 @@ import tsEslint from 'typescript-eslint';
 
 // eslint-disable-next-line import/no-default-export
 export default [
-    { ignores: ['**/dist', '**/coverage', 'eslint.config.mjs', 'vitest.config.ts', 'test-actor'] },
+    {
+        ignores: [
+            '**/dist',
+            '**/coverage',
+            'eslint.config.mjs',
+            'vitest.config.ts',
+            'e2e-test.js',
+            'apify-orchestrator-e2e-test*',
+        ],
+    },
     ...apify,
     prettier,
     {
         languageOptions: {
             parser: tsEslint.parser,
             parserOptions: {
-                project: 'tsconfig.eslint.json',
+                project: 'tsconfig.json',
             },
             globals: {
                 ...globals.node,
@@ -28,7 +37,7 @@ export default [
         },
     },
     {
-        files: ['**/*.test.ts', '**/__test-helpers__/**'],
+        files: ['**/*.test.ts', '**/__unit__/**'],
         rules: {
             'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
         },

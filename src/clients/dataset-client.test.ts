@@ -1,7 +1,7 @@
 import { DatasetClient } from 'apify-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getClientContext } from '../__test-helpers__/context.js';
+import { getClientContext } from '../__unit__/context.js';
 import type { DatasetItem } from '../types.js';
 import { ExtApifyClient } from './apify-client.js';
 import type { ExtDatasetClient } from './dataset-client.js';

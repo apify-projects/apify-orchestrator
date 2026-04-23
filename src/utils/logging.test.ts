@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { getTestOptions } from '../__test-helpers__/context.js';
+import { getTestOptions } from '../__unit__/context.js';
 import { buildLogger } from './logging.js';
 
 const debugMock = vi.hoisted(() => vi.fn());

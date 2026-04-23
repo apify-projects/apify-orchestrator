@@ -1,8 +1,8 @@
 import { Actor } from 'apify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getTestContext, getTestOptions } from './__test-helpers__/context.js';
-import { createActorRunMock, createMockRunSource } from './__test-helpers__/mocks.js';
+import { getTestContext, getTestOptions } from './__unit__/context.js';
+import { createActorRunMock, createMockRunSource } from './__unit__/mocks.js';
 import { MAIN_LOOP_INTERVAL_MS } from './constants.js';
 import type { OrchestratorContext } from './context/orchestrator-context.js';
 import { InsufficientMemoryError } from './errors.js';

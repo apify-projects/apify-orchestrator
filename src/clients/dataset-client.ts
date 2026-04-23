@@ -1,10 +1,10 @@
 import { DatasetClient } from 'apify-client';
-import { isDefined } from 'src/utils/typing.js';
 
 import { ACTOR_JOB_TERMINAL_STATUSES } from '@apify/consts';
 
 import type { OrchestratorContext } from '../context/orchestrator-context.js';
 import type { DatasetItem, ExtendedDatasetClient, GreedyIterateOptions, IterateOptions } from '../types.js';
+import { isDefined } from '../utils/typing.js';
 
 export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> implements ExtendedDatasetClient<T> {
     private readonly context: OrchestratorContext;

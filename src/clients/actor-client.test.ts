@@ -52,7 +52,7 @@ describe('ExtActorClient', () => {
             expect(result).toEqual(['test-run-1']);
             expect(apifyClient.findOrRequestRunStart).toHaveBeenCalledWith({
                 source: runSource,
-                name: 'test-run-1',
+                requestId: 'test-run-1',
                 input: { key: 'value1' },
                 options: undefined,
             });
@@ -87,12 +87,26 @@ describe('ExtActorClient', () => {
 
     describe('start', () => {
         it('starts a single Run', async () => {
-            const result = await actorClient.start('test-run-1', { key: 'value1' });
+            const result = await actorClient.start({ key: 'value1' }, { runName: 'test-run-1' });
 
             expect(apifyClient.findOrStartRun).toHaveBeenCalledWith(
                 expect.objectContaining({
                     source: runSource,
-                    name: 'test-run-1',
+                    requestId: 'test-run-1',
+                    input: { key: 'value1' },
+                    options: undefined,
+                }),
+            );
+            expect(result).toBe(mockRun);
+        });
+
+        it('generates a request ID if runName is not provided', async () => {
+            const result = await actorClient.start({ key: 'value1' });
+
+            expect(apifyClient.findOrStartRun).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    source: runSource,
+                    requestId: expect.any(String),
                     input: { key: 'value1' },
                     options: undefined,
                 }),
@@ -109,11 +123,11 @@ describe('ExtActorClient', () => {
                 .spyOn(ExtRunClient.prototype, 'waitForFinish')
                 .mockImplementation(async () => finishedRunMock);
 
-            const result = await actorClient.call('test-run-1', { key: 'value1' });
+            const result = await actorClient.call({ key: 'value1' }, { runName: 'test-run-1' });
 
             expect(apifyClient.findOrStartRun).toHaveBeenCalledWith({
                 source: runSource,
-                name: 'test-run-1',
+                requestId: 'test-run-1',
                 input: { key: 'value1' },
                 options: undefined,
             });
@@ -166,8 +180,8 @@ describe('ExtActorClient', () => {
             const result = await actorClient.startRuns(...runRequests);
 
             expect(startSpy).toHaveBeenCalledTimes(2);
-            expect(startSpy).toHaveBeenCalledWith('test-run-1', { key: 'value1' }, undefined);
-            expect(startSpy).toHaveBeenCalledWith('test-run-2', { key: 'value2' }, undefined);
+            expect(startSpy).toHaveBeenCalledWith({ key: 'value1' }, { runName: 'test-run-1' });
+            expect(startSpy).toHaveBeenCalledWith({ key: 'value2' }, { runName: 'test-run-2' });
             expect(result).toEqual({
                 'test-run-1': run1,
                 'test-run-2': run2,
@@ -221,8 +235,8 @@ describe('ExtActorClient', () => {
             const result = await actorClient.callRuns(...runRequests);
 
             expect(callSpy).toHaveBeenCalledTimes(2);
-            expect(callSpy).toHaveBeenCalledWith('test-run-1', { key: 'value1' }, undefined);
-            expect(callSpy).toHaveBeenCalledWith('test-run-2', { key: 'value2' }, undefined);
+            expect(callSpy).toHaveBeenCalledWith({ key: 'value1' }, { runName: 'test-run-1' });
+            expect(callSpy).toHaveBeenCalledWith({ key: 'value2' }, { runName: 'test-run-2' });
             expect(result).toEqual({
                 'test-run-1': finishedRun1,
                 'test-run-2': finishedRun2,

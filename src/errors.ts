@@ -5,12 +5,12 @@ import { isDefined } from './utils/typing.js';
  */
 export abstract class OrchestratorError extends Error {
     abstract readonly code: string;
-    readonly runName?: string;
+    readonly requestId?: string;
 
-    protected constructor(message: string, runName?: string) {
+    protected constructor(message: string, requestId?: string) {
         super(message);
         this.name = this.constructor.name;
-        this.runName = runName;
+        this.requestId = requestId;
     }
 }
 
@@ -21,9 +21,9 @@ export class InsufficientMemoryError extends OrchestratorError {
     readonly code = 'INSUFFICIENT_MEMORY';
     readonly requiredMemoryMBs?: number;
 
-    constructor(runName: string, requiredMemoryMBs?: number) {
+    constructor(requestId: string, requiredMemoryMBs?: number) {
         const requiredMemoryText = isDefined(requiredMemoryMBs) ? `${requiredMemoryMBs / 1024}GB` : 'unknown';
-        super(`Insufficient memory to start run '${runName}'. Required memory: ${requiredMemoryText}.`, runName);
+        super(`Insufficient memory to start run '${requestId}'. Required memory: ${requiredMemoryText}.`, requestId);
         this.requiredMemoryMBs = requiredMemoryMBs;
     }
 }
@@ -34,8 +34,8 @@ export class InsufficientMemoryError extends OrchestratorError {
 export class InsufficientActorJobsError extends OrchestratorError {
     readonly code = 'INSUFFICIENT_ACTOR_JOBS';
 
-    constructor(runName: string) {
-        super(`Insufficient actor jobs to start run '${runName}'.`, runName);
+    constructor(requestId: string) {
+        super(`Insufficient actor jobs to start run '${requestId}'.`, requestId);
     }
 }
 

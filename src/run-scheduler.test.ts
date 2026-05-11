@@ -67,7 +67,7 @@ describe('RunScheduler', () => {
 
         const runRequest: RunStartRequest = {
             source: mockSource,
-            name: 'test-run',
+            requestId: 'test-run',
             input: { key: 'value' },
         };
 
@@ -93,7 +93,7 @@ describe('RunScheduler', () => {
 
         const runRequest: RunStartRequest = {
             source: mockSource,
-            name: 'test-run',
+            requestId: 'test-run',
             input: { key: 'value' },
         };
 
@@ -111,7 +111,7 @@ describe('RunScheduler', () => {
 
         const runRequest: RunStartRequest = {
             source: mockSource,
-            name: 'test-run',
+            requestId: 'test-run',
             input: { key: 'value' },
         };
 
@@ -141,7 +141,7 @@ describe('RunScheduler', () => {
 
         const runRequest: RunStartRequest = {
             source: mockSource,
-            name: 'test-run',
+            requestId: 'test-run',
             input: { key: 'value' },
         };
 
@@ -167,7 +167,7 @@ describe('RunScheduler', () => {
 
         const runRequest: RunStartRequest = {
             source: mockSource,
-            name: 'failing-run',
+            requestId: 'failing-run',
             input: { key: 'value' },
         };
 
@@ -182,12 +182,12 @@ describe('RunScheduler', () => {
 
             const runRequest1: RunStartRequest = {
                 source: mockSource,
-                name: 'run-1',
+                requestId: 'run-1',
                 input: { key: 'value1' },
             };
             const runRequest2: RunStartRequest = {
                 source: mockSource,
-                name: 'run-2',
+                requestId: 'run-2',
                 input: { key: 'value2' },
             };
 
@@ -210,7 +210,7 @@ describe('RunScheduler', () => {
 
             const runRequest: RunStartRequest = {
                 source: mockSource,
-                name: 'run-1',
+                requestId: 'run-1',
                 input: { key: 'value1' },
             };
 
@@ -234,7 +234,7 @@ describe('RunScheduler', () => {
 
             const runRequest: RunStartRequest = {
                 source: mockSource,
-                name: 'run-1',
+                requestId: 'run-1',
                 input: { key: 'value1' },
             };
 
@@ -259,17 +259,17 @@ describe('RunScheduler', () => {
 
             const runRequest1: RunStartRequest = {
                 source: mockSource,
-                name: 'run-1',
+                requestId: 'run-1',
                 input: { key: 'value1' },
             };
             const runRequest2: RunStartRequest = {
                 source: mockSource,
-                name: 'run-2',
+                requestId: 'run-2',
                 input: { key: 'value2' },
             };
             const runRequest3: RunStartRequest = {
                 source: mockSource,
-                name: 'run-3',
+                requestId: 'run-3',
                 input: { key: 'value3' },
             };
 

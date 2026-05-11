@@ -21,7 +21,7 @@ describe('OrchestratingClient', () => {
         it('returns a promise if the Run is scheduled to start', () => {
             const context = getClientContext();
 
-            context.runScheduler.requestRunStart({ name: 'scheduled-run', source: runSource });
+            context.runScheduler.requestRunStart({ requestId: 'scheduled-run', source: runSource });
 
             const outcome = context.searchExistingRun('scheduled-run');
             expect(outcome.variant).toBe('promise');
@@ -57,7 +57,7 @@ describe('OrchestratingClient', () => {
             const runClient = client.run('test-run-id');
             const extRunClient = context.extendRunClient('test-run', runClient);
             expect(extRunClient).toBeInstanceOf(ExtRunClient);
-            expect(extRunClient.runName).toBe('test-run');
+            expect(extRunClient.requestId).toBe('test-run');
 
             const updateRunSpy = vi.spyOn(context.runTracker, 'updateRun');
             const getRunSpy = vi

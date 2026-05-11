@@ -34,7 +34,7 @@ export class TestActorRunner {
         const childOptions: ActorCallOptions = { memory: this.options.childMemoryMbytes };
         const runName = `child-${index}`;
         try {
-            const run = await this.actorClient.start(runName, childInput, childOptions);
+            const run = await this.actorClient.start(childInput, { ...childOptions, runName });
             return new TestRun(this.apifyClient, run, runName);
         } catch (error) {
             log.exception(error as Error, `Error starting child actor ${index}`, {

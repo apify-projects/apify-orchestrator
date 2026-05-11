@@ -33,7 +33,7 @@ describe('RunTracker', async () => {
     it('initializes tracked runs from storage correctly', async () => {
         const tracker = new RunTracker(context, initialTrackedRuns);
 
-        expect(tracker.findRunByName(runName)).toEqual(runInfo);
+        expect(tracker.findRunByRequestId(runName)).toEqual(runInfo);
     });
 
     it('initializes tracked runs to empty state if no runs are found', async () => {
@@ -44,7 +44,7 @@ describe('RunTracker', async () => {
 
         const tracker = new RunTracker(context, emptyTrackedRuns);
 
-        expect(tracker.findRunByName(runName)).toBeUndefined();
+        expect(tracker.findRunByRequestId(runName)).toBeUndefined();
     });
 
     it('tracks and retrieves current runs correctly', async () => {
@@ -63,10 +63,10 @@ describe('RunTracker', async () => {
 
         tracker.updateRun(runName, runMock);
 
-        const storedRun = tracker.findRunByName(runName);
+        const storedRun = tracker.findRunByRequestId(runName);
         expect(storedRun).toEqual(expect.objectContaining(expectedRunInfo));
 
-        const foundRunName = tracker.findRunName(runMock.id);
+        const foundRunName = tracker.findRunRequestId(runMock.id);
         expect(foundRunName).toBe(runName);
         expect(tracker.getCurrentRuns()).toEqual({ [runName]: expect.objectContaining(expectedRunInfo) });
     });
@@ -106,7 +106,7 @@ describe('RunTracker', async () => {
 
         const tracker = new RunTracker(contextWithCallback, emptyTrackedRuns);
 
-        expect(tracker.findRunByName(runName)).toBeUndefined();
+        expect(tracker.findRunByRequestId(runName)).toBeUndefined();
         expect(onUpdateMock).toHaveBeenCalledTimes(1);
 
         tracker.updateRun('test-run-1', runMock);
@@ -129,10 +129,10 @@ describe('RunTracker', async () => {
         const tracker = new RunTracker(context, emptyTrackedRuns);
 
         tracker.updateRun(runName, failedRunMock);
-        const updatedRunInfo = tracker.findRunByName(runName);
+        const updatedRunInfo = tracker.findRunByRequestId(runName);
 
         expect(updatedRunInfo?.status).toBe('FAILED');
-        expect(tracker.findRunByName(runName)).toEqual(
+        expect(tracker.findRunByRequestId(runName)).toEqual(
             expect.objectContaining({
                 runId: runMock.id,
                 status: 'FAILED',
@@ -161,7 +161,7 @@ describe('RunTracker', async () => {
         tracker.updateRun(runName, runMock); // first track the run
         tracker.updateRun(runName); // then declare it lost
 
-        const lostRunInfo = tracker.findRunByName(runName);
+        const lostRunInfo = tracker.findRunByRequestId(runName);
         expect(lostRunInfo).toBeUndefined();
 
         // eslint-disable-next-line dot-notation

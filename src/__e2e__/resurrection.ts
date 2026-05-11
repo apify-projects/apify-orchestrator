@@ -16,7 +16,7 @@ export async function runResurrectionTest(
     orchestratorOptions: Partial<OrchestratorOptions>,
 ): Promise<ResurrectionTestOutput> {
     const actorId = await getActorId();
-    const testRun = await client.actor(actorId).call(runName, { role: 'resurrection-test', orchestratorOptions });
+    const testRun = await client.actor(actorId).call({ role: 'resurrection-test', orchestratorOptions }, { runName });
 
     // During the first execution, the child run shut itself down, and now we are resurrecting it.
     const resurrectedRun = await client.run(testRun.id).resurrect();

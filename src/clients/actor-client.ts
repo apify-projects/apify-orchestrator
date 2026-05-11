@@ -11,6 +11,7 @@ import { ActorClient } from 'apify-client';
 import type { ClientContext } from '../context/client-context.js';
 import { RunSource } from '../entities/run-source.js';
 import type { ActorRunRequest, ExtendedActorClient, RunRecord, SplitRules } from '../types.js';
+import { hashObject } from '../utils/hash.js';
 import { isDefined } from '../utils/typing.js';
 import type { ExtApifyClient } from './apify-client.js';
 import type { ExtRunClient } from './run-client.js';
@@ -37,21 +38,24 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     }
 
     enqueue(...runRequests: ActorRunRequest[]): string[] {
-        const runNames = new Set<string>();
+        const requestIds = new Set<string>();
         for (const runRequest of runRequests) {
-            if (runNames.has(runRequest.runName)) {
-                this.context.logger.prefixed(runRequest.runName).warning('Skipping enqueuing duplicate run name.');
+            const requestId = runRequest.runName ?? this.generateRequestHash(runRequest.input, runRequest.options);
+            if (requestIds.has(requestId)) {
+                this.context.logger
+                    .prefixed(requestId)
+                    .warning('Skipping enqueuing identical Run requests, or requests with the same name.');
                 continue;
             }
-            runNames.add(runRequest.runName);
+            requestIds.add(requestId);
             this.apifyClient.findOrRequestRunStart({
                 source: this.runSource,
-                name: runRequest.runName,
+                requestId,
                 input: runRequest.input,
                 options: runRequest.options,
             });
         }
-        return Array.from(runNames);
+        return Array.from(requestIds);
     }
 
     enqueueBatch<T>(
@@ -75,32 +79,27 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     /**
      * FIXME: change the `input` parameter type from `object` to `Dictionary` after the `apify-client-js` issue is resolved:
      * https://github.com/apify/apify-client-js/issues/818.
-     *
-     * FIXME: move `runName` to options, like in `ExtendedTaskClient.start`.
-     *
-     * Note: this method should be consistent with the `apify-client-js`'s `ActorClient.start` method.
      */
-    override async start(runName: string, input?: object, options?: ActorStartOptions): Promise<ActorRun> {
+    override async start(input?: object, options?: ActorStartOptions & { runName?: string }): Promise<ActorRun> {
+        const { runName, ...startOptions } = options ?? {};
+        const requestId = runName ?? this.generateRequestHash(input, options);
         return this.apifyClient.findOrStartRun({
             source: this.runSource,
-            name: runName,
+            requestId,
             input: input as Dictionary,
-            options,
+            options: Object.keys(startOptions).length === 0 ? undefined : startOptions,
         });
     }
 
     /**
      * FIXME: change the `input` parameter type from `object` to `Dictionary` after the `apify-client-js` issue is resolved:
      * https://github.com/apify/apify-client-js/issues/818.
-     *
-     * FIXME: move `runName` to options, like in `ExtendedTaskClient.call`.
-     *
-     * Note: this method should be consistent with the `apify-client-js`'s `ActorClient.call` method.
      */
-    override async call(runName: string, input?: object, options?: ActorCallOptions): Promise<ActorRun> {
-        const startedRun = await this.start(runName, input, options);
+    override async call(input?: object, options?: ActorCallOptions & { runName?: string }): Promise<ActorRun> {
+        const requestId = options?.runName ?? this.generateRequestHash(input, options);
+        const startedRun = await this.start(input, options);
         return this.apifyClient
-            .extendedRunClient(runName, startedRun.id)
+            .extendedRunClient(requestId, startedRun.id)
             .waitForFinish({ waitSecs: options?.waitSecs });
     }
 
@@ -112,11 +111,12 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     async startRuns(...runRequests: ActorRunRequest[]): Promise<RunRecord> {
         const runRecord: RunRecord = {};
         await Promise.all(
-            runRequests.map(async ({ runName, input, options }) =>
-                this.start(runName, input, options).then((run) => {
-                    runRecord[runName] = run;
-                }),
-            ),
+            runRequests.map(async ({ runName, input, options }) => {
+                const requestId = runName ?? this.generateRequestHash(input, options);
+                await this.start(input, { ...options, runName: requestId }).then((run) => {
+                    runRecord[requestId] = run;
+                });
+            }),
         );
         return runRecord;
     }
@@ -142,11 +142,12 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     async callRuns(...runRequests: ActorRunRequest[]): Promise<RunRecord> {
         const runRecord: RunRecord = {};
         await Promise.all(
-            runRequests.map(async ({ runName, input, options }) =>
-                this.call(runName, input, options).then((run) => {
-                    runRecord[runName] = run;
-                }),
-            ),
+            runRequests.map(async ({ runName, input, options }) => {
+                const requestId = runName ?? this.generateRequestHash(input, options);
+                await this.call(input, { ...options, runName: requestId }).then((run) => {
+                    runRecord[requestId] = run;
+                });
+            }),
         );
         return runRecord;
     }
@@ -167,6 +168,10 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
                 options,
             }),
         );
+    }
+
+    private generateRequestHash(input: unknown, options: unknown): string {
+        return hashObject({ actorId: this.id, input, options });
     }
 
     private async defaultMemoryMbytes(): Promise<number | undefined> {

@@ -39,6 +39,7 @@
         "@apify/eslint-config": "^1.1.0",
         "@apify/tsconfig": "^0.1.1",
         "@crawlee/types": "^3.16.0",
+        "@types/murmurhash-js": "^1.0.7",
         "@vitest/coverage-v8": "^4.1.2",
         "apify-cli": "^1.4.1",
         "axios": "^1.14.0",
@@ -54,7 +55,8 @@
     "dependencies": {
         "@apify/consts": "^2.52.1",
         "apify": "^3.7.0",
-        "apify-client": "^2.22.3"
+        "apify-client": "^2.22.3",
+        "murmurhash-js": "^1.0.0"
     },
     "cspell": {
         "version": "0.2",

@@ -70,7 +70,7 @@ describe('ExtApifyClient', () => {
         it('waits for a Run to start and then generates an extended RunClient', async () => {
             const run = createActorRunMock({ id: 'test-id', status: 'READY' });
             startRun.mockResolvedValue(run);
-            context.runScheduler.requestRunStart({ name: 'test-run', source: runSource });
+            context.runScheduler.requestRunStart({ requestId: 'test-run', source: runSource });
             expect(startRun).not.toHaveBeenCalled();
             const runClientPromise = client.runByName('test-run');
             await vi.advanceTimersByTimeAsync(1000);
@@ -95,7 +95,7 @@ describe('ExtApifyClient', () => {
         it('waits for a Run to start and then returns the ActorRun', async () => {
             const run = createActorRunMock({ id: 'test-id', status: 'READY' });
             startRun.mockResolvedValue(run);
-            context.runScheduler.requestRunStart({ name: 'test-run', source: runSource });
+            context.runScheduler.requestRunStart({ requestId: 'test-run', source: runSource });
             expect(startRun).not.toHaveBeenCalled();
             const foundRunPromise = client.actorRunByName('test-run');
             await vi.advanceTimersByTimeAsync(1000);
@@ -291,10 +291,10 @@ describe('ExtApifyClient', () => {
             const run = createActorRunMock({ id: 'test-id', status: 'RUNNING' });
             startRun.mockResolvedValue(run);
 
-            context.runScheduler.requestRunStart({ name: 'test-run', source: runSource });
+            context.runScheduler.requestRunStart({ requestId: 'test-run', source: runSource });
 
             const findOrRequestRunStart = client.findOrRequestRunStart({
-                name: 'test-run',
+                requestId: 'test-run',
                 source: runSource,
             });
             const resultRunPromise = findOrRequestRunStart();
@@ -312,7 +312,7 @@ describe('ExtApifyClient', () => {
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(existingRun);
 
             const findOrRequestRunStart = client.findOrRequestRunStart({
-                name: 'test-run',
+                requestId: 'test-run',
                 source: runSource,
             });
             const resultRun = await findOrRequestRunStart();
@@ -330,7 +330,7 @@ describe('ExtApifyClient', () => {
             startRun.mockResolvedValue(newRun);
 
             const findOrRequestRunStart = client.findOrRequestRunStart({
-                name: 'test-run',
+                requestId: 'test-run',
                 source: runSource,
             });
             const resultRunPromise = findOrRequestRunStart();
@@ -346,7 +346,7 @@ describe('ExtApifyClient', () => {
             startRun.mockResolvedValue(newRun);
 
             const findOrRequestRunStart = client.findOrRequestRunStart({
-                name: 'test-run',
+                requestId: 'test-run',
                 source: runSource,
             });
             const resultRunPromise = findOrRequestRunStart();
@@ -367,7 +367,7 @@ describe('ExtApifyClient', () => {
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(undefined);
 
             const findOrRequestRunStart = client.findOrRequestRunStart({
-                name: 'test-run',
+                requestId: 'test-run',
                 source: runSource,
             });
             const resultRun = await findOrRequestRunStart();
@@ -386,7 +386,7 @@ describe('ExtApifyClient', () => {
             startRun.mockResolvedValue(newRun);
 
             const findOrRequestRunStart = clientWithFixedInput.findOrRequestRunStart({
-                name: 'test-run',
+                requestId: 'test-run',
                 source: runSource,
                 input: { propB: 'overrideB', propC: 'valueC' },
             });

@@ -41,9 +41,9 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     override run(id: string): RunClient {
-        const runName = this.context.runTracker.findRunName(id);
+        const requestId = this.context.runTracker.findRunRequestId(id);
         const runClient = super.run(id);
-        return isDefined(runName) ? this.context.extendRunClient(runName, runClient) : runClient;
+        return isDefined(requestId) ? this.context.extendRunClient(requestId, runClient) : runClient;
     }
 
     async runByName(runName: string): Promise<ExtRunClient | undefined> {
@@ -78,14 +78,14 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
 
     async waitForBatchFinish(batch: RunRecord | string[]): Promise<RunRecord> {
         const runRecord = Array.isArray(batch) ? await this.runRecord(...batch) : batch;
-        this.context.logger.info('Waiting for batch', { runNames: Object.keys(runRecord) });
+        this.context.logger.info('Waiting for batch', { requestIds: Object.keys(runRecord) });
 
         const resultRunRecord: RunRecord = {};
 
         await Promise.all(
-            Object.entries(runRecord).map(async ([runName, run]) => {
-                const resultRun = await this.context.extendRunClient(runName, super.run(run.id)).waitForFinish();
-                resultRunRecord[runName] = resultRun;
+            Object.entries(runRecord).map(async ([requestId, run]) => {
+                const resultRun = await this.context.extendRunClient(requestId, super.run(run.id)).waitForFinish();
+                resultRunRecord[requestId] = resultRun;
             }),
         );
 
@@ -96,20 +96,20 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         const currentRuns = this.context.runTracker.getCurrentRuns();
         this.context.logger.info('Aborting Runs', { currentRunNames: Object.keys(currentRuns) });
         await Promise.all(
-            Object.entries(currentRuns).map(async ([runName, runInfo]) => {
-                const runClient = this.context.extendRunClient(runName, super.run(runInfo.runId));
-                this.context.logger.prefixed(runName).info('Aborting Run', {}, { url: runInfo.runUrl });
+            Object.entries(currentRuns).map(async ([requestId, runInfo]) => {
+                const runClient = this.context.extendRunClient(requestId, super.run(runInfo.runId));
+                this.context.logger.prefixed(requestId).info('Aborting Run', {}, { url: runInfo.runUrl });
                 await runClient.abort().catch((error) => {
-                    this.context.logger.prefixed(runName).error('Error aborting Run', { error });
+                    this.context.logger.prefixed(requestId).error('Error aborting Run', { error });
                 });
             }),
         );
     }
 
     /** @internal */
-    extendedRunClient(runName: string, runId: string): ExtRunClient {
+    extendedRunClient(requestId: string, runId: string): ExtRunClient {
         const runClient = super.run(runId);
-        return this.context.extendRunClient(runName, runClient);
+        return this.context.extendRunClient(requestId, runClient);
     }
 
     /**
@@ -120,7 +120,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
      * @internal
      */
     findOrRequestRunStart(runRequest: RunStartRequest): () => Promise<ActorRun> {
-        return this.context.searchExistingRun(runRequest.name).match({
+        return this.context.searchExistingRun(runRequest.requestId).match({
             promise: (waitForStart) => waitForStart,
             runInfo: (runInfo) => {
                 if (isRunOkStatus(runInfo.status)) {
@@ -141,7 +141,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
      * @internal
      */
     async findOrStartRun(runRequest: RunStartRequest): Promise<ActorRun> {
-        return this.context.searchExistingRun(runRequest.name).match({
+        return this.context.searchExistingRun(runRequest.requestId).match({
             promise: async (waitForStart) => waitForStart(),
             runInfo: async (runInfo) => {
                 if (isRunOkStatus(runInfo.status)) {
@@ -155,7 +155,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     private async getRunObjectOrStartNew(runRequest: RunStartRequest, existingRunId: string): Promise<ActorRun> {
-        const existingRun = await this.context.extendRunClient(runRequest.name, super.run(existingRunId)).get();
+        const existingRun = await this.context.extendRunClient(runRequest.requestId, super.run(existingRunId)).get();
         if (existingRun) return existingRun;
         // If the Run client could not retrieve the Run object, we proceed to start a new one.
         return this.context.runScheduler.startRun(runRequest);

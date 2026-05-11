@@ -13,12 +13,12 @@ import type { OrchestratorContext } from '../context/orchestrator-context.js';
 import type { ExtendedRunClient } from '../types.js';
 
 export interface ExtRunClientOptions {
-    runName: string;
+    requestId: string;
     onUpdate: (run?: ActorRun) => void;
 }
 
 export class ExtRunClient extends RunClient implements ExtendedRunClient {
-    readonly runName: string;
+    readonly requestId: string;
     private readonly context: OrchestratorContext;
     private readonly options: ExtRunClientOptions;
 
@@ -26,7 +26,7 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
      * @internal
      */
     constructor(context: OrchestratorContext, options: ExtRunClientOptions, runClient: RunClient) {
-        const { runName } = options;
+        const { requestId } = options;
         super({
             baseUrl: runClient.baseUrl,
             publicBaseUrl: runClient.publicBaseUrl,
@@ -36,7 +36,7 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
             id: runClient.id,
             params: runClient.params,
         });
-        this.runName = runName;
+        this.requestId = requestId;
         this.context = context;
         this.options = options;
     }
@@ -55,7 +55,7 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
 
     override async delete(): Promise<void> {
         // TODO: implement
-        this.context.logger.prefixed(this.runName).warning('Delete Run is not supported yet in the Orchestrator.');
+        this.context.logger.prefixed(this.requestId).warning('Delete Run is not supported yet in the Orchestrator.');
         await super.delete();
     }
 
@@ -65,7 +65,7 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
         options?: RunMetamorphOptions | undefined,
     ): Promise<ActorRun> {
         // TODO: implement
-        this.context.logger.prefixed(this.runName).warning('Metamorph Run is not supported yet in the Orchestrator.');
+        this.context.logger.prefixed(this.requestId).warning('Metamorph Run is not supported yet in the Orchestrator.');
         return super.metamorph(targetActorId, input, options);
     }
 

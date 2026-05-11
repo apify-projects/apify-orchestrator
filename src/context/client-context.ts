@@ -22,8 +22,8 @@ export interface ClientContext extends OrchestratorContext {
     readonly runTracker: RunTracker;
     readonly runScheduler: RunScheduler;
 
-    searchExistingRun(runName: string): RunSearchOutcome;
-    extendRunClient(runName: string, runClient: RunClient): ExtRunClient;
+    searchExistingRun(requestId: string): RunSearchOutcome;
+    extendRunClient(requestId: string, runClient: RunClient): ExtRunClient;
 }
 
 export function generateClientContext(
@@ -37,7 +37,7 @@ export function generateClientContext(
             ...request,
             input: mergeDictionaries(orchestratorContext.options.fixedInput, request.input),
         }),
-        onRunStarted: (runName, run) => runTracker.updateRun(runName, run),
+        onRunStarted: (requestId, run) => runTracker.updateRun(requestId, run),
     });
 
     return {
@@ -45,24 +45,24 @@ export function generateClientContext(
         runTracker,
         runScheduler,
 
-        searchExistingRun(runName: string): RunSearchOutcome {
+        searchExistingRun(requestId: string): RunSearchOutcome {
             // First, check if the Run is currently waiting to start.
-            const runPromise = this.runScheduler.findRunStartRequest(runName);
+            const runPromise = this.runScheduler.findRunStartRequest(requestId);
             if (runPromise) return new RunSearchOutcome({ promise: runPromise });
 
             // Then, check if there is any info about the Run in the tracker.
-            const runInfo = this.runTracker.findRunByName(runName);
+            const runInfo = this.runTracker.findRunByRequestId(requestId);
             if (runInfo) return new RunSearchOutcome({ runInfo });
 
             // Otherwise, a run with this name does not exist.
             return new RunSearchOutcome({ notFound: true });
         },
 
-        extendRunClient(runName: string, runClient: RunClient): ExtRunClient {
+        extendRunClient(requestId: string, runClient: RunClient): ExtRunClient {
             return new ExtRunClient(
                 this,
                 // Track every Run update.
-                { runName, onUpdate: (run) => this.runTracker.updateRun(runName, run) },
+                { requestId, onUpdate: (run) => this.runTracker.updateRun(requestId, run) },
                 runClient,
             );
         },

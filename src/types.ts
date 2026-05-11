@@ -221,7 +221,7 @@ export interface ExtendedActorClient extends ActorClient {
     /**
      * @override
      */
-    start: (runName: string, input?: object, options?: ActorStartOptions) => Promise<ActorRun>;
+    start: (input?: object, options?: ActorStartOptions & { runName?: string }) => Promise<ActorRun>;
 
     /**
      * Starts one or more Runs, based on an array of requests.
@@ -251,7 +251,7 @@ export interface ExtendedActorClient extends ActorClient {
     /**
      * @override
      */
-    call: (runName: string, input?: object, options?: ActorCallOptions) => Promise<ActorRun>;
+    call: (input?: object, options?: ActorCallOptions & { runName?: string }) => Promise<ActorRun>;
 
     /**
      * Starts and waits for one or more Runs, based on an array of requests.
@@ -471,7 +471,7 @@ export type PersistenceSupport = 'kvs' | 'none';
  * A request to be enqueued by the `QueuedActorClient`.
  */
 export interface ActorRunRequest {
-    runName: string;
+    runName?: string;
     input?: Dictionary;
     options?: ActorStartOptions;
 }
@@ -480,7 +480,7 @@ export interface ActorRunRequest {
  * A request to be enqueued by the `ExtTaskClient`.
  */
 export interface TaskRunRequest {
-    runName: string;
+    runName?: string;
     input?: Dictionary;
     options?: TaskStartOptions;
 }
@@ -488,7 +488,7 @@ export interface TaskRunRequest {
 /**
  * A record of Runs, having their names as keys and their `ActorRun` objects as values.
  */
-export type RunRecord = Record<string, ActorRun>;
+export type RunRecord = { [requestId: string]: ActorRun };
 
 /**
  * A generic definition of a dataset item.

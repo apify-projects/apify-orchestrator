@@ -17,14 +17,14 @@ import { isDefined } from './utils/typing.js';
 
 export interface RunStartRequest {
     source: RunSource;
-    name: string;
+    requestId: string;
     input?: Dictionary;
     options?: RunStartOptions;
 }
 
 export interface RunSchedulerOptions {
     runRequestAdapter: (request: RunStartRequest) => RunStartRequest;
-    onRunStarted: (runName: string, run: ActorRun) => void;
+    onRunStarted: (requestId: string, run: ActorRun) => void;
 }
 
 /**
@@ -49,13 +49,13 @@ export class RunScheduler {
         this.context = context;
         this.options = options;
         this.pool = new RequestPool<RunStartRequest, ActorRun>({
-            onRequestAdded: (runName) => this.context.logger.prefixed(runName).info('Run start scheduled.'),
+            onRequestAdded: (requestId) => this.context.logger.prefixed(requestId).info('Run start scheduled.'),
             onRequestSuccess: options.onRunStarted,
-            onRequestFailure: (runName, error) => {
-                this.context.logger.prefixed(runName).error('Run start failed.', { error: stringifyError(error) });
+            onRequestFailure: (requestId, error) => {
+                this.context.logger.prefixed(requestId).error('Run start failed.', { error: stringifyError(error) });
             },
-            onRequestRetried: (runName, reason) => {
-                this.context.logger.prefixed(runName).warning('Run start will be retried.', {
+            onRequestRetried: (requestId, reason) => {
+                this.context.logger.prefixed(requestId).warning('Run start will be retried.', {
                     reason: stringifyError(reason),
                     cooldownMs: MAIN_LOOP_COOLDOWN_MS,
                 });
@@ -71,8 +71,8 @@ export class RunScheduler {
     /**
      * @returns the promise to wait for the Run to start, or `undefined` if no such Run was requested.
      */
-    findRunStartRequest(runName: string): (() => Promise<ActorRun>) | undefined {
-        const request = this.pool.findRequest(runName);
+    findRunStartRequest(requestId: string): (() => Promise<ActorRun>) | undefined {
+        const request = this.pool.findRequest(requestId);
         // Prefer `async () => request.wait()` to `request.wait` to avoid unbound method reference.
         return isDefined(request) ? async () => request.wait() : undefined;
     }
@@ -83,7 +83,7 @@ export class RunScheduler {
      * @returns the promise to wait for the Run to start.
      */
     requestRunStart(runRequest: RunStartRequest): () => Promise<ActorRun> {
-        const request = this.pool.findOrAddRequest(runRequest.name, runRequest);
+        const request = this.pool.findOrAddRequest(runRequest.requestId, runRequest);
         // Prefer `async () => request.wait()` to `request.wait` to avoid unbound method reference.
         return async () => request.wait();
     }
@@ -94,7 +94,7 @@ export class RunScheduler {
      * @returns the started Run.
      */
     async startRun(runRequest: RunStartRequest): Promise<ActorRun> {
-        const request = this.pool.findOrAddRequest(runRequest.name, runRequest);
+        const request = this.pool.findOrAddRequest(runRequest.requestId, runRequest);
 
         // Attempt to process the request immediately, without waiting for the next interval tick.
         // If the attempt fails, the scheduler will try again on the next tick, as usual.
@@ -133,7 +133,7 @@ export class RunScheduler {
         } catch (error) {
             const parsedError = await adaptedRequest.source.parseRunStartError(
                 error,
-                adaptedRequest.name,
+                adaptedRequest.requestId,
                 adaptedRequest.options,
             );
             const { retryOnInsufficientResources } = this.context.options;

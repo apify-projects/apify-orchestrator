@@ -51,7 +51,7 @@ describe('ExtTaskClient', () => {
             expect(result).toEqual(['test-run-1']);
             expect(apifyClient.findOrRequestRunStart).toHaveBeenCalledWith({
                 source: runSource,
-                name: 'test-run-1',
+                requestId: 'test-run-1',
                 input: { key: 'value1' },
                 options: undefined,
             });
@@ -85,19 +85,29 @@ describe('ExtTaskClient', () => {
     });
 
     describe('start', () => {
-        it('throws if called without a run name', async () => {
-            await expect(taskClient.start({ key: 'value1' })).rejects.toThrow();
-        });
-
         it('starts a single Run', async () => {
             const result = await taskClient.start({ key: 'value1' }, { runName: 'test-run-1' });
 
             expect(apifyClient.findOrStartRun).toHaveBeenCalledWith(
                 expect.objectContaining({
                     source: runSource,
-                    name: 'test-run-1',
+                    requestId: 'test-run-1',
                     input: { key: 'value1' },
-                    options: {},
+                    options: undefined,
+                }),
+            );
+            expect(result).toBe(mockRun);
+        });
+
+        it('generates a request ID if no run name is provided', async () => {
+            const result = await taskClient.start({ key: 'value1' });
+
+            expect(apifyClient.findOrStartRun).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    source: runSource,
+                    requestId: expect.any(String),
+                    input: { key: 'value1' },
+                    options: undefined,
                 }),
             );
             expect(result).toBe(mockRun);
@@ -105,10 +115,6 @@ describe('ExtTaskClient', () => {
     });
 
     describe('call', () => {
-        it('throws if called without a run name', async () => {
-            await expect(taskClient.call({ key: 'value1' })).rejects.toThrow();
-        });
-
         it('starts a single Run and waits for it to finish', async () => {
             // Mock waitForFinish
             const finishedRunMock = createActorRunMock({ status: 'SUCCEEDED' });
@@ -120,9 +126,9 @@ describe('ExtTaskClient', () => {
 
             expect(apifyClient.findOrStartRun).toHaveBeenCalledWith({
                 source: runSource,
-                name: 'test-run-1',
+                requestId: 'test-run-1',
                 input: { key: 'value1' },
-                options: {},
+                options: undefined,
             });
             expect(waitForFinishSpy).toHaveBeenCalled();
             expect(result).toBe(finishedRunMock);

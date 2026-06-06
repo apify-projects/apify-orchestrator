@@ -10,7 +10,12 @@ import { Orchestrator } from '../index.js';
 describe('OrchestratingClient', () => {
     const startRun = vi.fn();
     const defaultMemoryMbytes = vi.fn();
-    const runSource = new RunSource(startRun, defaultMemoryMbytes);
+    const runSource = new RunSource({
+        type: 'actor',
+        id: 'test-actor',
+        start: startRun,
+        defaultMemoryMbytes,
+    });
 
     afterEach(() => {
         vi.resetAllMocks();
@@ -21,7 +26,7 @@ describe('OrchestratingClient', () => {
         it('returns a promise if the Run is scheduled to start', () => {
             const context = getClientContext();
 
-            context.runScheduler.requestRunStart({ requestId: 'scheduled-run', source: runSource });
+            context.runScheduler.requestRunStart({ runName: 'scheduled-run', source: runSource });
 
             const outcome = context.searchExistingRun('scheduled-run');
             expect(outcome.variant).toBe('promise');
@@ -31,7 +36,7 @@ describe('OrchestratingClient', () => {
         it('returns run info if the Run is tracked', () => {
             const context = getClientContext();
 
-            const existingRun = createActorRunMock({ id: 'tracked-run-id' });
+            const existingRun = createActorRunMock({ id: 'tracked-run-id', startedAt: new Date() });
             context.runTracker.updateRun('tracked-run', existingRun);
 
             const outcome = context.searchExistingRun('tracked-run');
@@ -62,7 +67,7 @@ describe('OrchestratingClient', () => {
             const updateRunSpy = vi.spyOn(context.runTracker, 'updateRun');
             const getRunSpy = vi
                 .spyOn(RunClient.prototype, 'get')
-                .mockResolvedValue(createActorRunMock({ id: 'test-run-id' }));
+                .mockResolvedValue(createActorRunMock({ id: 'test-run-id', startedAt: new Date() }));
 
             const run = await extRunClient.get();
             expect(run).toBeDefined();

@@ -1,9 +1,10 @@
 import { Actor } from 'apify';
-import { type ActorRun, ApifyClient, type ApifyClientOptions, type RunClient } from 'apify-client';
+import type { ApifyClientOptions, RunClient } from 'apify-client';
+import { ApifyClient } from 'apify-client';
 
 import type { ClientContext } from '../context/client-context.js';
-import type { RunStartRequest } from '../run-scheduler.js';
-import type { DatasetItem, ExtendedApifyClient, RunRecord } from '../types.js';
+import { getRequestId, type RunStartRequest } from '../run-scheduler.js';
+import type { DatasetItem, ExtendedActorRun, ExtendedApifyClient, RunRecord } from '../types.js';
 import { isRunOkStatus } from '../utils/apify-client.js';
 import { isDefined } from '../utils/typing.js';
 import { ExtActorClient } from './actor-client.js';
@@ -55,7 +56,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         });
     }
 
-    async actorRunByName(runName: string): Promise<ActorRun | undefined> {
+    async actorRunByName(runName: string): Promise<ExtendedActorRun | undefined> {
         return this.context.searchExistingRun(runName).match({
             promise: async (waitForStart) => waitForStart(),
             runInfo: async (runInfo) => this.context.extendRunClient(runName, super.run(runInfo.runId)).get(),
@@ -119,8 +120,9 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
      *
      * @internal
      */
-    findOrRequestRunStart(runRequest: RunStartRequest): () => Promise<ActorRun> {
-        return this.context.searchExistingRun(runRequest.requestId).match({
+    findOrRequestRunStart(runRequest: RunStartRequest): () => Promise<ExtendedActorRun> {
+        const requestId = getRequestId(runRequest);
+        return this.context.searchExistingRun(requestId).match({
             promise: (waitForStart) => waitForStart,
             runInfo: (runInfo) => {
                 if (isRunOkStatus(runInfo.status)) {
@@ -140,8 +142,9 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
      *
      * @internal
      */
-    async findOrStartRun(runRequest: RunStartRequest): Promise<ActorRun> {
-        return this.context.searchExistingRun(runRequest.requestId).match({
+    async findOrStartRun(runRequest: RunStartRequest): Promise<ExtendedActorRun> {
+        const requestId = getRequestId(runRequest);
+        return this.context.searchExistingRun(requestId).match({
             promise: async (waitForStart) => waitForStart(),
             runInfo: async (runInfo) => {
                 if (isRunOkStatus(runInfo.status)) {
@@ -154,8 +157,12 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         });
     }
 
-    private async getRunObjectOrStartNew(runRequest: RunStartRequest, existingRunId: string): Promise<ActorRun> {
-        const existingRun = await this.context.extendRunClient(runRequest.requestId, super.run(existingRunId)).get();
+    private async getRunObjectOrStartNew(
+        runRequest: RunStartRequest,
+        existingRunId: string,
+    ): Promise<ExtendedActorRun> {
+        const requestId = getRequestId(runRequest);
+        const existingRun = await this.context.extendRunClient(requestId, super.run(existingRunId)).get();
         if (existingRun) return existingRun;
         // If the Run client could not retrieve the Run object, we proceed to start a new one.
         return this.context.runScheduler.startRun(runRequest);

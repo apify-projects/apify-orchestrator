@@ -21,12 +21,13 @@ vi.mock('apify-client', () => {
 });
 
 describe('RunSource', () => {
-    const runSource = new RunSource(
-        async () => {
+    const runSource = new RunSource({
+        type: 'actor',
+        start: async () => {
             throw new Error('Not implemented for this test');
         },
-        async () => 2048,
-    );
+        defaultMemoryMbytes: async () => 2048,
+    });
 
     describe('parseRunStartError', () => {
         it('returns the original error if it is not a known start run error', async () => {

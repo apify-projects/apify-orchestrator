@@ -20,7 +20,12 @@ vi.mock('../utils/apify-client.js', async (importActual) => {
 describe('ExtApifyClient', () => {
     const startRun = vi.fn();
     const defaultMemoryMbytes = vi.fn();
-    const runSource = new RunSource(startRun, defaultMemoryMbytes);
+    const runSource = new RunSource({
+        type: 'actor',
+        id: 'test-actor-id',
+        start: startRun,
+        defaultMemoryMbytes,
+    });
 
     const mockDate = new Date('2024-09-11T06:00:00.000Z');
 
@@ -60,7 +65,10 @@ describe('ExtApifyClient', () => {
         });
 
         it('generates an extended RunClient if a run with the same ID has been tracked', async () => {
-            context.runTracker.updateRun('test-run', createActorRunMock({ id: 'test-id', status: 'READY' }));
+            context.runTracker.updateRun(
+                'test-run',
+                createActorRunMock({ id: 'test-id', status: 'READY', startedAt: new Date() }),
+            );
             const runClient = client.run('test-id');
             expect(runClient).toBeInstanceOf(ExtRunClient);
         });
@@ -68,9 +76,9 @@ describe('ExtApifyClient', () => {
 
     describe('runByName', () => {
         it('waits for a Run to start and then generates an extended RunClient', async () => {
-            const run = createActorRunMock({ id: 'test-id', status: 'READY' });
+            const run = createActorRunMock({ id: 'test-id', status: 'READY', startedAt: new Date() });
             startRun.mockResolvedValue(run);
-            context.runScheduler.requestRunStart({ requestId: 'test-run', source: runSource });
+            context.runScheduler.requestRunStart({ runName: 'test-run', source: runSource });
             expect(startRun).not.toHaveBeenCalled();
             const runClientPromise = client.runByName('test-run');
             await vi.advanceTimersByTimeAsync(1000);
@@ -80,7 +88,10 @@ describe('ExtApifyClient', () => {
         });
 
         it('generates an extended RunClient if a Run with the specified name exists', async () => {
-            context.runTracker.updateRun('test-run', createActorRunMock({ id: 'test-id', status: 'READY' }));
+            context.runTracker.updateRun(
+                'test-run',
+                createActorRunMock({ id: 'test-id', status: 'READY', startedAt: new Date() }),
+            );
             const runClient = await client.runByName('test-run');
             expect(runClient).toBeInstanceOf(ExtRunClient);
         });
@@ -93,21 +104,29 @@ describe('ExtApifyClient', () => {
 
     describe('actorRunByName', () => {
         it('waits for a Run to start and then returns the ActorRun', async () => {
-            const run = createActorRunMock({ id: 'test-id', status: 'READY' });
+            const run = createActorRunMock({
+                id: 'test-id',
+                requestId: 'test-run',
+                status: 'READY',
+                startedAt: new Date(),
+            });
             startRun.mockResolvedValue(run);
-            context.runScheduler.requestRunStart({ requestId: 'test-run', source: runSource });
+            context.runScheduler.requestRunStart({ runName: 'test-run', source: runSource });
             expect(startRun).not.toHaveBeenCalled();
             const foundRunPromise = client.actorRunByName('test-run');
             await vi.advanceTimersByTimeAsync(1000);
             const foundRun = await foundRunPromise;
             expect(startRun).toHaveBeenCalledTimes(1);
-            expect(foundRun).toBe(run);
+            expect(foundRun).toStrictEqual(run);
         });
 
         it('generates an ActorRun if a Run with the specified name exists', async () => {
-            context.runTracker.updateRun('test-run', createActorRunMock({ id: 'test-id', status: 'READY' }));
+            context.runTracker.updateRun(
+                'test-run',
+                createActorRunMock({ id: 'test-id', status: 'READY', startedAt: new Date() }),
+            );
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get').mockImplementationOnce(async () => {
-                return createActorRunMock({ id: 'test-id' });
+                return createActorRunMock({ id: 'test-id', startedAt: new Date() });
             });
             const actorRun = await client.actorRunByName('test-run');
             expect(getActorSpy).toHaveBeenCalledTimes(1);
@@ -115,7 +134,10 @@ describe('ExtApifyClient', () => {
         });
 
         it('returns undefined if a Run with the specified name exists but the Run cannot be created', async () => {
-            context.runTracker.updateRun('test-run', createActorRunMock({ id: 'test-id', status: 'READY' }));
+            context.runTracker.updateRun(
+                'test-run',
+                createActorRunMock({ id: 'test-id', status: 'READY', startedAt: new Date() }),
+            );
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get').mockImplementation(async () => {
                 return undefined;
             });
@@ -155,9 +177,24 @@ describe('ExtApifyClient', () => {
                 .mockResolvedValueOnce(createActorRunMock({ id: 'test-id-3', status: 'READY', startedAt: mockDate }));
 
             expect(await client.runRecord('test-run-1', 'test-run-2', 'test-run-3')).toEqual({
-                'test-run-1': createActorRunMock({ id: 'test-id-1', status: 'READY', startedAt: mockDate }),
-                'test-run-2': createActorRunMock({ id: 'test-id-2', status: 'READY', startedAt: mockDate }),
-                'test-run-3': createActorRunMock({ id: 'test-id-3', status: 'READY', startedAt: mockDate }),
+                'test-run-1': createActorRunMock({
+                    id: 'test-id-1',
+                    requestId: 'test-run-1',
+                    status: 'READY',
+                    startedAt: mockDate,
+                }),
+                'test-run-2': createActorRunMock({
+                    id: 'test-id-2',
+                    requestId: 'test-run-2',
+                    status: 'READY',
+                    startedAt: mockDate,
+                }),
+                'test-run-3': createActorRunMock({
+                    id: 'test-id-3',
+                    requestId: 'test-run-3',
+                    status: 'READY',
+                    startedAt: mockDate,
+                }),
             });
             expect(getActorSpy).toHaveBeenCalledTimes(3);
 
@@ -168,8 +205,18 @@ describe('ExtApifyClient', () => {
                 .mockResolvedValueOnce(createActorRunMock({ id: 'test-id-3', status: 'READY', startedAt: mockDate }));
 
             expect(await client.runRecord('test-run-1', 'test-run-2', 'test-run-3')).toEqual({
-                'test-run-1': createActorRunMock({ id: 'test-id-1', status: 'READY', startedAt: mockDate }),
-                'test-run-3': createActorRunMock({ id: 'test-id-3', status: 'READY', startedAt: mockDate }),
+                'test-run-1': createActorRunMock({
+                    id: 'test-id-1',
+                    requestId: 'test-run-1',
+                    status: 'READY',
+                    startedAt: mockDate,
+                }),
+                'test-run-3': createActorRunMock({
+                    id: 'test-id-3',
+                    requestId: 'test-run-3',
+                    status: 'READY',
+                    startedAt: mockDate,
+                }),
             });
             expect(getActorSpy).toHaveBeenCalledTimes(5);
 
@@ -204,15 +251,45 @@ describe('ExtApifyClient', () => {
             });
 
             const runRecord = await client.waitForBatchFinish({
-                'test-run-1': createActorRunMock({ id: mockRunIds[0], status: 'READY', startedAt: mockDate }),
-                'test-run-2': createActorRunMock({ id: mockRunIds[1], status: 'READY', startedAt: mockDate }),
-                'test-run-3': createActorRunMock({ id: mockRunIds[2], status: 'READY', startedAt: mockDate }),
+                'test-run-1': createActorRunMock({
+                    id: mockRunIds[0],
+                    requestId: 'test-run-1',
+                    status: 'READY',
+                    startedAt: mockDate,
+                }),
+                'test-run-2': createActorRunMock({
+                    id: mockRunIds[1],
+                    requestId: 'test-run-2',
+                    status: 'READY',
+                    startedAt: mockDate,
+                }),
+                'test-run-3': createActorRunMock({
+                    id: mockRunIds[2],
+                    requestId: 'test-run-3',
+                    status: 'READY',
+                    startedAt: mockDate,
+                }),
             });
 
             const expectedRunRecord = {
-                'test-run-1': createActorRunMock({ id: mockRunIds[0], status: 'SUCCEEDED', startedAt: mockDate }),
-                'test-run-2': createActorRunMock({ id: mockRunIds[1], status: 'SUCCEEDED', startedAt: mockDate }),
-                'test-run-3': createActorRunMock({ id: mockRunIds[2], status: 'SUCCEEDED', startedAt: mockDate }),
+                'test-run-1': createActorRunMock({
+                    id: mockRunIds[0],
+                    requestId: 'test-run-1',
+                    status: 'SUCCEEDED',
+                    startedAt: mockDate,
+                }),
+                'test-run-2': createActorRunMock({
+                    id: mockRunIds[1],
+                    requestId: 'test-run-2',
+                    status: 'SUCCEEDED',
+                    startedAt: mockDate,
+                }),
+                'test-run-3': createActorRunMock({
+                    id: mockRunIds[2],
+                    requestId: 'test-run-3',
+                    status: 'SUCCEEDED',
+                    startedAt: mockDate,
+                }),
             };
 
             expect(waitForFinishSpy).toHaveBeenCalledTimes(3);
@@ -248,15 +325,15 @@ describe('ExtApifyClient', () => {
 
     describe('abortAllRuns', () => {
         it('aborts all tracked runs', async () => {
-            const run1 = createActorRunMock({ id: 'run-1-id', status: 'RUNNING' });
-            const run2 = createActorRunMock({ id: 'run-2-id', status: 'RUNNING' });
+            const run1 = createActorRunMock({ id: 'run-1-id', status: 'RUNNING', startedAt: new Date() });
+            const run2 = createActorRunMock({ id: 'run-2-id', status: 'RUNNING', startedAt: new Date() });
 
             context.runTracker.updateRun('test-run-1', run1);
             context.runTracker.updateRun('test-run-2', run2);
 
             const abortSpy = vi
                 .spyOn(RunClient.prototype, 'abort')
-                .mockResolvedValue(createActorRunMock({ status: 'ABORTED' }));
+                .mockResolvedValue(createActorRunMock({ status: 'ABORTED', startedAt: new Date() }));
 
             await client.abortAllRuns();
 
@@ -264,7 +341,7 @@ describe('ExtApifyClient', () => {
         });
 
         it('handles errors when aborting runs', async () => {
-            const run1 = createActorRunMock({ id: 'run-1-id', status: 'RUNNING' });
+            const run1 = createActorRunMock({ id: 'run-1-id', status: 'RUNNING', startedAt: new Date() });
 
             context.runTracker.updateRun('test-run-1', run1);
 
@@ -288,78 +365,103 @@ describe('ExtApifyClient', () => {
 
     describe('findOrRequestRunStart', () => {
         it('waits for a Run that is already scheduled to start', async () => {
-            const run = createActorRunMock({ id: 'test-id', status: 'RUNNING' });
+            const run = createActorRunMock({
+                id: 'test-id',
+                requestId: 'test-run',
+                status: 'RUNNING',
+                startedAt: new Date(),
+            });
             startRun.mockResolvedValue(run);
 
-            context.runScheduler.requestRunStart({ requestId: 'test-run', source: runSource });
+            context.runScheduler.requestRunStart({ runName: 'test-run', source: runSource });
 
             const findOrRequestRunStart = client.findOrRequestRunStart({
-                requestId: 'test-run',
+                runName: 'test-run',
                 source: runSource,
             });
             const resultRunPromise = findOrRequestRunStart();
             await vi.advanceTimersByTimeAsync(1000);
             const resultRun = await resultRunPromise;
 
-            expect(resultRun).toBe(run);
+            expect(resultRun).toStrictEqual(run);
             expect(startRun).toHaveBeenCalledTimes(1);
         });
 
         it('returns existing Run if it is in OK status', async () => {
-            const existingRun = createActorRunMock({ id: 'test-id', status: 'RUNNING' });
+            const existingRun = createActorRunMock({
+                id: 'test-id',
+                requestId: 'test-run',
+                status: 'RUNNING',
+                startedAt: new Date(),
+            });
             context.runTracker.updateRun('test-run', existingRun);
 
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(existingRun);
 
             const findOrRequestRunStart = client.findOrRequestRunStart({
-                requestId: 'test-run',
+                runName: 'test-run',
                 source: runSource,
             });
             const resultRun = await findOrRequestRunStart();
 
-            expect(resultRun).toBe(existingRun);
+            expect(resultRun).toStrictEqual(existingRun);
             expect(getActorSpy).toHaveBeenCalledTimes(1);
             expect(startRun).not.toHaveBeenCalled();
         });
 
         it('starts a new Run if existing Run is not in OK status', async () => {
-            const oldRun = createActorRunMock({ id: 'old-id', status: 'FAILED' });
-            const newRun = createActorRunMock({ id: 'new-id', status: 'RUNNING' });
+            const oldRun = createActorRunMock({ id: 'old-id', status: 'FAILED', startedAt: new Date() });
+            const newRun = createActorRunMock({
+                id: 'new-id',
+                requestId: 'test-run',
+                status: 'RUNNING',
+                startedAt: new Date(),
+            });
 
             context.runTracker.updateRun('test-run', oldRun);
             startRun.mockResolvedValue(newRun);
 
             const findOrRequestRunStart = client.findOrRequestRunStart({
-                requestId: 'test-run',
+                runName: 'test-run',
                 source: runSource,
             });
             const resultRunPromise = findOrRequestRunStart();
             await vi.advanceTimersByTimeAsync(1000);
             const resultRun = await resultRunPromise;
 
-            expect(resultRun).toBe(newRun);
+            expect(resultRun).toStrictEqual(newRun);
             expect(startRun).toHaveBeenCalledTimes(1);
         });
 
         it('starts a new Run if no existing Run is found', async () => {
-            const newRun = createActorRunMock({ id: 'new-id', status: 'RUNNING' });
+            const newRun = createActorRunMock({
+                id: 'new-id',
+                requestId: 'test-run',
+                status: 'RUNNING',
+                startedAt: new Date(),
+            });
             startRun.mockResolvedValue(newRun);
 
             const findOrRequestRunStart = client.findOrRequestRunStart({
-                requestId: 'test-run',
+                runName: 'test-run',
                 source: runSource,
             });
             const resultRunPromise = findOrRequestRunStart();
             await vi.advanceTimersByTimeAsync(1000);
             const resultRun = await resultRunPromise;
 
-            expect(resultRun).toBe(newRun);
+            expect(resultRun).toStrictEqual(newRun);
             expect(startRun).toHaveBeenCalledTimes(1);
         });
 
         it('starts a new Run if existing Run object cannot be retrieved', async () => {
-            const existingRun = createActorRunMock({ id: 'test-id', status: 'RUNNING' });
-            const newRun = createActorRunMock({ id: 'new-id', status: 'RUNNING' });
+            const existingRun = createActorRunMock({ id: 'test-id', status: 'RUNNING', startedAt: new Date() });
+            const newRun = createActorRunMock({
+                id: 'new-id',
+                requestId: 'test-run',
+                status: 'RUNNING',
+                startedAt: new Date(),
+            });
 
             context.runTracker.updateRun('test-run', existingRun);
             startRun.mockResolvedValue(newRun);
@@ -367,12 +469,12 @@ describe('ExtApifyClient', () => {
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(undefined);
 
             const findOrRequestRunStart = client.findOrRequestRunStart({
-                requestId: 'test-run',
+                runName: 'test-run',
                 source: runSource,
             });
             const resultRun = await findOrRequestRunStart();
 
-            expect(resultRun).toBe(newRun);
+            expect(resultRun).toStrictEqual(newRun);
             expect(getActorSpy).toHaveBeenCalledTimes(1);
             expect(startRun).toHaveBeenCalledTimes(1);
         });
@@ -382,11 +484,16 @@ describe('ExtApifyClient', () => {
                 fixedInput: { propA: 'valueA', propB: 'valueB' },
             });
             const clientWithFixedInput = new ExtApifyClient('test-client', contextWithFixedInput, {});
-            const newRun = createActorRunMock({ id: 'new-id', status: 'RUNNING' });
+            const newRun = createActorRunMock({
+                id: 'new-id',
+                requestId: 'test-run',
+                status: 'RUNNING',
+                startedAt: new Date(),
+            });
             startRun.mockResolvedValue(newRun);
 
             const findOrRequestRunStart = clientWithFixedInput.findOrRequestRunStart({
-                requestId: 'test-run',
+                runName: 'test-run',
                 source: runSource,
                 input: { propB: 'overrideB', propC: 'valueC' },
             });
@@ -394,7 +501,7 @@ describe('ExtApifyClient', () => {
             await vi.advanceTimersByTimeAsync(1000);
             const resultRun = await resultRunPromise;
 
-            expect(resultRun).toBe(newRun);
+            expect(resultRun).toStrictEqual(newRun);
             expect(startRun).toHaveBeenCalledWith(
                 {
                     propA: 'valueA',

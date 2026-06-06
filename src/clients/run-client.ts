@@ -10,11 +10,11 @@ import type {
 import { RunClient } from 'apify-client';
 
 import type { OrchestratorContext } from '../context/orchestrator-context.js';
-import type { ExtendedRunClient } from '../types.js';
+import type { ExtendedActorRun, ExtendedRunClient } from '../types.js';
 
 export interface ExtRunClientOptions {
     requestId: string;
-    onUpdate: (run?: ActorRun) => void;
+    onUpdate: (run?: ExtendedActorRun) => void;
 }
 
 export class ExtRunClient extends RunClient implements ExtendedRunClient {
@@ -41,16 +41,18 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
         this.options = options;
     }
 
-    override async get(options?: RunGetOptions): Promise<ActorRun | undefined> {
+    override async get(options?: RunGetOptions): Promise<ExtendedActorRun | undefined> {
         const run = await super.get(options);
-        this.options.onUpdate(run);
-        return run;
+        const extendedRun = run ? this.extendedRun(run) : undefined;
+        this.options.onUpdate(extendedRun);
+        return extendedRun;
     }
 
-    override async abort(options?: RunAbortOptions | undefined): Promise<ActorRun> {
+    override async abort(options?: RunAbortOptions | undefined): Promise<ExtendedActorRun> {
         const run = await super.abort(options);
-        this.options.onUpdate(run);
-        return run;
+        const extendedRun = this.extendedRun(run);
+        this.options.onUpdate(extendedRun);
+        return extendedRun;
     }
 
     override async delete(): Promise<void> {
@@ -69,27 +71,35 @@ export class ExtRunClient extends RunClient implements ExtendedRunClient {
         return super.metamorph(targetActorId, input, options);
     }
 
-    override async reboot(): Promise<ActorRun> {
+    override async reboot(): Promise<ExtendedActorRun> {
         const run = await super.reboot();
-        this.options.onUpdate(run);
-        return run;
+        const extendedRun = this.extendedRun(run);
+        this.options.onUpdate(extendedRun);
+        return extendedRun;
     }
 
-    override async update(newFields: RunUpdateOptions): Promise<ActorRun> {
+    override async update(newFields: RunUpdateOptions): Promise<ExtendedActorRun> {
         const run = await super.update(newFields);
-        this.options.onUpdate(run);
-        return run;
+        const extendedRun = this.extendedRun(run);
+        this.options.onUpdate(extendedRun);
+        return extendedRun;
     }
 
-    override async resurrect(options?: RunResurrectOptions): Promise<ActorRun> {
+    override async resurrect(options?: RunResurrectOptions): Promise<ExtendedActorRun> {
         const run = await super.resurrect(options);
-        this.options.onUpdate(run);
-        return run;
+        const extendedRun = this.extendedRun(run);
+        this.options.onUpdate(extendedRun);
+        return extendedRun;
     }
 
-    override async waitForFinish(options?: RunWaitForFinishOptions): Promise<ActorRun> {
+    override async waitForFinish(options?: RunWaitForFinishOptions): Promise<ExtendedActorRun> {
         const run = await super.waitForFinish(options);
-        this.options.onUpdate(run);
-        return run;
+        const extendedRun = this.extendedRun(run);
+        this.options.onUpdate(extendedRun);
+        return extendedRun;
+    }
+
+    private extendedRun(run: ActorRun): ExtendedActorRun {
+        return { ...run, requestId: this.requestId };
     }
 }

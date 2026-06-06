@@ -9,14 +9,19 @@ import type { RunInfo } from './types.js';
 describe('RunTracker', async () => {
     const context = getTestContext();
 
-    const runMock = createActorRunMock();
+    const runMock = createActorRunMock({
+        id: 'test-run-id',
+        status: 'READY',
+        startedAt: new Date('2024-01-01T00:00:00.000Z'),
+        requestId: 'test-run-1',
+    });
 
     const runName = 'test-run-1';
     const runInfo = {
         runId: runMock.id,
         runUrl: `https://test.com/${runMock.id}`,
         status: runMock.status,
-        startedAt: runMock.startedAt.toISOString(),
+        startedAt: runMock.startedAt?.toISOString() ?? new Date().toISOString(),
     };
 
     const initialTrackedRuns = {

@@ -1,23 +1,29 @@
-import type {
-    ActorCallOptions,
-    ActorLastRunOptions,
-    ActorRun,
-    ActorStartOptions,
-    Dictionary,
-    RunClient,
-} from 'apify-client';
+import type { ActorLastRunOptions, ActorStartOptions, Dictionary, RunClient } from 'apify-client';
 import { ActorClient } from 'apify-client';
 
 import type { ClientContext } from '../context/client-context.js';
 import { RunSource } from '../entities/run-source.js';
-import type { ActorRunRequest, ExtendedActorClient, RunRecord, SplitRules } from '../types.js';
-import { hashObject } from '../utils/hash.js';
+import type {
+    ActorRunRequest,
+    ExtendedActorCallOptions,
+    ExtendedActorClient,
+    ExtendedActorRun,
+    ExtendedActorStartOptions,
+    RunRecord,
+    SplitRules,
+} from '../types.js';
 import { isDefined } from '../utils/typing.js';
 import type { ExtApifyClient } from './apify-client.js';
 import type { ExtRunClient } from './run-client.js';
 
 export class ExtActorClient extends ActorClient implements ExtendedActorClient {
-    private readonly runSource = new RunSource(super.start.bind(this), this.defaultMemoryMbytes.bind(this));
+    private readonly runSource = new RunSource({
+        type: 'actor',
+        id: this.id,
+        start: super.start.bind(this),
+        defaultMemoryMbytes: this.defaultMemoryMbytes.bind(this),
+    });
+
     private readonly context: ClientContext;
     override apifyClient: ExtApifyClient;
 
@@ -40,7 +46,7 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     enqueue(...runRequests: ActorRunRequest[]): string[] {
         const requestIds = new Set<string>();
         for (const runRequest of runRequests) {
-            const requestId = runRequest.runName ?? this.generateRequestHash(runRequest.input, runRequest.options);
+            const requestId = this.runSource.getRequestId(runRequest.input, runRequest.options, runRequest.runName);
             if (requestIds.has(requestId)) {
                 this.context.logger
                     .prefixed(requestId)
@@ -50,7 +56,7 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
             requestIds.add(requestId);
             this.apifyClient.findOrRequestRunStart({
                 source: this.runSource,
-                requestId,
+                runName: requestId,
                 input: runRequest.input,
                 options: runRequest.options,
             });
@@ -80,12 +86,11 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
      * FIXME: change the `input` parameter type from `object` to `Dictionary` after the `apify-client-js` issue is resolved:
      * https://github.com/apify/apify-client-js/issues/818.
      */
-    override async start(input?: object, options?: ActorStartOptions & { runName?: string }): Promise<ActorRun> {
+    override async start(input?: object, options?: ExtendedActorStartOptions): Promise<ExtendedActorRun> {
         const { runName, ...startOptions } = options ?? {};
-        const requestId = runName ?? this.generateRequestHash(input, options);
         return this.apifyClient.findOrStartRun({
             source: this.runSource,
-            requestId,
+            runName,
             input: input as Dictionary,
             options: Object.keys(startOptions).length === 0 ? undefined : startOptions,
         });
@@ -95,11 +100,10 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
      * FIXME: change the `input` parameter type from `object` to `Dictionary` after the `apify-client-js` issue is resolved:
      * https://github.com/apify/apify-client-js/issues/818.
      */
-    override async call(input?: object, options?: ActorCallOptions & { runName?: string }): Promise<ActorRun> {
-        const requestId = options?.runName ?? this.generateRequestHash(input, options);
+    override async call(input?: object, options?: ExtendedActorCallOptions): Promise<ExtendedActorRun> {
         const startedRun = await this.start(input, options);
         return this.apifyClient
-            .extendedRunClient(requestId, startedRun.id)
+            .extendedRunClient(startedRun.requestId, startedRun.id)
             .waitForFinish({ waitSecs: options?.waitSecs });
     }
 
@@ -112,9 +116,8 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
         const runRecord: RunRecord = {};
         await Promise.all(
             runRequests.map(async ({ runName, input, options }) => {
-                const requestId = runName ?? this.generateRequestHash(input, options);
-                await this.start(input, { ...options, runName: requestId }).then((run) => {
-                    runRecord[requestId] = run;
+                await this.start(input, { ...options, runName }).then((run) => {
+                    runRecord[run.requestId] = run;
                 });
             }),
         );
@@ -143,9 +146,8 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
         const runRecord: RunRecord = {};
         await Promise.all(
             runRequests.map(async ({ runName, input, options }) => {
-                const requestId = runName ?? this.generateRequestHash(input, options);
-                await this.call(input, { ...options, runName: requestId }).then((run) => {
-                    runRecord[requestId] = run;
+                await this.call(input, { ...options, runName }).then((run) => {
+                    runRecord[run.requestId] = run;
                 });
             }),
         );
@@ -168,10 +170,6 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
                 options,
             }),
         );
-    }
-
-    private generateRequestHash(input: unknown, options: unknown): string {
-        return hashObject({ actorId: this.id, input, options });
     }
 
     private async defaultMemoryMbytes(): Promise<number | undefined> {

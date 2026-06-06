@@ -1,10 +1,10 @@
-import type { ActorRun, RunClient } from 'apify-client';
+import type { RunClient } from 'apify-client';
 
 import { ExtRunClient } from '../clients/run-client.js';
 import { RunScheduler } from '../run-scheduler.js';
 import type { TrackedRuns } from '../run-tracker.js';
 import { RunTracker } from '../run-tracker.js';
-import type { RunInfo } from '../types.js';
+import type { ExtendedActorRun, RunInfo } from '../types.js';
 import { mergeDictionaries } from '../utils/dictionaries.js';
 import { Outcome } from '../utils/outcome.js';
 import type { OrchestratorContext } from './orchestrator-context.js';
@@ -13,7 +13,11 @@ import type { OrchestratorContext } from './orchestrator-context.js';
  * Represents the outcome of searching internally for an existing Run by name.
  * We may be waiting for the Run to start, or we may have tracked information about the Run.
  */
-export class RunSearchOutcome extends Outcome<{ promise: () => Promise<ActorRun>; runInfo: RunInfo; notFound: true }> {}
+export class RunSearchOutcome extends Outcome<{
+    promise: () => Promise<ExtendedActorRun>;
+    runInfo: RunInfo;
+    notFound: true;
+}> {}
 
 /**
  * Represents the context available to an Apify Client and other derived clients.

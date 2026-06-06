@@ -1,23 +1,29 @@
-import type {
-    ActorRun,
-    Dictionary,
-    RunClient,
-    TaskCallOptions,
-    TaskLastRunOptions,
-    TaskStartOptions,
-} from 'apify-client';
+import type { Dictionary, RunClient, TaskLastRunOptions, TaskStartOptions } from 'apify-client';
 import { TaskClient } from 'apify-client';
 
 import type { ClientContext } from '../context/client-context.js';
 import { RunSource } from '../entities/run-source.js';
-import type { ExtendedTaskClient, RunRecord, SplitRules, TaskRunRequest } from '../types.js';
-import { hashObject } from '../utils/hash.js';
+import type {
+    ExtendedActorRun,
+    ExtendedTaskCallOptions,
+    ExtendedTaskClient,
+    ExtendedTaskStartOptions,
+    RunRecord,
+    SplitRules,
+    TaskRunRequest,
+} from '../types.js';
 import { isDefined } from '../utils/typing.js';
 import type { ExtApifyClient } from './apify-client.js';
 import type { ExtRunClient } from './run-client.js';
 
 export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
-    private readonly runSource = new RunSource(super.start.bind(this), this.defaultMemoryMbytes.bind(this));
+    private readonly runSource = new RunSource({
+        type: 'task',
+        id: this.id,
+        start: super.start.bind(this),
+        defaultMemoryMbytes: this.defaultMemoryMbytes.bind(this),
+    });
+
     private readonly context: ClientContext;
     override apifyClient: ExtApifyClient;
 
@@ -35,22 +41,22 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
     }
 
     enqueue(...runRequests: TaskRunRequest[]): string[] {
-        const runNames = new Set<string>();
+        const requestIds = new Set<string>();
         for (const runRequest of runRequests) {
-            const requestId = runRequest.runName ?? this.generateRequestHash(runRequest.input, runRequest.options);
-            if (runNames.has(requestId)) {
+            const requestId = this.runSource.getRequestId(runRequest.input, runRequest.options, runRequest.runName);
+            if (requestIds.has(requestId)) {
                 this.context.logger.prefixed(requestId).warning('Skipping enqueuing duplicate run name.');
                 continue;
             }
-            runNames.add(requestId);
+            requestIds.add(requestId);
             this.apifyClient.findOrRequestRunStart({
                 source: this.runSource,
-                requestId,
+                runName: requestId,
                 input: runRequest.input,
                 options: runRequest.options,
             });
         }
-        return Array.from(runNames);
+        return Array.from(requestIds);
     }
 
     enqueueBatch<T>(
@@ -71,24 +77,20 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
         );
     }
 
-    override async start(input?: Dictionary, options: TaskStartOptions & { runName?: string } = {}): Promise<ActorRun> {
+    override async start(input?: Dictionary, options: ExtendedTaskStartOptions = {}): Promise<ExtendedActorRun> {
         const { runName, ...runOptions } = options;
-        const requestId = runName ?? this.generateRequestHash(input, options);
-
         return this.apifyClient.findOrStartRun({
             source: this.runSource,
-            requestId,
+            runName,
             input,
             options: Object.keys(runOptions).length === 0 ? undefined : runOptions,
         });
     }
 
-    override async call(input?: Dictionary, options: TaskCallOptions & { runName?: string } = {}): Promise<ActorRun> {
-        const { runName } = options;
-        const requestId = runName ?? this.generateRequestHash(input, options);
+    override async call(input?: Dictionary, options?: ExtendedTaskCallOptions): Promise<ExtendedActorRun> {
         const startedRun = await this.start(input, options);
-        const { waitSecs } = options;
-        return this.apifyClient.extendedRunClient(requestId, startedRun.id).waitForFinish({ waitSecs });
+        const { waitSecs } = options ?? {};
+        return this.apifyClient.extendedRunClient(startedRun.requestId, startedRun.id).waitForFinish({ waitSecs });
     }
 
     override lastRun(options?: TaskLastRunOptions): RunClient | ExtRunClient {
@@ -100,9 +102,8 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
         const runRecord: RunRecord = {};
         await Promise.all(
             runRequests.map(async ({ runName, input, options }) => {
-                const requestId = runName ?? this.generateRequestHash(input, options);
-                await this.start(input, { ...(options ?? {}), runName: requestId }).then((run) => {
-                    runRecord[requestId] = run;
+                await this.start(input, { ...(options ?? {}), runName }).then((run) => {
+                    runRecord[run.requestId] = run;
                 });
             }),
         );
@@ -131,9 +132,8 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
         const runRecord: RunRecord = {};
         await Promise.all(
             runRequests.map(async ({ runName, input, options }) => {
-                const requestId = runName ?? this.generateRequestHash(input, options);
-                await this.call(input, { ...options, runName: requestId }).then((run) => {
-                    runRecord[requestId] = run;
+                await this.call(input, { ...options, runName }).then((run) => {
+                    runRecord[run.requestId] = run;
                 });
             }),
         );
@@ -156,10 +156,6 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
                 options,
             }),
         );
-    }
-
-    private generateRequestHash(input: unknown, options: unknown): string {
-        return hashObject({ taskId: this.id, input, options });
     }
 
     private async defaultMemoryMbytes(): Promise<number | undefined> {

@@ -19,14 +19,25 @@ describe('ExtActorClient', () => {
     let actorGetSpy: ReturnType<typeof vi.spyOn>;
     let actorStartSpy: ReturnType<typeof vi.spyOn>;
 
-    const mockRun = createActorRunMock();
+    const mockRun = createActorRunMock({
+        id: 'mock-run-id',
+        requestId: 'mock-run-requestId',
+        status: 'RUNNING',
+        startedAt: new Date('2024-01-01T00:00:00.000Z'),
+    });
 
     beforeEach(() => {
         context = getClientContext();
         apifyClient = new ExtApifyClient('test-client', context, {});
 
-        vi.spyOn(apifyClient, 'findOrRequestRunStart').mockReturnValue(async () => mockRun);
-        vi.spyOn(apifyClient, 'findOrStartRun').mockResolvedValue(mockRun);
+        vi.spyOn(apifyClient, 'findOrRequestRunStart').mockImplementation((request) => {
+            const requestId = request.runName || 'default-request-id';
+            return async () => createActorRunMock({ ...mockRun, requestId });
+        });
+        vi.spyOn(apifyClient, 'findOrStartRun').mockImplementation(async (request) => {
+            const requestId = request.runName || 'default-request-id';
+            return createActorRunMock({ ...mockRun, requestId });
+        });
 
         // We need to create these spies before creating the actorClient
         // to ensure that they are used in the client's constructor.
@@ -52,7 +63,7 @@ describe('ExtActorClient', () => {
             expect(result).toEqual(['test-run-1']);
             expect(apifyClient.findOrRequestRunStart).toHaveBeenCalledWith({
                 source: runSource,
-                requestId: 'test-run-1',
+                runName: 'test-run-1',
                 input: { key: 'value1' },
                 options: undefined,
             });
@@ -92,12 +103,12 @@ describe('ExtActorClient', () => {
             expect(apifyClient.findOrStartRun).toHaveBeenCalledWith(
                 expect.objectContaining({
                     source: runSource,
-                    requestId: 'test-run-1',
+                    runName: 'test-run-1',
                     input: { key: 'value1' },
                     options: undefined,
                 }),
             );
-            expect(result).toBe(mockRun);
+            expect(result).toStrictEqual(expect.objectContaining({ id: mockRun.id, status: mockRun.status }));
         });
 
         it('generates a request ID if runName is not provided', async () => {
@@ -106,19 +117,23 @@ describe('ExtActorClient', () => {
             expect(apifyClient.findOrStartRun).toHaveBeenCalledWith(
                 expect.objectContaining({
                     source: runSource,
-                    requestId: expect.any(String),
+                    runName: undefined,
                     input: { key: 'value1' },
                     options: undefined,
                 }),
             );
-            expect(result).toBe(mockRun);
+            expect(result).toStrictEqual(expect.objectContaining({ id: mockRun.id, status: mockRun.status }));
         });
     });
 
     describe('call', () => {
         it('starts a single Run and waits for it to finish', async () => {
             // Mock waitForFinish
-            const finishedRunMock = createActorRunMock({ status: 'SUCCEEDED' });
+            const finishedRunMock = createActorRunMock({
+                id: 'test-run-id',
+                requestId: 'test-run-1',
+                status: 'SUCCEEDED',
+            });
             const waitForFinishSpy = vi
                 .spyOn(ExtRunClient.prototype, 'waitForFinish')
                 .mockImplementation(async () => finishedRunMock);
@@ -127,12 +142,14 @@ describe('ExtActorClient', () => {
 
             expect(apifyClient.findOrStartRun).toHaveBeenCalledWith({
                 source: runSource,
-                requestId: 'test-run-1',
+                runName: 'test-run-1',
                 input: { key: 'value1' },
                 options: undefined,
             });
             expect(waitForFinishSpy).toHaveBeenCalled();
-            expect(result).toBe(finishedRunMock);
+            expect(result).toStrictEqual(
+                expect.objectContaining({ id: finishedRunMock.id, status: finishedRunMock.status }),
+            );
         });
     });
 
@@ -167,8 +184,8 @@ describe('ExtActorClient', () => {
     describe('startRuns', () => {
         it('starts multiple Runs', async () => {
             // Mock the individual start method to return different runs immediately
-            const run1 = createActorRunMock({ id: 'run-1-id', status: 'READY' });
-            const run2 = createActorRunMock({ id: 'run-2-id', status: 'READY' });
+            const run1 = createActorRunMock({ id: 'run-1-id', requestId: 'test-run-1', status: 'READY' });
+            const run2 = createActorRunMock({ id: 'run-2-id', requestId: 'test-run-2', status: 'READY' });
             const startSpy = vi.spyOn(actorClient, 'start');
             startSpy.mockResolvedValueOnce(run1).mockResolvedValueOnce(run2);
 
@@ -198,7 +215,7 @@ describe('ExtActorClient', () => {
 
             expect(apifyClient.findOrStartRun).toHaveBeenCalled();
             expect(result).toEqual({
-                'batch-test': mockRun,
+                'batch-test': createActorRunMock({ ...mockRun, requestId: 'batch-test' }),
             });
         });
 
@@ -210,8 +227,8 @@ describe('ExtActorClient', () => {
 
             expect(apifyClient.findOrStartRun).toHaveBeenCalled();
             expect(result).toEqual({
-                'batch-test-1/2': mockRun,
-                'batch-test-2/2': mockRun,
+                'batch-test-1/2': createActorRunMock({ ...mockRun, requestId: 'batch-test-1/2' }),
+                'batch-test-2/2': createActorRunMock({ ...mockRun, requestId: 'batch-test-2/2' }),
             });
         });
     });
@@ -219,8 +236,8 @@ describe('ExtActorClient', () => {
     describe('callRuns', () => {
         it('starts multiple Runs and waits for them to finish', async () => {
             // Mock the individual call method to return different finished runs immediately
-            const finishedRun1 = createActorRunMock({ id: 'run-1-id', status: 'SUCCEEDED' });
-            const finishedRun2 = createActorRunMock({ id: 'run-2-id', status: 'SUCCEEDED' });
+            const finishedRun1 = createActorRunMock({ id: 'run-1-id', requestId: 'test-run-1', status: 'SUCCEEDED' });
+            const finishedRun2 = createActorRunMock({ id: 'run-2-id', requestId: 'test-run-2', status: 'SUCCEEDED' });
             let callCount = 0;
             const callSpy = vi.spyOn(actorClient, 'call').mockImplementation(async (_runName) => {
                 callCount++;
@@ -247,7 +264,11 @@ describe('ExtActorClient', () => {
     describe('callBatch', () => {
         it('splits the input, starts multiple Runs and waits for them to finish', async () => {
             // Mock waitForFinish
-            const finishedRun = createActorRunMock({ id: 'batch-run-id', status: 'SUCCEEDED' });
+            const finishedRun = createActorRunMock({
+                id: 'batch-run-id',
+                requestId: 'batch-test',
+                status: 'SUCCEEDED',
+            });
             const waitForFinishSpy = vi
                 .spyOn(ExtRunClient.prototype, 'waitForFinish')
                 .mockImplementation(async () => finishedRun);
@@ -275,7 +296,7 @@ describe('ExtActorClient', () => {
             const result = await runSource.start(input, options);
 
             expect(actorStartSpy).toHaveBeenCalledWith(input, options);
-            expect(result).toBe(mockRun);
+            expect(result).toStrictEqual(expect.objectContaining({ id: mockRun.id, status: mockRun.status }));
         });
 
         it('correctly gets the default memory', async () => {

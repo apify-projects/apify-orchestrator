@@ -161,9 +161,9 @@ export interface ExtendedApifyClient extends ApifyClient {
     runByName: (name: string) => Promise<ExtendedRunClient | undefined>;
 
     /**
-     * @returns an ActorRun object corresponding to the given name, if it exists
+     * @returns an ExtendedActorRun object corresponding to the given name, if it exists
      */
-    actorRunByName: (name: string) => Promise<ActorRun | undefined>;
+    actorRunByName: (name: string) => Promise<ExtendedActorRun | undefined>;
 
     /**
      * Searches for the Runs with the given names an generates a `RunRecord` with them.
@@ -182,6 +182,14 @@ export interface ExtendedApifyClient extends ApifyClient {
      * Stop all the Runs in progress started from this client.
      */
     abortAllRuns: () => Promise<void>;
+}
+
+export interface ExtendedActorStartOptions extends ActorStartOptions {
+    runName?: string;
+}
+
+export interface ExtendedActorCallOptions extends ActorCallOptions {
+    runName?: string;
 }
 
 /**
@@ -221,7 +229,7 @@ export interface ExtendedActorClient extends ActorClient {
     /**
      * @override
      */
-    start: (input?: object, options?: ActorStartOptions & { runName?: string }) => Promise<ActorRun>;
+    start: (input?: object, options?: ExtendedActorStartOptions) => Promise<ExtendedActorRun>;
 
     /**
      * Starts one or more Runs, based on an array of requests.
@@ -251,7 +259,7 @@ export interface ExtendedActorClient extends ActorClient {
     /**
      * @override
      */
-    call: (input?: object, options?: ActorCallOptions & { runName?: string }) => Promise<ActorRun>;
+    call: (input?: object, options?: ExtendedActorCallOptions) => Promise<ExtendedActorRun>;
 
     /**
      * Starts and waits for one or more Runs, based on an array of requests.
@@ -285,6 +293,14 @@ export interface ExtendedActorClient extends ActorClient {
      * @override
      */
     lastRun: (options?: ActorLastRunOptions) => RunClient | ExtendedRunClient;
+}
+
+export interface ExtendedTaskStartOptions extends TaskStartOptions {
+    runName?: string;
+}
+
+export interface ExtendedTaskCallOptions extends TaskCallOptions {
+    runName?: string;
 }
 
 /**
@@ -324,7 +340,7 @@ export interface ExtendedTaskClient extends TaskClient {
     /**
      * @override
      */
-    start: (input?: Dictionary, options?: TaskStartOptions & { runName: string }) => Promise<ActorRun>;
+    start: (input?: Dictionary, options?: ExtendedTaskStartOptions) => Promise<ExtendedActorRun>;
 
     /**
      * Starts one or more Runs, based on an array of requests.
@@ -354,7 +370,7 @@ export interface ExtendedTaskClient extends TaskClient {
     /**
      * @override
      */
-    call: (input?: Dictionary, options?: TaskCallOptions & { runName: string }) => Promise<ActorRun>;
+    call: (input?: Dictionary, options?: ExtendedTaskCallOptions) => Promise<ExtendedActorRun>;
 
     /**
      * Starts and waits for one or more Runs, based on an array of requests.
@@ -485,10 +501,14 @@ export interface TaskRunRequest {
     options?: TaskStartOptions;
 }
 
+export interface ExtendedActorRun extends ActorRun {
+    requestId: string;
+}
+
 /**
- * A record of Runs, having their names as keys and their `ActorRun` objects as values.
+ * A record of Runs, having their names as keys and their `ExtendedActorRun` objects as values.
  */
-export type RunRecord = { [requestId: string]: ActorRun };
+export type RunRecord = { [requestId: string]: ExtendedActorRun };
 
 /**
  * A generic definition of a dataset item.

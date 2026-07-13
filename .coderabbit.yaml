@@ -11,10 +11,15 @@ reviews:
     profile: 'chill' # fewer, higher-signal comments (vs. "assertive" = more nitpicks)
 
     # --- Merge gating -------------------------------------------------------
-    # Non-blocking: CodeRabbit posts a status check for visibility only.
+    # `review_status` only controls the review-status message posted in the
+    # walkthrough. The GitHub commit status check is a SEPARATE setting
+    # (`commit_status`), enabled by default and not overridden here.
+    # Note: `request_changes_workflow: false` alone does NOT prevent merge
+    # blocking — if CodeRabbit's check is required by branch protection
+    # (for `main` or `dev/.*`), merges are still gated on it.
     # To let CodeRabbit BLOCK merges (formally "request changes" on issues):
     #   1. set `request_changes_workflow: true` below, and
-    #   2. add CodeRabbit as a required check in branch protection for `main`.
+    #   2. add CodeRabbit as a required check in branch protection for the involved branches.
     request_changes_workflow: false
     review_status: true
 
@@ -64,10 +69,11 @@ reviews:
               small functions over comments — flag comments that merely restate code or are
               stale. Where JSDoc exists on exported APIs, verify it is accurate; do not
               require JSDoc everywhere.
-        - path: '**/*.test.ts'
+        - path: '**/*{.test.ts,-test.ts}'
           instructions: |
-              Unit tests live next to the source file (src/x.ts + src/x.test.ts) and end-to-end
-              tests go inside the test folder (test/x.test.ts).
+              Unit tests are colocated with the source file (src/x.ts + src/x.test.ts).
+              End-to-end tests use the -test.ts suffix: src/e2e-test.ts is the entry point,
+              and e2e suites/helpers live in src/__e2e__/.
               Fixtures go in the nearest __fixtures__/ folder.
               Flag misplaced tests or fixtures.
 

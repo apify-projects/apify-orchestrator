@@ -457,6 +457,31 @@ export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetCli
      * }
      */
     greedyIterate: (options: GreedyIterateOptions) => AsyncGenerator<T, void, void>;
+
+    /**
+     * Iterates over the items in the dataset in batches as they become available, polling the run status
+     * at a regular interval and yielding any new items found at each poll.
+     * Batches have at most the same size as `pageSize`. Empty batches are never yielded.
+     *
+     * The option `pageSize` will help avoiding the JavaScript's string limit when deserializing the content.
+     * The default value is 100 items.
+     *
+     * The option `pollIntervalSecs` allows customizing how frequently to call the API to check for new items.
+     * The default value is 10 seconds.
+     *
+     * Once the run reaches a terminal status, any remaining items are drained page-by-page until
+     * no more are returned.
+     *
+     * @param options includes all the options in `DatasetClientListItemOptions`, `pageSize`, and `pollIntervalSecs`
+     * @returns an `AsyncGenerator` which iterates the items in the dataset, in batches
+     *
+     * @example
+     * const batchedDatasetIterator = datasetClient.greedyIterateBatched({ pageSize: 100 });
+     * for await (const batch of batchedDatasetIterator) {
+     *     await Actor.pushData(batch.map(adaptItemToOutputFormat));
+     * }
+     */
+    greedyIterateBatched: (options: GreedyIterateOptions) => AsyncGenerator<T[], void, void>;
 }
 
 export interface DatasetGroup<T extends DatasetItem> {

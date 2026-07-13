@@ -4,7 +4,8 @@ export interface Input {
     role: 'e2e-test' | 'resurrection-test' | 'child';
     orchestratorOptions?: Record<string, unknown>;
     waitSeconds?: number;
-    numberToOutput?: number;
+    numbersToOutput?: number[];
+    outputIntervalSecs?: number;
 }
 
 export interface Output extends DatasetItem {

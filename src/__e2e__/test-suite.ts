@@ -1,6 +1,7 @@
 import { log } from 'apify';
 
 import type { TrackedRuns } from '../run-tracker.js';
+import { datasetIteration, greedyDatasetIteration, mergedDatasetIteration } from './dataset-tests.js';
 import { checkResurrectionTestOutputCompleteness, runResurrectionTest } from './resurrection.js';
 import { TestTransientTaskRunner } from './transient-task-runner.js';
 import type { TestResult } from './types.js';
@@ -14,6 +15,9 @@ export async function runEndToEndTestSuite(): Promise<EndToEndTestOutput> {
         childRunWithPlainPersistence,
         childRunWithEncryptedPersistence,
         childRunFromTask,
+        datasetIteration,
+        greedyDatasetIteration,
+        mergedDatasetIteration,
         resurrectedRunWithoutPersistence,
         resurrectedRunWithPlainPersistence,
         resurrectedRunWithEncryptedPersistence,
@@ -47,7 +51,7 @@ async function childRunWithoutPersistence(): Promise<TestResult> {
     const [run1, run2, run3] = await Promise.all(
         Array.from({ length: 3 }).map(async (_, index) => {
             const childNumber = index + 1;
-            return runner.call(childNumber, childNumber * 10);
+            return runner.call(childNumber, { numbersToOutput: [childNumber * 10] });
         }),
     );
 
@@ -74,7 +78,7 @@ async function childRunWithPlainPersistence(): Promise<TestResult> {
 
     const runner = await generateActorTestRunner(client);
 
-    const run = await runner.call(1, 42);
+    const run = await runner.call(1, { numbersToOutput: [42] });
     if (!run) {
         return { success: false, details: 'Run was not started successfully.' };
     }
@@ -106,7 +110,7 @@ async function childRunWithEncryptedPersistence(): Promise<TestResult> {
 
     const runner = await generateActorTestRunner(client);
 
-    const run = await runner.call(1, 84);
+    const run = await runner.call(1, { numbersToOutput: [84] });
     if (!run) {
         return { success: false, details: 'Run was not started successfully.' };
     }
@@ -136,7 +140,7 @@ async function childRunFromTask(): Promise<TestResult> {
         hideSensitiveInformation: false,
     });
 
-    using runner = await TestTransientTaskRunner.new(client, 'e2e-child-task-runner', 50);
+    using runner = await TestTransientTaskRunner.new(client, 'e2e-child-task-runner', { numbersToOutput: [50] });
 
     const run = await runner.call(1);
     if (!run) {

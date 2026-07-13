@@ -3,6 +3,7 @@ import { log } from 'apify';
 import type { ExtendedApifyClient } from '../types.js';
 import { getActorId } from './actor-id.js';
 import { TestTaskRunner } from './test-task-runner.js';
+import type { Input } from './types.js';
 
 export class TestTransientTaskRunner extends TestTaskRunner {
     private readonly taskName: string;
@@ -15,12 +16,12 @@ export class TestTransientTaskRunner extends TestTaskRunner {
     static async new(
         client: ExtendedApifyClient,
         taskName: string,
-        numberToOutput?: number,
+        input: Partial<Omit<Input, 'role' | 'waitSeconds'>> = {},
     ): Promise<TestTransientTaskRunner> {
         const actorId = await getActorId();
         const task = await client
             .tasks()
-            .create({ name: taskName, actId: actorId, input: { role: 'child', waitSeconds: 2, numberToOutput } });
+            .create({ name: taskName, actId: actorId, input: { role: 'child', waitSeconds: 2, ...input } });
         return new TestTransientTaskRunner(client, task.id, taskName);
     }
 

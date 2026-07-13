@@ -16,7 +16,7 @@ if (!input) {
     throw new Error('Input is required');
 }
 
-const { role, orchestratorOptions, waitSeconds, numberToOutput } = input;
+const { role, orchestratorOptions, waitSeconds, numbersToOutput, outputIntervalSecs } = input;
 
 if (role === 'e2e-test') {
     log.info('Starting end-to-end tests');
@@ -30,9 +30,16 @@ if (role === 'e2e-test') {
     await handleResurrectionTest(orchestratorOptions);
 } else if (role === 'child') {
     log.info('Generating output in child run');
-    const outputValue = numberToOutput ?? Math.floor(Math.random() * 100) + 1;
-    log.info(`Output value: ${outputValue}`);
-    await Actor.pushData<Output>({ value: outputValue });
+
+    const outputValues = numbersToOutput ?? [Math.floor(Math.random() * 100) + 1];
+
+    let index = 0;
+    for (const outputValue of outputValues) {
+        log.info(`Output value: ${outputValue}`);
+        await Actor.pushData<Output>({ value: outputValue });
+        if (outputIntervalSecs && index < outputValues.length - 1) await sleep(outputIntervalSecs);
+        index++;
+    }
 }
 
 if (waitSeconds) {

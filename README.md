@@ -7,7 +7,7 @@ instead, it allows you to trigger one or more new Runs from everywhere in your c
 
 ## Contributing
 
-1. Please, take a look at existing issues and submit your pull requests to: https://github.com/apify-projects/apify-orchestrator.
+1. Please, take a look at existing issues and submit your pull requests to: https://github.com/apify-professional-services/apify-orchestrator.
 2. Before starting to work on some topic, make sure to create/assign the corresponding issue to yourself.
 3. Remember to bump the patch/minor/major version number, using `npm version major/minor/path`.
 4. This project is still to be considered in _alpha_ state, and it follows the [semantic versioning](https://semver.org/) rules. This means that:
@@ -275,4 +275,4 @@ For additional information, see [this file](./src/types.ts).
 
 ## Future improvements
 
-See [issues](https://github.com/apify-projects/apify-orchestrator/issues).
+See [issues](https://github.com/apify-professional-services/apify-orchestrator/issues).

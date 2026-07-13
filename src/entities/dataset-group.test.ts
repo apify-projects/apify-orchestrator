@@ -117,4 +117,97 @@ describe('DatasetGroupClass', () => {
             [{ title: 'C1' }, { title: 'C2' }],
         ]);
     });
+
+    it('skips empty datasets when iterating over batches', async () => {
+        interface Item extends DatasetItem {
+            title: string;
+        }
+        const dataset1: PaginatedList<Item> = {
+            count: 2,
+            desc: true,
+            items: [{ title: 'A1' }, { title: 'A2' }],
+            limit: 0,
+            offset: 0,
+            total: 2,
+        };
+        const dataset2: PaginatedList<Item> = {
+            count: 0,
+            desc: true,
+            items: [],
+            limit: 0,
+            offset: 0,
+            total: 0,
+        };
+        const dataset3: PaginatedList<Item> = {
+            count: 2,
+            desc: true,
+            items: [{ title: 'C1' }, { title: 'C2' }],
+            limit: 0,
+            offset: 0,
+            total: 2,
+        };
+
+        vi.spyOn(DatasetClient.prototype, 'listItems')
+            .mockResolvedValueOnce(dataset1)
+            .mockResolvedValueOnce(dataset2)
+            .mockResolvedValueOnce(dataset3);
+
+        const mergedDatasets = orchestrator.mergeDatasets(
+            client.dataset<Item>('test-id1'),
+            client.dataset<Item>('test-id2'),
+            client.dataset<Item>('test-id3'),
+        );
+
+        const datasetIterator = mergedDatasets.iterateBatched({});
+        const readBatches: Item[][] = [];
+        for await (const batch of datasetIterator) {
+            readBatches.push(batch);
+        }
+
+        expect(readBatches).toEqual([
+            [{ title: 'A1' }, { title: 'A2' }],
+            [{ title: 'C1' }, { title: 'C2' }],
+        ]);
+    });
+
+    it('paginates each dataset when iterating over batches with a page size', async () => {
+        interface Item extends DatasetItem {
+            title: string;
+        }
+
+        const page = (items: Item[], offset: number, total: number): PaginatedList<Item> => ({
+            count: items.length,
+            desc: true,
+            items,
+            limit: 2,
+            offset,
+            total,
+        });
+
+        vi.spyOn(DatasetClient.prototype, 'listItems')
+            // First dataset: three items, read in two pages plus a final empty one.
+            .mockResolvedValueOnce(page([{ title: 'A1' }, { title: 'A2' }], 0, 3))
+            .mockResolvedValueOnce(page([{ title: 'A3' }], 2, 3))
+            .mockResolvedValueOnce(page([], 4, 3))
+            // Second dataset: two items, read in one page plus a final empty one.
+            .mockResolvedValueOnce(page([{ title: 'B1' }, { title: 'B2' }], 0, 2))
+            .mockResolvedValueOnce(page([], 2, 2));
+
+        const mergedDatasets = orchestrator.mergeDatasets(
+            client.dataset<Item>('test-id1'),
+            client.dataset<Item>('test-id2'),
+        );
+
+        const datasetIterator = mergedDatasets.iterateBatched({ pageSize: 2 });
+        const readBatches: Item[][] = [];
+        for await (const batch of datasetIterator) {
+            readBatches.push(batch);
+        }
+
+        expect(readBatches).toEqual([
+            [{ title: 'A1' }, { title: 'A2' }],
+            [{ title: 'A3' }],
+            [{ title: 'B1' }, { title: 'B2' }],
+        ]);
+    });
 });

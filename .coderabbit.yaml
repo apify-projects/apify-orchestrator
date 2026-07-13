@@ -42,6 +42,9 @@ reviews:
         auto_incremental_review: true
         ignore_title_keywords: ['WIP', '[skip review]']
         ignore_usernames: ['dependabot[bot]', 'renovate[bot]']
+        base_branches:
+            - 'main'
+            - 'dev/.*'
 
     # --- Don't review generated / vendored / large files --------------------
     path_filters:

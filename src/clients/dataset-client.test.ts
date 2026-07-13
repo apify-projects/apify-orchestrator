@@ -89,6 +89,46 @@ describe('ExtDatasetClient', () => {
             expect(listItemsSpy).toHaveBeenNthCalledWith(3, { offset: 4, limit: 2 });
         });
 
+        it('preserves listItems options on every page when paginating', async () => {
+            const listItemsSpy = vi
+                .spyOn(DatasetClient.prototype, 'listItems')
+                .mockResolvedValueOnce({
+                    count: 2,
+                    items: testItems.slice(0, 2),
+                    total: 3,
+                    offset: 0,
+                    limit: 2,
+                    desc: true,
+                })
+                .mockResolvedValueOnce({
+                    count: 1,
+                    items: testItems.slice(2, 3),
+                    total: 3,
+                    offset: 2,
+                    limit: 2,
+                    desc: true,
+                })
+                .mockResolvedValueOnce({
+                    count: 0,
+                    items: [],
+                    total: 3,
+                    offset: 3,
+                    limit: 2,
+                    desc: true,
+                });
+            const datasetIterator = datasetClient.iterate({ pageSize: 2, desc: true });
+            let itemCount = 0;
+            for await (const item of datasetIterator) {
+                expect(item).toEqual(testItems[itemCount]);
+                itemCount++;
+            }
+            expect(itemCount).toBe(3);
+            expect(listItemsSpy).toHaveBeenCalledTimes(3);
+            expect(listItemsSpy).toHaveBeenNthCalledWith(1, { desc: true, offset: 0, limit: 2 });
+            expect(listItemsSpy).toHaveBeenNthCalledWith(2, { desc: true, offset: 2, limit: 2 });
+            expect(listItemsSpy).toHaveBeenNthCalledWith(3, { desc: true, offset: 4, limit: 2 });
+        });
+
         it('yields no items when the dataset is empty', async () => {
             const listItemsSpy = vi.spyOn(DatasetClient.prototype, 'listItems').mockResolvedValue({
                 count: 0,

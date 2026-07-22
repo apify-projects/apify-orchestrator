@@ -43,24 +43,16 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
     }
 
     enqueue(...runRequests: ActorRunRequest[]): string[] {
-        const requestIds = new Set<string>();
-        for (const runRequest of runRequests) {
+        return runRequests.map((runRequest) => {
             const requestId = this.runSource.getRequestId(runRequest.input, runRequest.options, runRequest.runName);
-            if (requestIds.has(requestId)) {
-                this.context.logger
-                    .prefixed(requestId)
-                    .warning('Skipping enqueuing identical Run requests, or requests with the same name.');
-                continue;
-            }
-            requestIds.add(requestId);
             this.apifyClient.findOrRequestRunStart({
                 source: this.runSource,
-                runName: requestId,
+                runName: runRequest.runName,
                 input: runRequest.input,
                 options: runRequest.options,
             });
-        }
-        return Array.from(requestIds);
+            return requestId;
+        });
     }
 
     enqueueBatch<T>(

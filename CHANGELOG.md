@@ -83,6 +83,7 @@
 - Replaced `ExtendedApifyClient`'s method `runRecord` with `actorRunsByRequest`, which returns an array of
   `ExtendedActorRun` objects instead of a record: Runs that are not found are simply omitted from the result.
   To fix existing code:
+
     ```ts
     // Before:
     const runRecord = await extendedApifyClient.runRecord('run-a', 'run-b');
@@ -91,6 +92,7 @@
     const runs = await extendedApifyClient.actorRunsByRequest('run-a', 'run-b');
     const runA = runs.find(({ requestId }) => requestId === 'run-a'); // possibly undefined
     ```
+
 - Renamed `ExtendedApifyClient`'s methods `runByName` and `actorRunByName` to `runByRequest` and `actorRunByRequest`.
   They accept a `requestIdOrRunName` parameter: either the request ID returned by `enqueue`, or the run name of your
   choice, since a Run's request ID is its `runName` whenever one was provided.
@@ -126,6 +128,8 @@
 - New `ExtendedActorRun` type: an `ActorRun` extended with the `requestId` used to track the Run. It is returned by
   all the methods that start, call, or update Runs, e.g., `start`, `call`, `startRuns`, `callRuns`, `actorRunByRequest`,
   and `ExtendedRunClient`'s methods such as `get`, `abort`, `reboot`, `update`, and `resurrect`.
+- New `AmbiguousRunRequestError` (a subclass of `OrchestratorError`), thrown when the same
+  auto-generated request ID is resolved twice in the same process with no resurrection in between - check the README for more insights.
 
 ### Development
 

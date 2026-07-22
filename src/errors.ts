@@ -39,6 +39,24 @@ export class InsufficientActorJobsError extends OrchestratorError {
     }
 }
 
+/**
+ * Error thrown when the same request (implicit, hash-based request ID) is resolved more than once
+ * in the same process, with no resurrection in between, and the previous Run is still active or
+ * succeeded. Provide an explicit `runName` if you intend to start multiple Runs with the same input
+ * and options.
+ */
+export class AmbiguousRunRequestError extends OrchestratorError {
+    readonly code = 'AMBIGUOUS_RUN_REQUEST';
+
+    constructor(requestId: string) {
+        super(
+            `A Run for request '${requestId}' was already started or is in progress in this session. ` +
+                `If you intend to start multiple Runs with the same input and options, provide an explicit 'runName' for each.`,
+            requestId,
+        );
+    }
+}
+
 export function isInsufficientResourcesError(
     error: unknown,
 ): error is InsufficientMemoryError | InsufficientActorJobsError {

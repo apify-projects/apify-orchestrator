@@ -5,6 +5,7 @@ import { getClientContext } from '../__unit__/context.js';
 import { createActorRunMock } from '../__unit__/mocks.js';
 import type { ClientContext } from '../context/client-context.js';
 import { RunSource } from '../entities/run-source.js';
+import { AmbiguousRunRequestError } from '../errors.js';
 import { ExtActorClient } from './actor-client.js';
 import { ExtApifyClient } from './apify-client.js';
 import { ExtDatasetClient } from './dataset-client.js';
@@ -510,6 +511,102 @@ describe('ExtApifyClient', () => {
                 },
                 undefined,
             );
+        });
+    });
+
+    describe('ambiguous duplicate requests', () => {
+        it('throws when a second implicit request is made while the first is still in-flight', () => {
+            const input = { key: 'value' };
+            context.runScheduler.requestRunStart({ source: runSource, input });
+
+            expect(() => client.findOrRequestRunStart({ source: runSource, input })).toThrow(AmbiguousRunRequestError);
+        });
+
+        it('does not throw when the second in-flight request has an explicit runName', async () => {
+            const run = createActorRunMock({ id: 'test-id', requestId: 'my-job', status: 'RUNNING' });
+            startRun.mockResolvedValue(run);
+            context.runScheduler.requestRunStart({ source: runSource, runName: 'my-job' });
+
+            const waitForStart = client.findOrRequestRunStart({ source: runSource, runName: 'my-job' });
+            await vi.advanceTimersByTimeAsync(1000);
+            await expect(waitForStart()).resolves.toStrictEqual(run);
+        });
+
+        it('throws when an implicit request repeats within the same session while the Run is OK', async () => {
+            const input = { key: 'value' };
+            const run = createActorRunMock({ id: 'test-id', status: 'RUNNING' });
+            startRun.mockResolvedValue(run);
+
+            const waitForStart = client.findOrRequestRunStart({ source: runSource, input });
+            await vi.advanceTimersByTimeAsync(1000);
+            await waitForStart();
+
+            expect(() => client.findOrRequestRunStart({ source: runSource, input })).toThrow(AmbiguousRunRequestError);
+        });
+
+        it('reconnects silently on first contact after a resurrection, but throws on a repeat in that same session', async () => {
+            const input = { key: 'value' };
+            const requestId = runSource.getRequestId(input, undefined, undefined);
+            const existingRun = createActorRunMock({ id: 'existing-id', requestId, status: 'RUNNING' });
+
+            // Simulate a fresh process that loaded persisted tracked-run info from a prior process.
+            const resurrectedContext = getClientContext();
+            resurrectedContext.runTracker.updateRun(requestId, existingRun);
+            const resurrectedClient = new ExtApifyClient('resurrected-client', resurrectedContext, {});
+            vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(existingRun);
+
+            const firstResult = await resurrectedClient.findOrRequestRunStart({ source: runSource, input })();
+            expect(firstResult).toStrictEqual(existingRun);
+
+            expect(() => resurrectedClient.findOrRequestRunStart({ source: runSource, input })).toThrow(
+                AmbiguousRunRequestError,
+            );
+        });
+
+        it('always allows retrying after a failed Run, but throws on a further implicit repeat once it succeeds', async () => {
+            const input = { key: 'value' };
+            const requestId = runSource.getRequestId(input, undefined, undefined);
+            const failedRun = createActorRunMock({ id: 'failed-id', requestId, status: 'FAILED' });
+            context.runTracker.updateRun(requestId, failedRun);
+
+            const retriedRun = createActorRunMock({ id: 'retried-id', requestId, status: 'RUNNING' });
+            startRun.mockResolvedValue(retriedRun);
+
+            const retryWaitForStart = client.findOrRequestRunStart({ source: runSource, input });
+            await vi.advanceTimersByTimeAsync(1000);
+            await expect(retryWaitForStart()).resolves.toStrictEqual(retriedRun);
+
+            expect(() => client.findOrRequestRunStart({ source: runSource, input })).toThrow(AmbiguousRunRequestError);
+        });
+
+        it('treats an empty string runName the same as an omitted one', () => {
+            context.runScheduler.requestRunStart({ source: runSource, input: { key: 'value' }, runName: '' });
+
+            expect(() => client.findOrRequestRunStart({ source: runSource, input: { key: 'value' } })).toThrow(
+                AmbiguousRunRequestError,
+            );
+        });
+
+        it('rejects exactly one of two concurrent findOrStartRun calls with identical implicit input', async () => {
+            const input = { key: 'value' };
+            const run = createActorRunMock({ id: 'new-id', status: 'RUNNING' });
+            startRun.mockResolvedValue(run);
+
+            const promise1 = client.findOrStartRun({ source: runSource, input });
+            const promise2 = client.findOrStartRun({ source: runSource, input });
+            // Attach handlers synchronously, before any `await`, so the rejected promise is never
+            // observed as "unhandled" during the timer advance below.
+            const resultsPromise = Promise.allSettled([promise1, promise2]);
+
+            await vi.advanceTimersByTimeAsync(1000);
+
+            const results = await resultsPromise;
+            const fulfilled = results.filter((result) => result.status === 'fulfilled');
+            const rejected = results.filter((result) => result.status === 'rejected');
+
+            expect(fulfilled).toHaveLength(1);
+            expect(rejected).toHaveLength(1);
+            expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(AmbiguousRunRequestError);
         });
     });
 });

@@ -79,6 +79,20 @@ describe('ExtTaskClient', () => {
 
             expect(result).toEqual(['test-run-1', 'test-run-2', 'test-run-3']);
         });
+
+        it('forwards runName: undefined when it is not provided, instead of the generated request ID', () => {
+            const input = { key: 'value1' };
+
+            const result = taskClient.enqueue({ input });
+
+            expect(apifyClient.findOrRequestRunStart).toHaveBeenCalledWith({
+                source: runSource,
+                runName: undefined,
+                input,
+                options: undefined,
+            });
+            expect(result).toEqual([runSource.getRequestId(input, undefined, undefined)]);
+        });
     });
 
     describe('enqueueBatch', () => {

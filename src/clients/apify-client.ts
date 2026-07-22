@@ -3,14 +3,28 @@ import type { ApifyClientOptions, RunClient } from 'apify-client';
 import { ApifyClient } from 'apify-client';
 
 import type { ClientContext } from '../context/client-context.js';
+import { AmbiguousRunRequestError } from '../errors.js';
 import { getRequestId, type RunStartRequest } from '../run-scheduler.js';
 import type { DatasetItem, ExtendedActorRun, ExtendedApifyClient } from '../types.js';
-import { isRunOkStatus } from '../utils/apify-client.js';
+import { isRunFailStatus, isRunOkStatus } from '../utils/apify-client.js';
+import { Outcome } from '../utils/outcome.js';
 import { isDefined } from '../utils/typing.js';
 import { ExtActorClient } from './actor-client.js';
 import { ExtDatasetClient } from './dataset-client.js';
 import type { ExtRunClient } from './run-client.js';
 import { ExtTaskClient } from './task-client.js';
+
+/**
+ * The outcome of resolving what to do for a given Run start request:
+ * - `join`: an in-flight start for the same request ID exists, with an explicit `runName` — wait for it.
+ * - `reconnect`: an existing Run for the same request ID was found and should be reused.
+ * - `start`: no reusable Run was found (or the previous one failed) — start a new one.
+ */
+class RunRequestDecision extends Outcome<{
+    join: () => Promise<ExtendedActorRun>;
+    reconnect: string;
+    start: true;
+}> {}
 
 export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     public readonly clientName: string;
@@ -106,17 +120,10 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
      * @internal
      */
     findOrRequestRunStart(runRequest: RunStartRequest): () => Promise<ExtendedActorRun> {
-        const requestId = getRequestId(runRequest);
-        return this.context.searchExistingRun(requestId).match({
-            promise: (waitForStart) => waitForStart,
-            runInfo: (runInfo) => {
-                if (isRunOkStatus(runInfo.status)) {
-                    return async () => this.getRunObjectOrStartNew(runRequest, runInfo.runId);
-                }
-                // If the existing Run is not in an OK status, we start a new one.
-                return this.context.runScheduler.requestRunStart(runRequest);
-            },
-            notFound: () => this.context.runScheduler.requestRunStart(runRequest),
+        return this.resolveRunRequestDecision(runRequest).match({
+            join: (waitForStart) => waitForStart,
+            reconnect: (runId) => async () => this.getRunObjectOrStartNew(runRequest, runId),
+            start: () => this.context.runScheduler.requestRunStart(runRequest),
         });
     }
 
@@ -128,17 +135,52 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
      * @internal
      */
     async findOrStartRun(runRequest: RunStartRequest): Promise<ExtendedActorRun> {
+        return this.resolveRunRequestDecision(runRequest).match({
+            join: async (waitForStart) => waitForStart(),
+            reconnect: async (runId) => this.getRunObjectOrStartNew(runRequest, runId),
+            start: async () => this.context.runScheduler.startRun(runRequest),
+        });
+    }
+
+    /**
+     * Decides, synchronously, whether a Run start request should join an in-flight start, reconnect
+     * to an existing Run, or start a new one - throwing if the same request (with no explicit
+     * `runName`) was already resolved earlier in this same process, with no resurrection in between.
+     *
+     * @throws {AmbiguousRunRequestError} when a duplicate, unnamed request is detected.
+     */
+    private resolveRunRequestDecision(runRequest: RunStartRequest): RunRequestDecision {
         const requestId = getRequestId(runRequest);
+        const isExplicit = isDefined(runRequest.runName) && runRequest.runName !== '';
+
         return this.context.searchExistingRun(requestId).match({
-            promise: async (waitForStart) => waitForStart(),
-            runInfo: async (runInfo) => {
-                if (isRunOkStatus(runInfo.status)) {
-                    return this.getRunObjectOrStartNew(runRequest, runInfo.runId);
-                }
-                // If the existing Run is not in an OK status, we start a new one.
-                return this.context.runScheduler.startRun(runRequest);
+            promise: (waitForStart) => {
+                // Allow joining an in-flight start for the same request ID only if it was explicitly named.
+                if (!isExplicit) throw new AmbiguousRunRequestError(requestId);
+                return new RunRequestDecision({ join: waitForStart });
             },
-            notFound: async () => this.context.runScheduler.startRun(runRequest),
+            runInfo: (runInfo) => {
+                if (isRunFailStatus(runInfo.status)) {
+                    // Retrying after a failed/aborted/timed-out Run is always legitimate.
+                    if (!isExplicit) this.context.runRequestGuard.markStarted(requestId);
+                    return new RunRequestDecision({ start: true });
+                }
+                if (isRunOkStatus(runInfo.status)) {
+                    if (!isExplicit && this.context.runRequestGuard.hasStarted(requestId)) {
+                        // This process already resolved this exact request before: this is an ambiguous duplicate.
+                        throw new AmbiguousRunRequestError(requestId);
+                    }
+                    if (!isExplicit) this.context.runRequestGuard.markStarted(requestId);
+                    return new RunRequestDecision({ reconnect: runInfo.runId });
+                }
+                // Any other status: start a new one, same as `notFound`.
+                if (!isExplicit) this.context.runRequestGuard.markStarted(requestId);
+                return new RunRequestDecision({ start: true });
+            },
+            notFound: () => {
+                if (!isExplicit) this.context.runRequestGuard.markStarted(requestId);
+                return new RunRequestDecision({ start: true });
+            },
         });
     }
 

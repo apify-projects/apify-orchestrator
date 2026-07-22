@@ -131,6 +131,10 @@
 - New `AmbiguousRunRequestError` (a subclass of `OrchestratorError`), thrown when the same
   auto-generated request ID is resolved twice in the same process with no resurrection in between - check the README for more insights.
 
+### Fixed
+
+- When calling `ExtendedActorClient`'s method `call` passing the `log` option, a warning is now logged to inform that the option is not supported yet in the Orchestrator. The support may be introduced in a future release.
+
 ### Development
 
 - Moved all unit tests inside the `src` folder.

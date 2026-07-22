@@ -122,7 +122,9 @@ describe('ExtActorClient', () => {
                     options: undefined,
                 }),
             );
-            expect(result).toStrictEqual(expect.objectContaining({ id: mockRun.id, status: mockRun.status }));
+            expect(result).toStrictEqual(
+                expect.objectContaining({ id: mockRun.id, status: mockRun.status, requestId: 'test-run-1' }),
+            );
         });
 
         it('generates a request ID if runName is not provided', async () => {
@@ -136,7 +138,9 @@ describe('ExtActorClient', () => {
                     options: undefined,
                 }),
             );
-            expect(result).toStrictEqual(expect.objectContaining({ id: mockRun.id, status: mockRun.status }));
+            expect(result).toStrictEqual(
+                expect.objectContaining({ id: mockRun.id, status: mockRun.status, requestId: 'default-request-id' }),
+            );
         });
     });
 
@@ -162,8 +166,44 @@ describe('ExtActorClient', () => {
             });
             expect(waitForFinishSpy).toHaveBeenCalled();
             expect(result).toStrictEqual(
-                expect.objectContaining({ id: finishedRunMock.id, status: finishedRunMock.status }),
+                expect.objectContaining({
+                    id: finishedRunMock.id,
+                    status: finishedRunMock.status,
+                    requestId: finishedRunMock.requestId,
+                }),
             );
+        });
+
+        it('does not forward waitSecs to the Run start request', async () => {
+            vi.spyOn(ExtRunClient.prototype, 'waitForFinish').mockImplementation(async () => mockRun);
+
+            await actorClient.call({ key: 'value1' }, { runName: 'test-run-1', waitSecs: 30, memory: 1024 });
+
+            expect(apifyClient.findOrStartRun).toHaveBeenCalledWith({
+                source: runSource,
+                runName: 'test-run-1',
+                input: { key: 'value1' },
+                options: { memory: 1024 },
+            });
+        });
+
+        it('still passes waitSecs to waitForFinish', async () => {
+            const waitForFinishSpy = vi
+                .spyOn(ExtRunClient.prototype, 'waitForFinish')
+                .mockImplementation(async () => mockRun);
+
+            await actorClient.call({ key: 'value1' }, { runName: 'test-run-1', waitSecs: 30 });
+
+            expect(waitForFinishSpy).toHaveBeenCalledWith({ waitSecs: 30 });
+        });
+
+        it('warns if the log option is used', async () => {
+            vi.spyOn(ExtRunClient.prototype, 'waitForFinish').mockImplementation(async () => mockRun);
+            const loggerWarningSpy = vi.spyOn(context.logger, 'warning').mockImplementation(vi.fn());
+
+            await actorClient.call({ key: 'value1' }, { runName: 'test-run-1', log: 'default' });
+
+            expect(loggerWarningSpy).toHaveBeenCalledWith('The `log` option is not supported yet in the Orchestrator.');
         });
     });
 

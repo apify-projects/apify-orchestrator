@@ -121,7 +121,9 @@ describe('ExtTaskClient', () => {
                     options: undefined,
                 }),
             );
-            expect(result).toStrictEqual(expect.objectContaining({ id: mockRun.id, status: mockRun.status }));
+            expect(result).toStrictEqual(
+                expect.objectContaining({ id: mockRun.id, status: mockRun.status, requestId: 'test-run-1' }),
+            );
         });
 
         it('generates a request ID if no run name is provided', async () => {
@@ -135,7 +137,9 @@ describe('ExtTaskClient', () => {
                     options: undefined,
                 }),
             );
-            expect(result).toStrictEqual(expect.objectContaining({ id: mockRun.id, status: mockRun.status }));
+            expect(result).toStrictEqual(
+                expect.objectContaining({ id: mockRun.id, status: mockRun.status, requestId: 'default-request-id' }),
+            );
         });
     });
 
@@ -162,8 +166,35 @@ describe('ExtTaskClient', () => {
             });
             expect(waitForFinishSpy).toHaveBeenCalled();
             expect(result).toStrictEqual(
-                expect.objectContaining({ id: finishedRunMock.id, status: finishedRunMock.status }),
+                expect.objectContaining({
+                    id: finishedRunMock.id,
+                    status: finishedRunMock.status,
+                    requestId: finishedRunMock.requestId,
+                }),
             );
+        });
+
+        it('does not forward waitSecs to the Run start request', async () => {
+            vi.spyOn(RunClient.prototype, 'waitForFinish').mockImplementation(async () => mockRun);
+
+            await taskClient.call({ key: 'value1' }, { runName: 'test-run-1', waitSecs: 30, memory: 1024 });
+
+            expect(apifyClient.findOrStartRun).toHaveBeenCalledWith({
+                source: runSource,
+                runName: 'test-run-1',
+                input: { key: 'value1' },
+                options: { memory: 1024 },
+            });
+        });
+
+        it('still passes waitSecs to waitForFinish', async () => {
+            const waitForFinishSpy = vi
+                .spyOn(RunClient.prototype, 'waitForFinish')
+                .mockImplementation(async () => mockRun);
+
+            await taskClient.call({ key: 'value1' }, { runName: 'test-run-1', waitSecs: 30 });
+
+            expect(waitForFinishSpy).toHaveBeenCalledWith({ waitSecs: 30 });
         });
     });
 

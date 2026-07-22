@@ -25,4 +25,16 @@ describe('hashObject', () => {
         const obj2 = { a: [3, 2, 1] };
         expect(hashObject(obj1)).not.toEqual(hashObject(obj2));
     });
+
+    it('does not match objects that differ only in a nested value', () => {
+        const obj1 = { a: { x: 1 }, b: 2 };
+        const obj2 = { a: { x: 2 }, b: 2 };
+        expect(hashObject(obj1)).not.toEqual(hashObject(obj2));
+    });
+
+    it('does not match objects that differ only in a deeply nested value', () => {
+        const obj1 = { a: { nested: { x: 1, y: 2 } }, b: 2 };
+        const obj2 = { a: { nested: { x: 1, y: 9 } }, b: 2 };
+        expect(hashObject(obj1)).not.toEqual(hashObject(obj2));
+    });
 });

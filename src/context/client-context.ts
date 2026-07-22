@@ -11,7 +11,7 @@ import { Outcome } from '../utils/outcome.js';
 import type { OrchestratorContext } from './orchestrator-context.js';
 
 /**
- * Represents the outcome of searching internally for an existing Run by name.
+ * Represents the outcome of searching internally for an existing Run by request ID.
  * We may be waiting for the Run to start, or we may have tracked information about the Run.
  */
 export class RunSearchOutcome extends Outcome<{
@@ -65,7 +65,7 @@ export function generateClientContext(
             const runInfo = this.runTracker.findRunByRequestId(requestId);
             if (runInfo) return new RunSearchOutcome({ runInfo });
 
-            // Otherwise, a run with this name does not exist.
+            // Otherwise, a run with this request ID does not exist.
             return new RunSearchOutcome({ notFound: true });
         },
 

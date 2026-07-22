@@ -1,3 +1,4 @@
+import type { ActorRun } from 'apify-client';
 import { ApifyApiError } from 'apify-client';
 import type { AxiosResponse } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
@@ -27,6 +28,54 @@ describe('RunSource', () => {
             throw new Error('Not implemented for this test');
         },
         defaultMemoryMbytes: async () => 2048,
+    });
+
+    describe('getRequestId', () => {
+        it('returns the runName as-is when provided, regardless of input/options', () => {
+            expect(runSource.getRequestId({ a: 1 }, { memory: 1024 }, 'my-run-name')).toBe('my-run-name');
+        });
+
+        it('generates a stable, deterministic ID when runName is not provided', () => {
+            const first = runSource.getRequestId({ a: 1 }, { memory: 1024 }, undefined);
+            const second = runSource.getRequestId({ a: 1 }, { memory: 1024 }, undefined);
+            expect(first).toEqual(second);
+        });
+
+        it('generates different IDs for different input', () => {
+            const idA = runSource.getRequestId({ a: 1 }, undefined, undefined);
+            const idB = runSource.getRequestId({ a: 2 }, undefined, undefined);
+            expect(idA).not.toEqual(idB);
+        });
+
+        it('generates different IDs for different options', () => {
+            const idA = runSource.getRequestId({ a: 1 }, { memory: 1024 }, undefined);
+            const idB = runSource.getRequestId({ a: 1 }, { memory: 2048 }, undefined);
+            expect(idA).not.toEqual(idB);
+        });
+
+        it('generates different IDs for different source IDs', () => {
+            const notImplementedStart = async (): Promise<ActorRun> => {
+                throw new Error('Not implemented for this test');
+            };
+            const sourceA = new RunSource({ type: 'actor', id: 'actor-a', start: notImplementedStart });
+            const sourceB = new RunSource({ type: 'actor', id: 'actor-b', start: notImplementedStart });
+
+            const idA = sourceA.getRequestId({ a: 1 }, undefined, undefined);
+            const idB = sourceB.getRequestId({ a: 1 }, undefined, undefined);
+            expect(idA).not.toEqual(idB);
+        });
+
+        it('generates different IDs for different source types', () => {
+            const notImplementedStart = async (): Promise<ActorRun> => {
+                throw new Error('Not implemented for this test');
+            };
+            const actorSource = new RunSource({ type: 'actor', id: 'same-id', start: notImplementedStart });
+            const taskSource = new RunSource({ type: 'task', id: 'same-id', start: notImplementedStart });
+
+            const idA = actorSource.getRequestId({ a: 1 }, undefined, undefined);
+            const idB = taskSource.getRequestId({ a: 1 }, undefined, undefined);
+            expect(idA).not.toEqual(idB);
+        });
     });
 
     describe('parseRunStartError', () => {

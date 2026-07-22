@@ -92,10 +92,11 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
      * https://github.com/apify/apify-client-js/issues/818.
      */
     override async call(input?: object, options?: ExtendedActorCallOptions): Promise<ExtendedActorRun> {
-        const startedRun = await this.start(input, options);
-        return this.apifyClient
-            .extendedRunClient(startedRun.requestId, startedRun.id)
-            .waitForFinish({ waitSecs: options?.waitSecs });
+        const { waitSecs, log, ...startOptions } = options ?? {};
+        // FIXME: the `log` option is not supported because we are not using `super.call()`.
+        if (log) this.context.logger.warning('The `log` option is not supported yet in the Orchestrator.');
+        const startedRun = await this.start(input, startOptions);
+        return this.apifyClient.extendedRunClient(startedRun.requestId, startedRun.id).waitForFinish({ waitSecs });
     }
 
     override lastRun(options?: ActorLastRunOptions): RunClient | ExtRunClient {

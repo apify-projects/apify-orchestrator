@@ -81,8 +81,8 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
     }
 
     override async call(input?: Dictionary, options?: ExtendedTaskCallOptions): Promise<ExtendedActorRun> {
-        const startedRun = await this.start(input, options);
-        const { waitSecs } = options ?? {};
+        const { waitSecs, ...startOptions } = options ?? {};
+        const startedRun = await this.start(input, startOptions);
         return this.apifyClient.extendedRunClient(startedRun.requestId, startedRun.id).waitForFinish({ waitSecs });
     }
 

@@ -156,7 +156,7 @@ const sourceUrls = ['...', '...', ...];
 const inputGenerator = (urls) => ({ startUrls: urls.map((url) => ({ url }))});
 
 // Automatically split the input in multiple parts, if necessary, and start multiple Runs
-const runRecord = await client.actor(actorId).callBatch(
+const runs = await client.actor(actorId).callBatch(
     'my-job',                             // the Run/batch name (if multiple Runs are triggered, it will become a prefix)
     sourceUrls,                           // an array used to generate the input
     inputGenerator,                       // a function to generate the input
@@ -165,7 +165,7 @@ const runRecord = await client.actor(actorId).callBatch(
 
 // Create an iterator for reading all the default datasets together
 const datasetIterator = orchestrator.mergeDatasets(
-    ...Object.values(runRecord).map(
+    ...runs.map(
         (run) => client.dataset(run.defaultDatasetId),
     )
 ).iterate({
@@ -179,15 +179,8 @@ for await (const item of datasetIterator) {
 }
 ```
 
-Notice that `runRecord` is an object of this kind:
-
-```js
-{
-    'my-job-1': [object ActorRun],
-    'my-job-2': [object ActorRun],
-    ...
-}
-```
+Notice that `runs` is an array of `ExtendedActorRun` objects: regular `ActorRun` objects extended with a `requestId`
+property, which contains the name of the Run, e.g., `my-job-1/2`, or a hash generated from the Run's request.
 
 Also, notice the `for await` at the end: it is due to the fact that `datasetIterator` is an [`AsyncGenerator`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator),
 which fetches the first 100 items, iterates over them, then fetches another 100, and so on.
@@ -200,7 +193,7 @@ const input1 = { ... }
 const input2 = { ... }
 
 // Use callRuns instead of callBatch, and provide the names and the inputs yourself
-const runRecord = await client.actor(actorId).callRuns(
+const runs = await client.actor(actorId).callRuns(
     { runName: 'my-job-a', input: input1 },
     { runName: 'my-job-b', input: input2 },
 );

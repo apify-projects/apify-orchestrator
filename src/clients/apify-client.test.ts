@@ -154,8 +154,8 @@ describe('ExtApifyClient', () => {
         });
     });
 
-    describe('runRecord', () => {
-        it('generates a RunRecord with all the existing Runs when calling `runRecord`', async () => {
+    describe('actorRunsByName', () => {
+        it('generates an array with all the existing Runs when calling `actorRunsByName`', async () => {
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get');
 
             context.runTracker.updateRun(
@@ -176,26 +176,26 @@ describe('ExtApifyClient', () => {
                 .mockResolvedValueOnce(createActorRunMock({ id: 'test-id-2', status: 'READY', startedAt: mockDate }))
                 .mockResolvedValueOnce(createActorRunMock({ id: 'test-id-3', status: 'READY', startedAt: mockDate }));
 
-            expect(await client.runRecord('test-run-1', 'test-run-2', 'test-run-3')).toEqual({
-                'test-run-1': createActorRunMock({
+            expect(await client.actorRunsByName('test-run-1', 'test-run-2', 'test-run-3')).toEqual([
+                createActorRunMock({
                     id: 'test-id-1',
                     requestId: 'test-run-1',
                     status: 'READY',
                     startedAt: mockDate,
                 }),
-                'test-run-2': createActorRunMock({
+                createActorRunMock({
                     id: 'test-id-2',
                     requestId: 'test-run-2',
                     status: 'READY',
                     startedAt: mockDate,
                 }),
-                'test-run-3': createActorRunMock({
+                createActorRunMock({
                     id: 'test-id-3',
                     requestId: 'test-run-3',
                     status: 'READY',
                     startedAt: mockDate,
                 }),
-            });
+            ]);
             expect(getActorSpy).toHaveBeenCalledTimes(3);
 
             context.runTracker.updateRun('test-run-2'); // track lost run by not providing a run object
@@ -204,23 +204,23 @@ describe('ExtApifyClient', () => {
                 .mockResolvedValueOnce(createActorRunMock({ id: 'test-id-1', status: 'READY', startedAt: mockDate }))
                 .mockResolvedValueOnce(createActorRunMock({ id: 'test-id-3', status: 'READY', startedAt: mockDate }));
 
-            expect(await client.runRecord('test-run-1', 'test-run-2', 'test-run-3')).toEqual({
-                'test-run-1': createActorRunMock({
+            expect(await client.actorRunsByName('test-run-1', 'test-run-2', 'test-run-3')).toEqual([
+                createActorRunMock({
                     id: 'test-id-1',
                     requestId: 'test-run-1',
                     status: 'READY',
                     startedAt: mockDate,
                 }),
-                'test-run-3': createActorRunMock({
+                createActorRunMock({
                     id: 'test-id-3',
                     requestId: 'test-run-3',
                     status: 'READY',
                     startedAt: mockDate,
                 }),
-            });
+            ]);
             expect(getActorSpy).toHaveBeenCalledTimes(5);
 
-            expect(await client.runRecord('test-run-4', 'test-run-5', 'test-run-6')).toEqual({});
+            expect(await client.actorRunsByName('test-run-4', 'test-run-5', 'test-run-6')).toEqual([]);
         });
     });
 
@@ -250,50 +250,50 @@ describe('ExtApifyClient', () => {
                 return run;
             });
 
-            const runRecord = await client.waitForBatchFinish({
-                'test-run-1': createActorRunMock({
+            const runs = await client.waitForBatchFinish([
+                createActorRunMock({
                     id: mockRunIds[0],
                     requestId: 'test-run-1',
                     status: 'READY',
                     startedAt: mockDate,
                 }),
-                'test-run-2': createActorRunMock({
+                createActorRunMock({
                     id: mockRunIds[1],
                     requestId: 'test-run-2',
                     status: 'READY',
                     startedAt: mockDate,
                 }),
-                'test-run-3': createActorRunMock({
+                createActorRunMock({
                     id: mockRunIds[2],
                     requestId: 'test-run-3',
                     status: 'READY',
                     startedAt: mockDate,
                 }),
-            });
+            ]);
 
-            const expectedRunRecord = {
-                'test-run-1': createActorRunMock({
+            const expectedRuns = [
+                createActorRunMock({
                     id: mockRunIds[0],
                     requestId: 'test-run-1',
                     status: 'SUCCEEDED',
                     startedAt: mockDate,
                 }),
-                'test-run-2': createActorRunMock({
+                createActorRunMock({
                     id: mockRunIds[1],
                     requestId: 'test-run-2',
                     status: 'SUCCEEDED',
                     startedAt: mockDate,
                 }),
-                'test-run-3': createActorRunMock({
+                createActorRunMock({
                     id: mockRunIds[2],
                     requestId: 'test-run-3',
                     status: 'SUCCEEDED',
                     startedAt: mockDate,
                 }),
-            };
+            ];
 
             expect(waitForFinishSpy).toHaveBeenCalledTimes(3);
-            expect(runRecord).toEqual(expectedRunRecord);
+            expect(runs).toEqual(expectedRuns);
             expect(context.runTracker.getCurrentRuns()).toEqual({
                 'test-run-1': {
                     runId: 'test-id-1',
@@ -319,7 +319,7 @@ describe('ExtApifyClient', () => {
 
             expect(getActorSpy).toHaveBeenCalledTimes(3);
             expect(waitForFinishSpy).toHaveBeenCalledTimes(6);
-            expect(runRecord).toEqual(expectedRunRecord);
+            expect(runs).toEqual(expectedRuns);
         });
     });
 

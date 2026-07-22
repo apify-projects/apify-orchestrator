@@ -199,10 +199,7 @@ describe('ExtTaskClient', () => {
             expect(startSpy).toHaveBeenCalledTimes(2);
             expect(startSpy).toHaveBeenCalledWith({ key: 'value1' }, { runName: 'test-run-1' });
             expect(startSpy).toHaveBeenCalledWith({ key: 'value2' }, { runName: 'test-run-2' });
-            expect(result).toEqual({
-                'test-run-1': run1,
-                'test-run-2': run2,
-            });
+            expect(result).toEqual([run1, run2]);
         });
     });
 
@@ -214,9 +211,7 @@ describe('ExtTaskClient', () => {
             const result = await taskClient.startBatch('batch-test', sources, inputGenerator);
 
             expect(apifyClient.findOrStartRun).toHaveBeenCalled();
-            expect(result).toEqual({
-                'batch-test': createActorRunMock({ ...mockRun, requestId: 'batch-test' }),
-            });
+            expect(result).toEqual([createActorRunMock({ ...mockRun, requestId: 'batch-test' })]);
         });
 
         it('splits the input and starts multiple Runs', async () => {
@@ -226,10 +221,10 @@ describe('ExtTaskClient', () => {
             const result = await taskClient.startBatch('batch-test', sources, inputGenerator);
 
             expect(apifyClient.findOrStartRun).toHaveBeenCalled();
-            expect(result).toEqual({
-                'batch-test-1/2': createActorRunMock({ ...mockRun, requestId: 'batch-test-1/2' }),
-                'batch-test-2/2': createActorRunMock({ ...mockRun, requestId: 'batch-test-2/2' }),
-            });
+            expect(result).toEqual([
+                createActorRunMock({ ...mockRun, requestId: 'batch-test-1/2' }),
+                createActorRunMock({ ...mockRun, requestId: 'batch-test-2/2' }),
+            ]);
         });
     });
 
@@ -254,10 +249,7 @@ describe('ExtTaskClient', () => {
             expect(callSpy).toHaveBeenCalledTimes(2);
             expect(callSpy).toHaveBeenCalledWith({ key: 'value1' }, { runName: 'test-run-1' });
             expect(callSpy).toHaveBeenCalledWith({ key: 'value2' }, { runName: 'test-run-2' });
-            expect(result).toEqual({
-                'test-run-1': finishedRun1,
-                'test-run-2': finishedRun2,
-            });
+            expect(result).toEqual([finishedRun1, finishedRun2]);
         });
     });
 
@@ -280,9 +272,7 @@ describe('ExtTaskClient', () => {
 
             expect(apifyClient.findOrStartRun).toHaveBeenCalled();
             expect(waitForFinishSpy).toHaveBeenCalled();
-            expect(result).toEqual({
-                'batch-test': finishedRun,
-            });
+            expect(result).toEqual([finishedRun]);
         });
     });
 

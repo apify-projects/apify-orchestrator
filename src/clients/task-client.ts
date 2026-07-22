@@ -8,7 +8,6 @@ import type {
     ExtendedTaskCallOptions,
     ExtendedTaskClient,
     ExtendedTaskStartOptions,
-    RunRecord,
     SplitRules,
     TaskRunRequest,
 } from '../types.js';
@@ -98,16 +97,10 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
         return isDefined(runClient.id) ? this.apifyClient.run(runClient.id) : runClient;
     }
 
-    async startRuns(...runRequests: TaskRunRequest[]): Promise<RunRecord> {
-        const runRecord: RunRecord = {};
-        await Promise.all(
-            runRequests.map(async ({ runName, input, options }) => {
-                await this.start(input, { ...(options ?? {}), runName }).then((run) => {
-                    runRecord[run.requestId] = run;
-                });
-            }),
+    async startRuns(...runRequests: TaskRunRequest[]): Promise<ExtendedActorRun[]> {
+        return Promise.all(
+            runRequests.map(async ({ runName, input, options }) => this.start(input, { ...options, runName })),
         );
-        return runRecord;
     }
 
     async startBatch<T>(
@@ -116,7 +109,7 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
         inputGenerator: (chunk: T[]) => Dictionary,
         overrideSplitRules?: Partial<SplitRules>,
         options?: TaskStartOptions,
-    ): Promise<RunRecord> {
+    ): Promise<ExtendedActorRun[]> {
         return this.startRuns(
             ...this.context.generateRunRequests({
                 namePrefix,
@@ -128,16 +121,10 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
         );
     }
 
-    async callRuns(...runRequests: TaskRunRequest[]): Promise<RunRecord> {
-        const runRecord: RunRecord = {};
-        await Promise.all(
-            runRequests.map(async ({ runName, input, options }) => {
-                await this.call(input, { ...options, runName }).then((run) => {
-                    runRecord[run.requestId] = run;
-                });
-            }),
+    async callRuns(...runRequests: TaskRunRequest[]): Promise<ExtendedActorRun[]> {
+        return Promise.all(
+            runRequests.map(async ({ runName, input, options }) => this.call(input, { ...options, runName })),
         );
-        return runRecord;
     }
 
     async callBatch<T>(
@@ -146,7 +133,7 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
         inputGenerator: (chunk: T[]) => Dictionary,
         overrideSplitRules?: Partial<SplitRules>,
         options?: TaskStartOptions,
-    ): Promise<RunRecord> {
+    ): Promise<ExtendedActorRun[]> {
         return this.callRuns(
             ...this.context.generateRunRequests({
                 namePrefix,

@@ -4,7 +4,7 @@ import { ApifyClient } from 'apify-client';
 
 import type { ClientContext } from '../context/client-context.js';
 import { getRequestId, type RunStartRequest } from '../run-scheduler.js';
-import type { DatasetItem, ExtendedActorRun, ExtendedApifyClient, RunRecord } from '../types.js';
+import type { DatasetItem, ExtendedActorRun, ExtendedApifyClient } from '../types.js';
 import { isRunOkStatus } from '../utils/apify-client.js';
 import { isDefined } from '../utils/typing.js';
 import { ExtActorClient } from './actor-client.js';
@@ -64,33 +64,18 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         });
     }
 
-    async runRecord(...runNames: string[]): Promise<RunRecord> {
-        const runRecord: RunRecord = {};
-        await Promise.all(
-            runNames.map(async (runName) => {
-                const run = await this.actorRunByName(runName);
-                if (run) {
-                    runRecord[runName] = run;
-                }
-            }),
-        );
-        return runRecord;
+    async actorRunsByName(...runNames: string[]): Promise<ExtendedActorRun[]> {
+        const runs = await Promise.all(runNames.map(async (runName) => this.actorRunByName(runName)));
+        return runs.filter(isDefined);
     }
 
-    async waitForBatchFinish(batch: RunRecord | string[]): Promise<RunRecord> {
-        const runRecord = Array.isArray(batch) ? await this.runRecord(...batch) : batch;
-        this.context.logger.info('Waiting for batch', { requestIds: Object.keys(runRecord) });
+    async waitForBatchFinish(batch: ExtendedActorRun[] | string[]): Promise<ExtendedActorRun[]> {
+        const runs = isStringArray(batch) ? await this.actorRunsByName(...batch) : batch;
+        this.context.logger.info('Waiting for batch', { requestIds: runs.map(({ requestId }) => requestId) });
 
-        const resultRunRecord: RunRecord = {};
-
-        await Promise.all(
-            Object.entries(runRecord).map(async ([requestId, run]) => {
-                const resultRun = await this.context.extendRunClient(requestId, super.run(run.id)).waitForFinish();
-                resultRunRecord[requestId] = resultRun;
-            }),
+        return Promise.all(
+            runs.map(async (run) => this.context.extendRunClient(run.requestId, super.run(run.id)).waitForFinish()),
         );
-
-        return resultRunRecord;
     }
 
     async abortAllRuns(): Promise<void> {
@@ -167,4 +152,8 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         // If the Run client could not retrieve the Run object, we proceed to start a new one.
         return this.context.runScheduler.startRun(runRequest);
     }
+}
+
+function isStringArray(array: ExtendedActorRun[] | string[]): array is string[] {
+    return array.every((item) => typeof item === 'string');
 }

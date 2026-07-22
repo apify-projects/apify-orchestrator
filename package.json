@@ -79,7 +79,7 @@
         "*.{js,ts,mjs}": [
             "eslint",
             "prettier --check",
-            "vitest related --run --config vitest.unit.config.ts"
+            "vitest related --run"
         ],
         "*.{json,md,yml,yaml}": [
             "prettier --check"

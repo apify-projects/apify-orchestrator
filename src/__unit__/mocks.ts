@@ -6,7 +6,13 @@ import type { ExtendedActorRun } from '../types.js';
 import type { Storage } from '../utils/storage.js';
 
 export function createActorRunMock(params: Partial<ExtendedActorRun> = {}): ExtendedActorRun {
-    return { ...params } as ExtendedActorRun;
+    return {
+        id: 'mock-run-id',
+        requestId: 'mock-request-id',
+        status: 'RUNNING',
+        startedAt: new Date('2024-01-01T00:00:00.000Z'),
+        ...params,
+    } as ExtendedActorRun;
 }
 
 export const storageMock = { useState: vi.fn() } as Storage;

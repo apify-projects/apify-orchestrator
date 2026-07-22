@@ -47,30 +47,30 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         return isDefined(requestId) ? this.context.extendRunClient(requestId, runClient) : runClient;
     }
 
-    async runByName(runName: string): Promise<ExtRunClient | undefined> {
-        return this.context.searchExistingRun(runName).match({
+    async runByRequest(requestId: string): Promise<ExtRunClient | undefined> {
+        return this.context.searchExistingRun(requestId).match({
             promise: async (waitForStart) =>
-                waitForStart().then((run) => this.context.extendRunClient(runName, super.run(run.id))),
-            runInfo: async (runInfo) => this.context.extendRunClient(runName, super.run(runInfo.runId)),
+                waitForStart().then((run) => this.context.extendRunClient(requestId, super.run(run.id))),
+            runInfo: async (runInfo) => this.context.extendRunClient(requestId, super.run(runInfo.runId)),
             notFound: () => undefined,
         });
     }
 
-    async actorRunByName(runName: string): Promise<ExtendedActorRun | undefined> {
-        return this.context.searchExistingRun(runName).match({
+    async actorRunByRequest(requestId: string): Promise<ExtendedActorRun | undefined> {
+        return this.context.searchExistingRun(requestId).match({
             promise: async (waitForStart) => waitForStart(),
-            runInfo: async (runInfo) => this.context.extendRunClient(runName, super.run(runInfo.runId)).get(),
+            runInfo: async (runInfo) => this.context.extendRunClient(requestId, super.run(runInfo.runId)).get(),
             notFound: () => undefined,
         });
     }
 
-    async actorRunsByName(...runNames: string[]): Promise<ExtendedActorRun[]> {
-        const runs = await Promise.all(runNames.map(async (runName) => this.actorRunByName(runName)));
+    async actorRunsByRequest(...requestIds: string[]): Promise<ExtendedActorRun[]> {
+        const runs = await Promise.all(requestIds.map(async (requestId) => this.actorRunByRequest(requestId)));
         return runs.filter(isDefined);
     }
 
     async waitForBatchFinish(batch: ExtendedActorRun[] | string[]): Promise<ExtendedActorRun[]> {
-        const runs = isStringArray(batch) ? await this.actorRunsByName(...batch) : batch;
+        const runs = isStringArray(batch) ? await this.actorRunsByRequest(...batch) : batch;
         this.context.logger.info('Waiting for batch', { requestIds: runs.map(({ requestId }) => requestId) });
 
         return Promise.all(

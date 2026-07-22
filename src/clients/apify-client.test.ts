@@ -74,13 +74,13 @@ describe('ExtApifyClient', () => {
         });
     });
 
-    describe('runByName', () => {
+    describe('runByRequest', () => {
         it('waits for a Run to start and then generates an extended RunClient', async () => {
             const run = createActorRunMock({ id: 'test-id', status: 'READY', startedAt: new Date() });
             startRun.mockResolvedValue(run);
             context.runScheduler.requestRunStart({ runName: 'test-run', source: runSource });
             expect(startRun).not.toHaveBeenCalled();
-            const runClientPromise = client.runByName('test-run');
+            const runClientPromise = client.runByRequest('test-run');
             await vi.advanceTimersByTimeAsync(1000);
             const runClient = await runClientPromise;
             expect(startRun).toHaveBeenCalledTimes(1);
@@ -92,17 +92,17 @@ describe('ExtApifyClient', () => {
                 'test-run',
                 createActorRunMock({ id: 'test-id', status: 'READY', startedAt: new Date() }),
             );
-            const runClient = await client.runByName('test-run');
+            const runClient = await client.runByRequest('test-run');
             expect(runClient).toBeInstanceOf(ExtRunClient);
         });
 
         it('returns undefined if a Run with the specified name does not exists', async () => {
-            const runClient = await client.runByName('test-run');
+            const runClient = await client.runByRequest('test-run');
             expect(runClient).toBe(undefined);
         });
     });
 
-    describe('actorRunByName', () => {
+    describe('actorRunByRequest', () => {
         it('waits for a Run to start and then returns the ActorRun', async () => {
             const run = createActorRunMock({
                 id: 'test-id',
@@ -113,7 +113,7 @@ describe('ExtApifyClient', () => {
             startRun.mockResolvedValue(run);
             context.runScheduler.requestRunStart({ runName: 'test-run', source: runSource });
             expect(startRun).not.toHaveBeenCalled();
-            const foundRunPromise = client.actorRunByName('test-run');
+            const foundRunPromise = client.actorRunByRequest('test-run');
             await vi.advanceTimersByTimeAsync(1000);
             const foundRun = await foundRunPromise;
             expect(startRun).toHaveBeenCalledTimes(1);
@@ -128,7 +128,7 @@ describe('ExtApifyClient', () => {
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get').mockImplementationOnce(async () => {
                 return createActorRunMock({ id: 'test-id', startedAt: new Date() });
             });
-            const actorRun = await client.actorRunByName('test-run');
+            const actorRun = await client.actorRunByRequest('test-run');
             expect(getActorSpy).toHaveBeenCalledTimes(1);
             expect(actorRun?.id).toBe('test-id');
         });
@@ -141,21 +141,21 @@ describe('ExtApifyClient', () => {
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get').mockImplementation(async () => {
                 return undefined;
             });
-            const actorRun = await client.actorRunByName('test-run');
+            const actorRun = await client.actorRunByRequest('test-run');
             expect(getActorSpy).toHaveBeenCalledTimes(1);
-            expect(actorRun).toBe(undefined);
+            expect(actorRun).toBeUndefined();
         });
 
         it('returns undefined if a Run with the specified name does not exists', async () => {
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get');
-            const actorRun = await client.actorRunByName('test-run');
+            const actorRun = await client.actorRunByRequest('test-run');
             expect(getActorSpy).not.toHaveBeenCalled();
-            expect(actorRun).toBe(undefined);
+            expect(actorRun).toBeUndefined();
         });
     });
 
-    describe('actorRunsByName', () => {
-        it('generates an array with all the existing Runs when calling `actorRunsByName`', async () => {
+    describe('actorRunsByRequest', () => {
+        it('generates an array with all the existing Runs when calling `actorRunsByRequest`', async () => {
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get');
 
             context.runTracker.updateRun(
@@ -176,7 +176,7 @@ describe('ExtApifyClient', () => {
                 .mockResolvedValueOnce(createActorRunMock({ id: 'test-id-2', status: 'READY', startedAt: mockDate }))
                 .mockResolvedValueOnce(createActorRunMock({ id: 'test-id-3', status: 'READY', startedAt: mockDate }));
 
-            expect(await client.actorRunsByName('test-run-1', 'test-run-2', 'test-run-3')).toEqual([
+            expect(await client.actorRunsByRequest('test-run-1', 'test-run-2', 'test-run-3')).toEqual([
                 createActorRunMock({
                     id: 'test-id-1',
                     requestId: 'test-run-1',
@@ -204,7 +204,7 @@ describe('ExtApifyClient', () => {
                 .mockResolvedValueOnce(createActorRunMock({ id: 'test-id-1', status: 'READY', startedAt: mockDate }))
                 .mockResolvedValueOnce(createActorRunMock({ id: 'test-id-3', status: 'READY', startedAt: mockDate }));
 
-            expect(await client.actorRunsByName('test-run-1', 'test-run-2', 'test-run-3')).toEqual([
+            expect(await client.actorRunsByRequest('test-run-1', 'test-run-2', 'test-run-3')).toEqual([
                 createActorRunMock({
                     id: 'test-id-1',
                     requestId: 'test-run-1',
@@ -220,7 +220,7 @@ describe('ExtApifyClient', () => {
             ]);
             expect(getActorSpy).toHaveBeenCalledTimes(5);
 
-            expect(await client.actorRunsByName('test-run-4', 'test-run-5', 'test-run-6')).toEqual([]);
+            expect(await client.actorRunsByRequest('test-run-4', 'test-run-5', 'test-run-6')).toEqual([]);
         });
     });
 

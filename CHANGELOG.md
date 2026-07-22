@@ -80,7 +80,7 @@
     const finishedRuns = await extendedApifyClient.waitForBatchFinish(runs);
     ```
 
-- Replaced `ExtendedApifyClient`'s method `runRecord` with `actorRunsByName`, which returns an array of
+- Replaced `ExtendedApifyClient`'s method `runRecord` with `actorRunsByRequest`, which returns an array of
   `ExtendedActorRun` objects instead of a record: Runs that are not found are simply omitted from the result.
   To fix existing code:
     ```ts
@@ -88,9 +88,24 @@
     const runRecord = await extendedApifyClient.runRecord('run-a', 'run-b');
     const runA = runRecord['run-a']; // possibly undefined
     // After:
-    const runs = await extendedApifyClient.actorRunsByName('run-a', 'run-b');
+    const runs = await extendedApifyClient.actorRunsByRequest('run-a', 'run-b');
     const runA = runs.find(({ requestId }) => requestId === 'run-a'); // possibly undefined
     ```
+- Renamed `ExtendedApifyClient`'s methods `runByName` and `actorRunByName` to `runByRequest` and `actorRunByRequest`.
+  They accept a `requestIdOrRunName` parameter: either the request ID returned by `enqueue`, or the run name of your
+  choice, since a Run's request ID is its `runName` whenever one was provided.
+  To fix existing code:
+
+    ```ts
+    // Before:
+    const runClient = await extendedApifyClient.runByName('my-job');
+    const actorRun = await extendedApifyClient.actorRunByName('my-job');
+
+    // After:
+    const runClient = await extendedApifyClient.runByRequest('my-job');
+    const actorRun = await extendedApifyClient.actorRunByRequest('my-job');
+    ```
+
 - Increased the required Node.js version from 16 to 20.
   Specifically, `vitest` >= 4, used for testing, requires Node.js >= 20.
   Since the newly introduced GitHub Actions run the test suite against various Node.js versions,
@@ -109,7 +124,7 @@
 ### Added
 
 - New `ExtendedActorRun` type: an `ActorRun` extended with the `requestId` used to track the Run. It is returned by
-  all the methods that start, call, or update Runs, e.g., `start`, `call`, `startRuns`, `callRuns`, `actorRunByName`,
+  all the methods that start, call, or update Runs, e.g., `start`, `call`, `startRuns`, `callRuns`, `actorRunByRequest`,
   and `ExtendedRunClient`'s methods such as `get`, `abort`, `reboot`, `update`, and `resurrect`.
 
 ### Development

@@ -156,21 +156,24 @@ export interface ExtendedApifyClient extends ApifyClient {
     dataset: <T extends DatasetItem>(id: string) => ExtendedDatasetClient<T>;
 
     /**
-     * @returns a Run client corresponding to the given name, if it exists
+     * @param requestIdOrRunName the request ID returned by `enqueue`, for example, or the run name of your choice
+     * @returns a Run client corresponding to the given request ID or Run name, if it exists
      */
-    runByName: (name: string) => Promise<ExtendedRunClient | undefined>;
+    runByRequest: (requestIdOrRunName: string) => Promise<ExtendedRunClient | undefined>;
 
     /**
-     * @returns an ExtendedActorRun object corresponding to the given name, if it exists
+     * @param requestIdOrRunName the request ID returned by `enqueue`, for example, or the run name of your choice
+     * @returns an ExtendedActorRun object corresponding to the given request ID or Run name, if it exists
      */
-    actorRunByName: (name: string) => Promise<ExtendedActorRun | undefined>;
+    actorRunByRequest: (requestIdOrRunName: string) => Promise<ExtendedActorRun | undefined>;
 
     /**
-     * Searches for the Runs with the given names.
+     * Searches for the Runs with the given request IDs or Run names.
      *
+     * @param requestIdsOrRunNames the request IDs returned by `enqueue`, for example, or the run names of your choice
      * @returns the `ExtendedActorRun` objects of the Runs that were found
      */
-    actorRunsByName: (...runNames: string[]) => Promise<ExtendedActorRun[]>;
+    actorRunsByRequest: (...requestIdsOrRunNames: string[]) => Promise<ExtendedActorRun[]>;
 
     /**
      * Waits for one or more Runs previously started.

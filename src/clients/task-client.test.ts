@@ -5,6 +5,7 @@ import { getClientContext } from '../__unit__/context.js';
 import { createActorRunMock } from '../__unit__/mocks.js';
 import type { ClientContext } from '../context/client-context.js';
 import type { RunSource } from '../entities/run-source.js';
+import { buildRunStartRequest } from '../entities/run-start-request.js';
 import { ExtApifyClient } from './apify-client.js';
 import { ExtRunClient } from './run-client.js';
 import type { ExtTaskClient } from './task-client.js';
@@ -62,6 +63,7 @@ describe('ExtTaskClient', () => {
             expect(result).toEqual(['test-run-1']);
             expect(apifyClient.findOrRequestRunStart).toHaveBeenCalledWith({
                 source: runSource,
+                requestId: 'test-run-1',
                 runName: 'test-run-1',
                 input: { key: 'value1' },
                 options: undefined,
@@ -85,13 +87,9 @@ describe('ExtTaskClient', () => {
 
             const result = taskClient.enqueue({ input });
 
-            expect(apifyClient.findOrRequestRunStart).toHaveBeenCalledWith({
-                source: runSource,
-                runName: undefined,
-                input,
-                options: undefined,
-            });
-            expect(result).toEqual([runSource.getRequestId(input, undefined, undefined)]);
+            const expectedRunStartRequest = buildRunStartRequest({ source: runSource, runName: undefined, input });
+            expect(apifyClient.findOrRequestRunStart).toHaveBeenCalledWith(expectedRunStartRequest);
+            expect(result).toEqual([expectedRunStartRequest.requestId]);
         });
     });
 
@@ -160,6 +158,7 @@ describe('ExtTaskClient', () => {
 
             expect(apifyClient.findOrStartRun).toHaveBeenCalledWith({
                 source: runSource,
+                requestId: 'test-run-1',
                 runName: 'test-run-1',
                 input: { key: 'value1' },
                 options: undefined,
@@ -181,6 +180,7 @@ describe('ExtTaskClient', () => {
 
             expect(apifyClient.findOrStartRun).toHaveBeenCalledWith({
                 source: runSource,
+                requestId: 'test-run-1',
                 runName: 'test-run-1',
                 input: { key: 'value1' },
                 options: { memory: 1024 },

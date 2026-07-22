@@ -1,8 +1,6 @@
-import type { Dictionary } from 'apify-client';
-
 import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from './constants.js';
 import type { OrchestratorContext } from './context/orchestrator-context.js';
-import { type RunSource, type RunStartOptions } from './entities/run-source.js';
+import type { RunStartRequest } from './entities/run-start-request.js';
 import { isInsufficientResourcesError } from './errors.js';
 import type { ExtendedActorRun } from './types.js';
 import { Interval } from './utils/concurrency/interval.js';
@@ -15,17 +13,6 @@ import { RequestOutcome } from './utils/request-management/request.js';
 import { RequestPool } from './utils/request-management/request-pool.js';
 import { onActorShuttingDown } from './utils/run-lifecycle.js';
 import { isDefined } from './utils/typing.js';
-
-export interface RunStartRequest {
-    source: RunSource;
-    runName?: string;
-    input?: Dictionary;
-    options?: RunStartOptions;
-}
-
-export function getRequestId(request: RunStartRequest): string {
-    return request.source.getRequestId(request.input, request.options, request.runName);
-}
 
 export interface RunSchedulerOptions {
     runRequestAdapter: (request: RunStartRequest) => RunStartRequest;
@@ -88,8 +75,7 @@ export class RunScheduler {
      * @returns the promise to wait for the Run to start.
      */
     requestRunStart(runRequest: RunStartRequest): () => Promise<ExtendedActorRun> {
-        const requestId = getRequestId(runRequest);
-        const request = this.pool.findOrAddRequest(requestId, runRequest);
+        const request = this.pool.findOrAddRequest(runRequest.requestId, runRequest);
         // Prefer `async () => request.wait()` to `request.wait` to avoid unbound method reference.
         return async () => request.wait();
     }
@@ -100,8 +86,7 @@ export class RunScheduler {
      * @returns the started Run.
      */
     async startRun(runRequest: RunStartRequest): Promise<ExtendedActorRun> {
-        const requestId = getRequestId(runRequest);
-        const request = this.pool.findOrAddRequest(requestId, runRequest);
+        const request = this.pool.findOrAddRequest(runRequest.requestId, runRequest);
 
         // Attempt to process the request immediately, without waiting for the next interval tick.
         // If the attempt fails, the scheduler will try again on the next tick, as usual.
@@ -134,7 +119,7 @@ export class RunScheduler {
 
     private async processRunRequest(request: RunStartRequest): Promise<RequestOutcome<ExtendedActorRun>> {
         const adaptedRequest = this.options.runRequestAdapter(request);
-        const requestId = getRequestId(adaptedRequest);
+        const { requestId } = adaptedRequest;
         try {
             const run = await adaptedRequest.source.start(adaptedRequest.input, adaptedRequest.options);
             const extendedRun: ExtendedActorRun = { ...run, requestId };

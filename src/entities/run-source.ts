@@ -2,7 +2,6 @@ import type { ActorRun, ActorStartOptions, Dictionary, TaskStartOptions } from '
 
 import { InsufficientActorJobsError, InsufficientMemoryError } from '../errors.js';
 import { getStartRunErrorType, START_RUN_ERROR_TYPE } from '../utils/apify-client.js';
-import { hashObject } from '../utils/hash.js';
 
 type StartFunction = (input?: Dictionary, options?: RunStartOptions) => Promise<ActorRun>;
 type DefaultMemoryFunction = () => Promise<number | undefined>;
@@ -30,11 +29,6 @@ export class RunSource {
         this.id = options.id;
         this.start = options.start;
         this.defaultMemoryMbytes = options.defaultMemoryMbytes ?? (async () => undefined);
-    }
-
-    getRequestId(input?: unknown, options?: unknown, runName?: string): string {
-        if (runName) return runName;
-        return hashObject({ sourceType: this.type, sourceId: this.id, input, options });
     }
 
     async parseRunStartError(error: unknown, requestId: string, options?: RunStartOptions): Promise<unknown> {

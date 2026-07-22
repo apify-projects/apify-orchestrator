@@ -3,6 +3,7 @@ import { TaskClient } from 'apify-client';
 
 import type { ClientContext } from '../context/client-context.js';
 import { RunSource } from '../entities/run-source.js';
+import { buildRunStartRequest } from '../entities/run-start-request.js';
 import type {
     ExtendedActorRun,
     ExtendedTaskCallOptions,
@@ -41,14 +42,15 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
 
     enqueue(...runRequests: TaskRunRequest[]): string[] {
         return runRequests.map((runRequest) => {
-            const requestId = this.runSource.getRequestId(runRequest.input, runRequest.options, runRequest.runName);
-            this.apifyClient.findOrRequestRunStart({
+            const { runName, input, options } = runRequest;
+            const runStartRequest = buildRunStartRequest({
                 source: this.runSource,
-                runName: runRequest.runName,
-                input: runRequest.input,
-                options: runRequest.options,
+                runName,
+                input,
+                options,
             });
-            return requestId;
+            this.apifyClient.findOrRequestRunStart(runStartRequest);
+            return runStartRequest.requestId;
         });
     }
 
@@ -72,12 +74,14 @@ export class ExtTaskClient extends TaskClient implements ExtendedTaskClient {
 
     override async start(input?: Dictionary, options: ExtendedTaskStartOptions = {}): Promise<ExtendedActorRun> {
         const { runName, ...runOptions } = options;
-        return this.apifyClient.findOrStartRun({
-            source: this.runSource,
-            runName,
-            input,
-            options: Object.keys(runOptions).length === 0 ? undefined : runOptions,
-        });
+        return this.apifyClient.findOrStartRun(
+            buildRunStartRequest({
+                source: this.runSource,
+                runName,
+                input,
+                options: Object.keys(runOptions).length === 0 ? undefined : runOptions,
+            }),
+        );
     }
 
     override async call(input?: Dictionary, options?: ExtendedTaskCallOptions): Promise<ExtendedActorRun> {

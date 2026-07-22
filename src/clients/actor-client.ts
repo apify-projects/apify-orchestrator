@@ -3,6 +3,7 @@ import { ActorClient } from 'apify-client';
 
 import type { ClientContext } from '../context/client-context.js';
 import { RunSource } from '../entities/run-source.js';
+import { buildRunStartRequest } from '../entities/run-start-request.js';
 import type {
     ActorRunRequest,
     ExtendedActorCallOptions,
@@ -44,14 +45,14 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
 
     enqueue(...runRequests: ActorRunRequest[]): string[] {
         return runRequests.map((runRequest) => {
-            const requestId = this.runSource.getRequestId(runRequest.input, runRequest.options, runRequest.runName);
-            this.apifyClient.findOrRequestRunStart({
+            const runStartRequest = buildRunStartRequest({
                 source: this.runSource,
                 runName: runRequest.runName,
                 input: runRequest.input,
                 options: runRequest.options,
             });
-            return requestId;
+            this.apifyClient.findOrRequestRunStart(runStartRequest);
+            return runStartRequest.requestId;
         });
     }
 
@@ -79,12 +80,14 @@ export class ExtActorClient extends ActorClient implements ExtendedActorClient {
      */
     override async start(input?: object, options?: ExtendedActorStartOptions): Promise<ExtendedActorRun> {
         const { runName, ...startOptions } = options ?? {};
-        return this.apifyClient.findOrStartRun({
-            source: this.runSource,
-            runName,
-            input: input as Dictionary,
-            options: Object.keys(startOptions).length === 0 ? undefined : startOptions,
-        });
+        return this.apifyClient.findOrStartRun(
+            buildRunStartRequest({
+                source: this.runSource,
+                runName,
+                input: input as Dictionary,
+                options: Object.keys(startOptions).length === 0 ? undefined : startOptions,
+            }),
+        );
     }
 
     /**

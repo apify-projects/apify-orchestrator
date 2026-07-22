@@ -5,6 +5,7 @@ import { getClientContext } from '../__unit__/context.js';
 import { createActorRunMock } from '../__unit__/mocks.js';
 import type { ClientContext } from '../context/client-context.js';
 import { RunSource } from '../entities/run-source.js';
+import { buildRunStartRequest } from '../entities/run-start-request.js';
 import { AmbiguousRunRequestError } from '../errors.js';
 import { ExtActorClient } from './actor-client.js';
 import { ExtApifyClient } from './apify-client.js';
@@ -79,7 +80,7 @@ describe('ExtApifyClient', () => {
         it('waits for a Run to start and then generates an extended RunClient', async () => {
             const run = createActorRunMock({ id: 'test-id', status: 'READY', startedAt: new Date() });
             startRun.mockResolvedValue(run);
-            context.runScheduler.requestRunStart({ runName: 'test-run', source: runSource });
+            context.runScheduler.requestRunStart(buildRunStartRequest({ runName: 'test-run', source: runSource }));
             expect(startRun).not.toHaveBeenCalled();
             const runClientPromise = client.runByRequest('test-run');
             await vi.advanceTimersByTimeAsync(1000);
@@ -112,7 +113,7 @@ describe('ExtApifyClient', () => {
                 startedAt: new Date(),
             });
             startRun.mockResolvedValue(run);
-            context.runScheduler.requestRunStart({ runName: 'test-run', source: runSource });
+            context.runScheduler.requestRunStart(buildRunStartRequest({ runName: 'test-run', source: runSource }));
             expect(startRun).not.toHaveBeenCalled();
             const foundRunPromise = client.actorRunByRequest('test-run');
             await vi.advanceTimersByTimeAsync(1000);
@@ -374,12 +375,11 @@ describe('ExtApifyClient', () => {
             });
             startRun.mockResolvedValue(run);
 
-            context.runScheduler.requestRunStart({ runName: 'test-run', source: runSource });
+            context.runScheduler.requestRunStart(buildRunStartRequest({ runName: 'test-run', source: runSource }));
 
-            const findOrRequestRunStart = client.findOrRequestRunStart({
-                runName: 'test-run',
-                source: runSource,
-            });
+            const findOrRequestRunStart = client.findOrRequestRunStart(
+                buildRunStartRequest({ runName: 'test-run', source: runSource }),
+            );
             const resultRunPromise = findOrRequestRunStart();
             await vi.advanceTimersByTimeAsync(1000);
             const resultRun = await resultRunPromise;
@@ -399,10 +399,9 @@ describe('ExtApifyClient', () => {
 
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(existingRun);
 
-            const findOrRequestRunStart = client.findOrRequestRunStart({
-                runName: 'test-run',
-                source: runSource,
-            });
+            const findOrRequestRunStart = client.findOrRequestRunStart(
+                buildRunStartRequest({ runName: 'test-run', source: runSource }),
+            );
             const resultRun = await findOrRequestRunStart();
 
             expect(resultRun).toStrictEqual(existingRun);
@@ -422,10 +421,9 @@ describe('ExtApifyClient', () => {
             context.runTracker.updateRun('test-run', oldRun);
             startRun.mockResolvedValue(newRun);
 
-            const findOrRequestRunStart = client.findOrRequestRunStart({
-                runName: 'test-run',
-                source: runSource,
-            });
+            const findOrRequestRunStart = client.findOrRequestRunStart(
+                buildRunStartRequest({ runName: 'test-run', source: runSource }),
+            );
             const resultRunPromise = findOrRequestRunStart();
             await vi.advanceTimersByTimeAsync(1000);
             const resultRun = await resultRunPromise;
@@ -443,10 +441,9 @@ describe('ExtApifyClient', () => {
             });
             startRun.mockResolvedValue(newRun);
 
-            const findOrRequestRunStart = client.findOrRequestRunStart({
-                runName: 'test-run',
-                source: runSource,
-            });
+            const findOrRequestRunStart = client.findOrRequestRunStart(
+                buildRunStartRequest({ runName: 'test-run', source: runSource }),
+            );
             const resultRunPromise = findOrRequestRunStart();
             await vi.advanceTimersByTimeAsync(1000);
             const resultRun = await resultRunPromise;
@@ -469,10 +466,9 @@ describe('ExtApifyClient', () => {
 
             const getActorSpy = vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(undefined);
 
-            const findOrRequestRunStart = client.findOrRequestRunStart({
-                runName: 'test-run',
-                source: runSource,
-            });
+            const findOrRequestRunStart = client.findOrRequestRunStart(
+                buildRunStartRequest({ runName: 'test-run', source: runSource }),
+            );
             const resultRun = await findOrRequestRunStart();
 
             expect(resultRun).toStrictEqual(newRun);
@@ -493,11 +489,13 @@ describe('ExtApifyClient', () => {
             });
             startRun.mockResolvedValue(newRun);
 
-            const findOrRequestRunStart = clientWithFixedInput.findOrRequestRunStart({
-                runName: 'test-run',
-                source: runSource,
-                input: { propB: 'overrideB', propC: 'valueC' },
-            });
+            const findOrRequestRunStart = clientWithFixedInput.findOrRequestRunStart(
+                buildRunStartRequest({
+                    runName: 'test-run',
+                    source: runSource,
+                    input: { propB: 'overrideB', propC: 'valueC' },
+                }),
+            );
             const resultRunPromise = findOrRequestRunStart();
             await vi.advanceTimersByTimeAsync(1000);
             const resultRun = await resultRunPromise;
@@ -517,17 +515,21 @@ describe('ExtApifyClient', () => {
     describe('ambiguous duplicate requests', () => {
         it('throws when a second implicit request is made while the first is still in-flight', () => {
             const input = { key: 'value' };
-            context.runScheduler.requestRunStart({ source: runSource, input });
+            context.runScheduler.requestRunStart(buildRunStartRequest({ source: runSource, input }));
 
-            expect(() => client.findOrRequestRunStart({ source: runSource, input })).toThrow(AmbiguousRunRequestError);
+            expect(() => client.findOrRequestRunStart(buildRunStartRequest({ source: runSource, input }))).toThrow(
+                AmbiguousRunRequestError,
+            );
         });
 
         it('does not throw when the second in-flight request has an explicit runName', async () => {
             const run = createActorRunMock({ id: 'test-id', requestId: 'my-job', status: 'RUNNING' });
             startRun.mockResolvedValue(run);
-            context.runScheduler.requestRunStart({ source: runSource, runName: 'my-job' });
+            context.runScheduler.requestRunStart(buildRunStartRequest({ source: runSource, runName: 'my-job' }));
 
-            const waitForStart = client.findOrRequestRunStart({ source: runSource, runName: 'my-job' });
+            const waitForStart = client.findOrRequestRunStart(
+                buildRunStartRequest({ source: runSource, runName: 'my-job' }),
+            );
             await vi.advanceTimersByTimeAsync(1000);
             await expect(waitForStart()).resolves.toStrictEqual(run);
         });
@@ -537,16 +539,18 @@ describe('ExtApifyClient', () => {
             const run = createActorRunMock({ id: 'test-id', status: 'RUNNING' });
             startRun.mockResolvedValue(run);
 
-            const waitForStart = client.findOrRequestRunStart({ source: runSource, input });
+            const waitForStart = client.findOrRequestRunStart(buildRunStartRequest({ source: runSource, input }));
             await vi.advanceTimersByTimeAsync(1000);
             await waitForStart();
 
-            expect(() => client.findOrRequestRunStart({ source: runSource, input })).toThrow(AmbiguousRunRequestError);
+            expect(() => client.findOrRequestRunStart(buildRunStartRequest({ source: runSource, input }))).toThrow(
+                AmbiguousRunRequestError,
+            );
         });
 
         it('reconnects silently on first contact after a resurrection, but throws on a repeat in that same session', async () => {
             const input = { key: 'value' };
-            const requestId = runSource.getRequestId(input, undefined, undefined);
+            const { requestId } = buildRunStartRequest({ source: runSource, input });
             const existingRun = createActorRunMock({ id: 'existing-id', requestId, status: 'RUNNING' });
 
             // Simulate a fresh process that loaded persisted tracked-run info from a prior process.
@@ -555,36 +559,42 @@ describe('ExtApifyClient', () => {
             const resurrectedClient = new ExtApifyClient('resurrected-client', resurrectedContext, {});
             vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(existingRun);
 
-            const firstResult = await resurrectedClient.findOrRequestRunStart({ source: runSource, input })();
+            const firstResult = await resurrectedClient.findOrRequestRunStart(
+                buildRunStartRequest({ source: runSource, input }),
+            )();
             expect(firstResult).toStrictEqual(existingRun);
 
-            expect(() => resurrectedClient.findOrRequestRunStart({ source: runSource, input })).toThrow(
-                AmbiguousRunRequestError,
-            );
+            expect(() =>
+                resurrectedClient.findOrRequestRunStart(buildRunStartRequest({ source: runSource, input })),
+            ).toThrow(AmbiguousRunRequestError);
         });
 
         it('always allows retrying after a failed Run, but throws on a further implicit repeat once it succeeds', async () => {
             const input = { key: 'value' };
-            const requestId = runSource.getRequestId(input, undefined, undefined);
+            const { requestId } = buildRunStartRequest({ source: runSource, input });
             const failedRun = createActorRunMock({ id: 'failed-id', requestId, status: 'FAILED' });
             context.runTracker.updateRun(requestId, failedRun);
 
             const retriedRun = createActorRunMock({ id: 'retried-id', requestId, status: 'RUNNING' });
             startRun.mockResolvedValue(retriedRun);
 
-            const retryWaitForStart = client.findOrRequestRunStart({ source: runSource, input });
+            const retryWaitForStart = client.findOrRequestRunStart(buildRunStartRequest({ source: runSource, input }));
             await vi.advanceTimersByTimeAsync(1000);
             await expect(retryWaitForStart()).resolves.toStrictEqual(retriedRun);
 
-            expect(() => client.findOrRequestRunStart({ source: runSource, input })).toThrow(AmbiguousRunRequestError);
+            expect(() => client.findOrRequestRunStart(buildRunStartRequest({ source: runSource, input }))).toThrow(
+                AmbiguousRunRequestError,
+            );
         });
 
         it('treats an empty string runName the same as an omitted one', () => {
-            context.runScheduler.requestRunStart({ source: runSource, input: { key: 'value' }, runName: '' });
-
-            expect(() => client.findOrRequestRunStart({ source: runSource, input: { key: 'value' } })).toThrow(
-                AmbiguousRunRequestError,
+            context.runScheduler.requestRunStart(
+                buildRunStartRequest({ source: runSource, input: { key: 'value' }, runName: '' }),
             );
+
+            expect(() =>
+                client.findOrRequestRunStart(buildRunStartRequest({ source: runSource, input: { key: 'value' } })),
+            ).toThrow(AmbiguousRunRequestError);
         });
 
         it('rejects exactly one of two concurrent findOrStartRun calls with identical implicit input', async () => {
@@ -592,8 +602,8 @@ describe('ExtApifyClient', () => {
             const run = createActorRunMock({ id: 'new-id', status: 'RUNNING' });
             startRun.mockResolvedValue(run);
 
-            const promise1 = client.findOrStartRun({ source: runSource, input });
-            const promise2 = client.findOrStartRun({ source: runSource, input });
+            const promise1 = client.findOrStartRun(buildRunStartRequest({ source: runSource, input }));
+            const promise2 = client.findOrStartRun(buildRunStartRequest({ source: runSource, input }));
             // Attach handlers synchronously, before any `await`, so the rejected promise is never
             // observed as "unhandled" during the timer advance below.
             const resultsPromise = Promise.allSettled([promise1, promise2]);

@@ -17,6 +17,7 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "test": "vitest run",
+        "bench:hash": "vitest --run bench hash",
         "coverage": "vitest run --coverage",
         "prepare": "husky"
     },
@@ -40,12 +41,15 @@
         "@apify/tsconfig": "^0.1.1",
         "@crawlee/types": "^3.16.0",
         "@types/murmurhash-js": "^1.0.7",
+        "@types/node": "^26.1.1",
         "@vitest/coverage-v8": "^4.1.2",
         "apify-cli": "^1.4.1",
         "axios": "^1.14.0",
         "eslint": "^9.39.4",
         "eslint-config-prettier": "^10.1.8",
+        "globals": "^17.7.0",
         "husky": "^9.1.7",
+        "murmurhash-js": "^1.0.0",
         "prettier": "^3.8.1",
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.58.0",
@@ -55,8 +59,7 @@
     "dependencies": {
         "@apify/consts": "^2.52.1",
         "apify": "^3.7.0",
-        "apify-client": "^2.22.3",
-        "murmurhash-js": "^1.0.0"
+        "apify-client": "^2.22.3"
     },
     "cspell": {
         "version": "0.2",

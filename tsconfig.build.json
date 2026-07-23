@@ -6,6 +6,7 @@
         "**/dist",
         "**/coverage",
         "**/*.test.ts",
+        "**/*.bench.ts",
         "**/__unit__",
         "**/__e2e__",
         "src/e2e-test.ts"

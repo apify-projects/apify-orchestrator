@@ -1,5 +1,4 @@
 import { ApifyApiError } from 'apify-client';
-import type { AxiosResponse } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { InsufficientMemoryError } from '../errors.js';
@@ -37,7 +36,8 @@ describe('RunSource', () => {
         });
 
         it('correctly parses memory limit exceeded errors', async () => {
-            const memoryError = new ApifyApiError('actor-memory-limit-exceeded' as unknown as AxiosResponse, 1);
+            // @ts-ignore ApifyApiError is mocked
+            const memoryError = new ApifyApiError('actor-memory-limit-exceeded', 1);
             const parsedError = await runSource.parseRunStartError(memoryError, 'test-run', { memory: 4096 });
             expect(parsedError).toHaveProperty('name', 'InsufficientMemoryError');
             expect(parsedError).toHaveProperty('message');
@@ -45,10 +45,8 @@ describe('RunSource', () => {
         });
 
         it('correctly parses concurrent runs limit exceeded errors', async () => {
-            const concurrentRunsError = new ApifyApiError(
-                'concurrent-runs-limit-exceeded' as unknown as AxiosResponse,
-                1,
-            );
+            // @ts-ignore ApifyApiError is mocked
+            const concurrentRunsError = new ApifyApiError('concurrent-runs-limit-exceeded', 1);
             const parsedError = await runSource.parseRunStartError(concurrentRunsError, 'test-run');
             expect(parsedError).toHaveProperty('name', 'InsufficientActorJobsError');
             expect(parsedError).toHaveProperty('message');

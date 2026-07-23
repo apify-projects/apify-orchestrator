@@ -38,7 +38,7 @@ export interface OrchestratorOptions {
     /**
      * A callback which is called every time the Orchestrator's status is updated.
      *
-     * The callback takes as input a record having Run names as keys, and Run information as values.
+     * The callback takes as input a record having Run request IDs as keys, and Run information as values.
      */
     onUpdate?: UpdateCallback;
 
@@ -178,7 +178,7 @@ export interface ExtendedApifyClient extends ApifyClient {
     /**
      * Waits for one or more Runs previously started.
      *
-     * @param batch an array of `ExtendedActorRun` objects or a list of names
+     * @param batch an array of `ExtendedActorRun` objects or a list of request IDs or Run names
      * @returns the updated `ExtendedActorRun` objects
      */
     waitForBatchFinish: (batch: ExtendedActorRun[] | string[]) => Promise<ExtendedActorRun[]>;
@@ -207,7 +207,7 @@ export interface ExtendedActorClient extends ActorClient {
      * Enqueues one or more requests for new Runs, and return immediately.
      *
      * @param runRequests the requests
-     * @returns the future names of the Runs
+     * @returns the future request IDs of the Runs
      */
     enqueue: (...runRequests: ActorRunRequest[]) => string[];
 
@@ -549,8 +549,8 @@ export interface SplitRules {
 
 export type UpdateCallback = (
     report: Record<string, RunInfo>,
-    lastChangedRunName?: string,
-    lastChangedRun?: ActorRun,
+    lastChangedRunRequestId?: string,
+    lastChangedRun?: ExtendedActorRun,
 ) => unknown;
 
 export interface RunInfo {

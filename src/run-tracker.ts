@@ -1,7 +1,7 @@
 import type { ActorRun } from 'apify-client';
 
 import type { OrchestratorContext } from './context/orchestrator-context.js';
-import type { RunInfo } from './types.js';
+import type { ExtendedActorRun, RunInfo } from './types.js';
 import { isRunFailStatus } from './utils/apify-client.js';
 import { getRunUrl } from './utils/apify-console.js';
 
@@ -44,7 +44,7 @@ export class RunTracker {
         return undefined;
     }
 
-    updateRun(requestId: string, run?: ActorRun): void {
+    updateRun(requestId: string, run?: ExtendedActorRun): void {
         if (!run) {
             this.trackLostRun(requestId);
             return;
@@ -95,12 +95,12 @@ export class RunTracker {
         this.trackedRuns.failedHistory[requestId] = failedRunInfos;
     }
 
-    private itemsChangedCallback(lastChangedRunName?: string, lastChangedRun?: ActorRun) {
+    private itemsChangedCallback(lastChangedRunRequestId?: string, lastChangedRun?: ExtendedActorRun): void {
         if (this.context.options.onUpdate) {
             this.context.options.onUpdate(
                 // Pass a copy to avoid allowing direct changes to the tracker's data
                 cloneRunInfoRecord(this.trackedRuns.current),
-                lastChangedRunName,
+                lastChangedRunRequestId,
                 lastChangedRun,
             );
         }

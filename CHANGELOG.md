@@ -88,6 +88,7 @@
     // Before:
     const runRecord = await extendedApifyClient.runRecord('run-a', 'run-b');
     const runA = runRecord['run-a']; // possibly undefined
+
     // After:
     const runs = await extendedApifyClient.actorRunsByRequest('run-a', 'run-b');
     const runA = runs.find(({ requestId }) => requestId === 'run-a'); // possibly undefined
@@ -127,7 +128,7 @@
 
 - New `ExtendedActorRun` type: an `ActorRun` extended with the `requestId` used to track the Run. It is returned by
   all the methods that start, call, or update Runs, e.g., `start`, `call`, `startRuns`, `callRuns`, `actorRunByRequest`,
-  and `ExtendedRunClient`'s methods such as `get`, `abort`, `reboot`, `update`, and `resurrect`.
+  `ExtendedRunClient`'s methods such as `get`, `abort`, `reboot`, `update`, and `resurrect`, and the `onUpdate` callback.
 - New `AmbiguousRunRequestError` (a subclass of `OrchestratorError`), thrown when the same
   auto-generated request ID is resolved twice in the same process with no resurrection in between - check the README for more insights.
 

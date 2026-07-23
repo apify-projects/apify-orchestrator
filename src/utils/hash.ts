@@ -21,15 +21,14 @@ function stringifyObject(obj: unknown): string {
 }
 
 /**
- * @returns A string representation of the object.
+ * @returns A hex digest of the object.
  *
  * The algorithm used:
  *
- * - is NOT cryptographically secure;
- * - is fast;
+ * - is not required to be cryptographically secure;
+ * - is fast (<= 1ms);
  * - produces a consistent hash for the same object structure and content;
- * - is collision-resistant;
- * - is suitable for generating unique identifiers for objects.
+ * - is reasonably collision-resistant for objects as large as an Actor input.
  *
  * The algorithm was chosen among several candidates that you can benchmark running `npm run bench:hash`.
  *

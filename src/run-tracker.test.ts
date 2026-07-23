@@ -1,10 +1,9 @@
-import type { ActorRun } from 'apify-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { getTestContext } from './__unit__/context.js';
 import { createActorRunMock } from './__unit__/mocks.js';
 import { RunTracker } from './run-tracker.js';
-import type { RunInfo } from './types.js';
+import type { ExtendedActorRun, RunInfo } from './types.js';
 
 describe('RunTracker', async () => {
     const context = getTestContext();
@@ -124,7 +123,12 @@ describe('RunTracker', async () => {
     });
 
     it('updates failed runs correctly', async () => {
-        const failedRunMock = { id: runMock.id, status: 'FAILED', startedAt: new Date() } as ActorRun;
+        const failedRunMock = {
+            requestId: 'test-run',
+            id: runMock.id,
+            status: 'FAILED',
+            startedAt: new Date(),
+        } as ExtendedActorRun;
 
         const emptyTrackedRuns = {
             current: {},

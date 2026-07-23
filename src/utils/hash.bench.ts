@@ -1,7 +1,13 @@
 import { createHash } from 'node:crypto';
 
 import { murmur3 } from 'murmurhash-js';
-import { bench, describe } from 'vitest';
+import { afterAll, bench, describe } from 'vitest';
+
+// Shared sink that every benchmark callback writes its result into. Without this, a pure function
+// call whose return value is discarded is a candidate for dead-code elimination by the JIT, which
+// would make the "hashing" benchmarks measure an empty loop instead of the actual hash computation.
+// Reading `sink` in `afterAll` keeps the assignments observable.
+let sink = '';
 
 // Candidate hash implementations, compared against the current `murmur3` (32-bit) used by `hashObject`.
 
@@ -41,36 +47,44 @@ const largePayload = JSON.stringify({
 
 describe('hash algorithms - small payload (~80 bytes)', () => {
     bench('murmur3 (32-bit)', () => {
-        murmur32(smallPayload);
+        sink = murmur32(smallPayload);
     });
     bench('murmur3 x2 (64-bit)', () => {
-        murmur64(smallPayload);
+        sink = murmur64(smallPayload);
     });
     bench('md5 (128-bit)', () => {
-        md5(smallPayload);
+        sink = md5(smallPayload);
     });
     bench('sha1 (160-bit)', () => {
-        sha1(smallPayload);
+        sink = sha1(smallPayload);
     });
     bench('sha256 (256-bit)', () => {
-        sha256(smallPayload);
+        sink = sha256(smallPayload);
     });
 });
 
 describe('hash algorithms - large payload (~10 KB)', () => {
     bench('murmur3 (32-bit)', () => {
-        murmur32(largePayload);
+        sink = murmur32(largePayload);
     });
     bench('murmur3 x2 (64-bit)', () => {
-        murmur64(largePayload);
+        sink = murmur64(largePayload);
     });
     bench('md5 (128-bit)', () => {
-        md5(largePayload);
+        sink = md5(largePayload);
     });
     bench('sha1 (160-bit)', () => {
-        sha1(largePayload);
+        sink = sha1(largePayload);
     });
     bench('sha256 (256-bit)', () => {
-        sha256(largePayload);
+        sink = sha256(largePayload);
     });
+});
+
+afterAll(() => {
+    // Force a read of `sink` after all benchmarks have run, so the compiler cannot treat the
+    // assignments above as dead stores.
+    if (!sink) {
+        throw new Error('Benchmarks produced no output - hashing may have been eliminated as dead code.');
+    }
 });

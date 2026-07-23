@@ -59,7 +59,7 @@ console.log('\nInstalling dependencies.\n');
 
 try {
     // Add the dependencies to package.json and package-lock.json, but avoid installing them locally.
-    const dependencies = ['apify-client', 'murmurhash-js', '@types/murmurhash-js'];
+    const dependencies = ['apify-client'];
     execSync(`npm install ${dependencies.join(' ')} --package-lock-only`, { cwd: actorName, stdio: 'inherit' });
 } catch {
     console.error('\nFailed to install dependencies. Exiting.');

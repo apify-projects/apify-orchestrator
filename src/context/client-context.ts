@@ -1,19 +1,26 @@
-import type { ActorRun, RunClient } from 'apify-client';
+import type { RunClient } from 'apify-client';
 
 import { ExtRunClient } from '../clients/run-client.js';
+import type { RunStartRequest } from '../entities/run-start-request.js';
+import { AmbiguousRunRequestError } from '../errors.js';
 import { RunScheduler } from '../run-scheduler.js';
 import type { TrackedRuns } from '../run-tracker.js';
 import { RunTracker } from '../run-tracker.js';
-import type { RunInfo } from '../types.js';
+import type { ExtendedActorRun, RunInfo } from '../types.js';
+import { isRunFailStatus } from '../utils/apify-client.js';
 import { mergeDictionaries } from '../utils/dictionaries.js';
 import { Outcome } from '../utils/outcome.js';
 import type { OrchestratorContext } from './orchestrator-context.js';
 
 /**
- * Represents the outcome of searching internally for an existing Run by name.
+ * Represents the outcome of searching internally for an existing Run by request ID.
  * We may be waiting for the Run to start, or we may have tracked information about the Run.
  */
-export class RunSearchOutcome extends Outcome<{ promise: () => Promise<ActorRun>; runInfo: RunInfo; notFound: true }> {}
+export class RunSearchOutcome extends Outcome<{
+    promise: () => Promise<ExtendedActorRun>;
+    runInfo: RunInfo;
+    notFound: true;
+}> {}
 
 /**
  * Represents the context available to an Apify Client and other derived clients.
@@ -21,9 +28,9 @@ export class RunSearchOutcome extends Outcome<{ promise: () => Promise<ActorRun>
 export interface ClientContext extends OrchestratorContext {
     readonly runTracker: RunTracker;
     readonly runScheduler: RunScheduler;
-
-    searchExistingRun(runName: string): RunSearchOutcome;
-    extendRunClient(runName: string, runClient: RunClient): ExtRunClient;
+    searchRunByRequestId(requestId: string): RunSearchOutcome;
+    searchOkRunMatchingRequest(runRequest: RunStartRequest): RunSearchOutcome;
+    extendRunClient(requestId: string, runClient: RunClient): ExtRunClient;
 }
 
 export function generateClientContext(
@@ -31,38 +38,96 @@ export function generateClientContext(
     trackedRuns: TrackedRuns,
 ): ClientContext {
     const runTracker = new RunTracker(orchestratorContext, trackedRuns);
-
     const runScheduler = new RunScheduler(orchestratorContext, {
         runRequestAdapter: (request) => ({
             ...request,
             input: mergeDictionaries(orchestratorContext.options.fixedInput, request.input),
         }),
-        onRunStarted: (runName, run) => runTracker.updateRun(runName, run),
+        onRunStarted: (requestId, run) => runTracker.updateRun(requestId, run),
     });
+
+    /**
+     * Keeps track of unnamed Run start requests resolved by this process for this client.
+     * Since it's in memory, it will be reset after a resurrection.
+     *
+     * If the same unnamed request is resolved twice, we get an ambiguous situation, with two possible scenarios:
+     *
+     * 1. The user wants to start a new Run.
+     * 2. The user wants to point at the existing Run that was started by the first request.
+     *
+     * Since we cannot know which one is the case, we throw an AmbiguousRunRequestError - unless the Run tied to that
+     * request has failed/aborted/timed out, in which case retrying is always allowed.
+     */
+    const okUnnamedRequestIds = new Set<string>();
+
+    function onRunUpdated(requestId: string, run: ExtendedActorRun | undefined): void {
+        runTracker.updateRun(requestId, run);
+        if (run?.status && isRunFailStatus(run.status)) {
+            okUnnamedRequestIds.delete(requestId);
+        }
+    }
 
     return {
         ...orchestratorContext,
         runTracker,
         runScheduler,
 
-        searchExistingRun(runName: string): RunSearchOutcome {
+        searchRunByRequestId(requestId: string): RunSearchOutcome {
             // First, check if the Run is currently waiting to start.
-            const runPromise = this.runScheduler.findRunStartRequest(runName);
-            if (runPromise) return new RunSearchOutcome({ promise: runPromise });
+            const runPromise = this.runScheduler.findRunStartRequest(requestId);
+            if (runPromise) {
+                return new RunSearchOutcome({ promise: runPromise });
+            }
 
             // Then, check if there is any info about the Run in the tracker.
-            const runInfo = this.runTracker.findRunByName(runName);
-            if (runInfo) return new RunSearchOutcome({ runInfo });
+            const runInfo = this.runTracker.findRunByRequestId(requestId);
+            if (runInfo) {
+                return new RunSearchOutcome({ runInfo });
+            }
 
-            // Otherwise, a run with this name does not exist.
+            // Otherwise, a run with this request ID does not exist.
             return new RunSearchOutcome({ notFound: true });
         },
 
-        extendRunClient(runName: string, runClient: RunClient): ExtRunClient {
+        searchOkRunMatchingRequest(runRequest: RunStartRequest): RunSearchOutcome {
+            const { requestId, runName } = runRequest;
+            const result = this.searchRunByRequestId(requestId);
+
+            const outcome = result.match<RunSearchOutcome>({
+                promise: () => result,
+                runInfo: (runInfo) =>
+                    isRunFailStatus(runInfo.status) ? new RunSearchOutcome({ notFound: true }) : result,
+                notFound: () => result,
+            });
+
+            if (runName) return outcome; // Explicit runName: always allow silently joining/reconnecting.
+
+            outcome.match({
+                promise: () => {
+                    // A pending start for this exact request ID can only exist within this same
+                    // process: the pool is never persisted, so this is always a same-session duplicate.
+                    throw new AmbiguousRunRequestError(requestId);
+                },
+                runInfo: () => {
+                    if (okUnnamedRequestIds.has(requestId)) {
+                        // This process already resolved this exact request before - a resurrection
+                        // would have reset this set, so this is an ambiguous duplicate.
+                        throw new AmbiguousRunRequestError(requestId);
+                    }
+                    okUnnamedRequestIds.add(requestId);
+                },
+                notFound: () => {
+                    okUnnamedRequestIds.add(requestId);
+                },
+            });
+            return outcome;
+        },
+
+        extendRunClient(requestId: string, runClient: RunClient): ExtRunClient {
             return new ExtRunClient(
                 this,
                 // Track every Run update.
-                { runName, onUpdate: (run) => this.runTracker.updateRun(runName, run) },
+                { requestId, onUpdate: (run) => onRunUpdated(requestId, run) },
                 runClient,
             );
         },

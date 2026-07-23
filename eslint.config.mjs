@@ -37,7 +37,7 @@ export default [
         },
     },
     {
-        files: ['**/*.test.ts', '**/__unit__/**'],
+        files: ['**/*.test.ts', '**/*.bench.ts', '**/__unit__/**'],
         rules: {
             'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
         },

@@ -1,9 +1,8 @@
-import type { ActorRun, Dictionary } from 'apify-client';
-
 import { MAIN_LOOP_COOLDOWN_MS, MAIN_LOOP_INTERVAL_MS } from './constants.js';
 import type { OrchestratorContext } from './context/orchestrator-context.js';
-import { type RunSource, type RunStartOptions } from './entities/run-source.js';
+import type { RunStartRequest } from './entities/run-start-request.js';
 import { isInsufficientResourcesError } from './errors.js';
+import type { ExtendedActorRun } from './types.js';
 import { Interval } from './utils/concurrency/interval.js';
 import { TryCooldown } from './utils/concurrency/try-cooldown.js';
 import { TryGate } from './utils/concurrency/try-gate.js';
@@ -15,16 +14,9 @@ import { RequestPool } from './utils/request-management/request-pool.js';
 import { onActorShuttingDown } from './utils/run-lifecycle.js';
 import { isDefined } from './utils/typing.js';
 
-export interface RunStartRequest {
-    source: RunSource;
-    name: string;
-    input?: Dictionary;
-    options?: RunStartOptions;
-}
-
 export interface RunSchedulerOptions {
     runRequestAdapter: (request: RunStartRequest) => RunStartRequest;
-    onRunStarted: (runName: string, run: ActorRun) => void;
+    onRunStarted: (requestId: string, run: ExtendedActorRun) => void;
 }
 
 /**
@@ -34,7 +26,7 @@ export interface RunSchedulerOptions {
  * The scheduler runs for the lifetime of the orchestrator and is stopped when the Actor is shutting down.
  */
 export class RunScheduler {
-    private readonly pool: RequestPool<RunStartRequest, ActorRun>;
+    private readonly pool: RequestPool<RunStartRequest, ExtendedActorRun>;
 
     private readonly exclusiveLock = new TryLock(); // ensures only one request is processed at a time
     private readonly shutdownGate = new TryGate(); // prevents starting new runs during shutdown
@@ -48,14 +40,14 @@ export class RunScheduler {
     constructor(context: OrchestratorContext, options: RunSchedulerOptions) {
         this.context = context;
         this.options = options;
-        this.pool = new RequestPool<RunStartRequest, ActorRun>({
-            onRequestAdded: (runName) => this.context.logger.prefixed(runName).info('Run start scheduled.'),
+        this.pool = new RequestPool<RunStartRequest, ExtendedActorRun>({
+            onRequestAdded: (requestId) => this.context.logger.prefixed(requestId).info('Run start scheduled.'),
             onRequestSuccess: options.onRunStarted,
-            onRequestFailure: (runName, error) => {
-                this.context.logger.prefixed(runName).error('Run start failed.', { error: stringifyError(error) });
+            onRequestFailure: (requestId, error) => {
+                this.context.logger.prefixed(requestId).error('Run start failed.', { error: stringifyError(error) });
             },
-            onRequestRetried: (runName, reason) => {
-                this.context.logger.prefixed(runName).warning('Run start will be retried.', {
+            onRequestRetried: (requestId, reason) => {
+                this.context.logger.prefixed(requestId).warning('Run start will be retried.', {
                     reason: stringifyError(reason),
                     cooldownMs: MAIN_LOOP_COOLDOWN_MS,
                 });
@@ -71,8 +63,8 @@ export class RunScheduler {
     /**
      * @returns the promise to wait for the Run to start, or `undefined` if no such Run was requested.
      */
-    findRunStartRequest(runName: string): (() => Promise<ActorRun>) | undefined {
-        const request = this.pool.findRequest(runName);
+    findRunStartRequest(requestId: string): (() => Promise<ExtendedActorRun>) | undefined {
+        const request = this.pool.findRequest(requestId);
         // Prefer `async () => request.wait()` to `request.wait` to avoid unbound method reference.
         return isDefined(request) ? async () => request.wait() : undefined;
     }
@@ -82,8 +74,8 @@ export class RunScheduler {
      *
      * @returns the promise to wait for the Run to start.
      */
-    requestRunStart(runRequest: RunStartRequest): () => Promise<ActorRun> {
-        const request = this.pool.findOrAddRequest(runRequest.name, runRequest);
+    requestRunStart(runRequest: RunStartRequest): () => Promise<ExtendedActorRun> {
+        const request = this.pool.findOrAddRequest(runRequest.requestId, runRequest);
         // Prefer `async () => request.wait()` to `request.wait` to avoid unbound method reference.
         return async () => request.wait();
     }
@@ -93,8 +85,8 @@ export class RunScheduler {
      *
      * @returns the started Run.
      */
-    async startRun(runRequest: RunStartRequest): Promise<ActorRun> {
-        const request = this.pool.findOrAddRequest(runRequest.name, runRequest);
+    async startRun(runRequest: RunStartRequest): Promise<ExtendedActorRun> {
+        const request = this.pool.findOrAddRequest(runRequest.requestId, runRequest);
 
         // Attempt to process the request immediately, without waiting for the next interval tick.
         // If the attempt fails, the scheduler will try again on the next tick, as usual.
@@ -125,15 +117,17 @@ export class RunScheduler {
         });
     }
 
-    private async processRunRequest(request: RunStartRequest): Promise<RequestOutcome<ActorRun>> {
+    private async processRunRequest(request: RunStartRequest): Promise<RequestOutcome<ExtendedActorRun>> {
         const adaptedRequest = this.options.runRequestAdapter(request);
+        const { requestId } = adaptedRequest;
         try {
             const run = await adaptedRequest.source.start(adaptedRequest.input, adaptedRequest.options);
-            return new RequestOutcome({ success: run });
+            const extendedRun: ExtendedActorRun = { ...run, requestId };
+            return new RequestOutcome({ success: extendedRun });
         } catch (error) {
             const parsedError = await adaptedRequest.source.parseRunStartError(
                 error,
-                adaptedRequest.name,
+                requestId,
                 adaptedRequest.options,
             );
             const { retryOnInsufficientResources } = this.context.options;

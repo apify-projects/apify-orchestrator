@@ -11,7 +11,12 @@ describe('ExtRunClient', () => {
     let context: ClientContext;
     let runClient: ExtRunClient;
 
-    const mockRun = createActorRunMock();
+    const mockRun = createActorRunMock({
+        id: 'test-run-id',
+        status: 'RUNNING',
+        requestId: 'test-run',
+        startedAt: new Date('2024-01-01T00:00:00.000Z'),
+    });
 
     beforeEach(() => {
         context = getClientContext();

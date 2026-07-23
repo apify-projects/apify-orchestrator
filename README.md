@@ -100,7 +100,7 @@ const actorInput = { startUrls: urls.map((url) => ({ url })) };
 
 // Call an Actor, creating a new Run, an wait for it to finish
 // Here you can give this Run a name, which will be used wether a resurrection takes place
-const run = await client.actor(actorId).call('my-job', actorInput);
+const run = await client.actor(actorId).call(actorInput, { runName: 'my-job' });
 
 // Read the default dataset
 const itemList = await client.dataset(run.defaultDatasetId).listItems({ skipEmpty: true });
@@ -116,6 +116,33 @@ you can benefit from logs and regular reports, and the status of the Run is save
 `ORCHESTRATOR-MY-CLIENT-RUNS` with the name `my-job`, so if the Orchestrator times out, you can resurrect it, and it
 will wait for the same Run you started initially.
 Moreover, if you gracefully abort the orchestrator while the external Run is in progress, the latter will also be aborted.
+
+## Avoiding ambiguous Run requests
+
+Every `start`/`call`/`enqueue` request is identified by a request ID: either the `runName` you provide, or, if you omit
+it, a hash generated from the Actor/Task, input, and options. This is what makes resurrection work: reconnecting to a
+Run started before a restart, instead of starting a redundant one.
+
+If you call `start`/`call`/`enqueue` twice **in the same process**, with the same input/options and no `runName`, the
+second call throws `AmbiguousRunRequestError` instead of silently reconnecting to the first Run - there would be no way
+to tell "you asked for one Run and got it back twice" from "you wanted two independent Runs but forgot to name them".
+If you do want to start multiple Runs with identical input, give each one an explicit `runName`:
+
+```js
+// Throws AmbiguousRunRequestError on the second call:
+const run1 = await client.actor(actorId).call(actorInput);
+const run2 = await client.actor(actorId).call(actorInput);
+
+// Works as expected:
+const run1 = await client.actor(actorId).call(actorInput, { runName: 'run-a' });
+const run2 = await client.actor(actorId).call(actorInput, { runName: 'run-b' });
+```
+
+This only applies within the same process, with no resurrection in between, and it never applies if:
+
+- you provide an explicit `runName` and reuse it yourself - for the orchestrator, that means that you want the same run;
+- the previous Run for that request failed, aborted, or timed out - retrying is always allowed;
+- the Orchestrator has actually been resurrected - reconnecting to a previously started Run is a core feature.
 
 ## Avoiding size limits
 
@@ -156,7 +183,7 @@ const sourceUrls = ['...', '...', ...];
 const inputGenerator = (urls) => ({ startUrls: urls.map((url) => ({ url }))});
 
 // Automatically split the input in multiple parts, if necessary, and start multiple Runs
-const runRecord = await client.actor(actorId).callBatch(
+const runs = await client.actor(actorId).callBatch(
     'my-job',                             // the Run/batch name (if multiple Runs are triggered, it will become a prefix)
     sourceUrls,                           // an array used to generate the input
     inputGenerator,                       // a function to generate the input
@@ -165,7 +192,7 @@ const runRecord = await client.actor(actorId).callBatch(
 
 // Create an iterator for reading all the default datasets together
 const datasetIterator = orchestrator.mergeDatasets(
-    ...Object.values(runRecord).map(
+    ...runs.map(
         (run) => client.dataset(run.defaultDatasetId),
     )
 ).iterate({
@@ -179,15 +206,8 @@ for await (const item of datasetIterator) {
 }
 ```
 
-Notice that `runRecord` is an object of this kind:
-
-```js
-{
-    'my-job-1': [object ActorRun],
-    'my-job-2': [object ActorRun],
-    ...
-}
-```
+Notice that `runs` is an array of `ExtendedActorRun` objects: regular `ActorRun` objects extended with a `requestId`
+property, which contains the name of the Run, e.g., `my-job-1/2`, or a hash generated from the Run's request.
 
 Also, notice the `for await` at the end: it is due to the fact that `datasetIterator` is an [`AsyncGenerator`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator),
 which fetches the first 100 items, iterates over them, then fetches another 100, and so on.
@@ -200,7 +220,7 @@ const input1 = { ... }
 const input2 = { ... }
 
 // Use callRuns instead of callBatch, and provide the names and the inputs yourself
-const runRecord = await client.actor(actorId).callRuns(
+const runs = await client.actor(actorId).callRuns(
     { runName: 'my-job-a', input: input1 },
     { runName: 'my-job-b', input: input2 },
 );

@@ -38,7 +38,7 @@ export interface OrchestratorOptions {
     /**
      * A callback which is called every time the Orchestrator's status is updated.
      *
-     * The callback takes as input a record having Run names as keys, and Run information as values.
+     * The callback takes as input a record having Run request IDs as keys, and Run information as values.
      */
     onUpdate?: UpdateCallback;
 
@@ -156,32 +156,45 @@ export interface ExtendedApifyClient extends ApifyClient {
     dataset: <T extends DatasetItem>(id: string) => ExtendedDatasetClient<T>;
 
     /**
-     * @returns a Run client corresponding to the given name, if it exists
+     * @param requestIdOrRunName the request ID returned by `enqueue`, for example, or the run name of your choice
+     * @returns a Run client corresponding to the given request ID or Run name, if it exists
      */
-    runByName: (name: string) => Promise<ExtendedRunClient | undefined>;
+    runByRequest: (requestIdOrRunName: string) => Promise<ExtendedRunClient | undefined>;
 
     /**
-     * @returns an ActorRun object corresponding to the given name, if it exists
+     * @param requestIdOrRunName the request ID returned by `enqueue`, for example, or the run name of your choice
+     * @returns an ExtendedActorRun object corresponding to the given request ID or Run name, if it exists
      */
-    actorRunByName: (name: string) => Promise<ActorRun | undefined>;
+    actorRunByRequest: (requestIdOrRunName: string) => Promise<ExtendedActorRun | undefined>;
 
     /**
-     * Searches for the Runs with the given names an generates a `RunRecord` with them.
+     * Searches for the Runs with the given request IDs or Run names.
+     *
+     * @param requestIdsOrRunNames the request IDs returned by `enqueue`, for example, or the run names of your choice
+     * @returns the `ExtendedActorRun` objects of the Runs that were found
      */
-    runRecord: (...runNames: string[]) => Promise<RunRecord>;
+    actorRunsByRequest: (...requestIdsOrRunNames: string[]) => Promise<ExtendedActorRun[]>;
 
     /**
      * Waits for one or more Runs previously started.
      *
-     * @param batch a `RunRecord` object or a list of names
-     * @returns an updated `RunRecord`
+     * @param batch an array of `ExtendedActorRun` objects or a list of request IDs or Run names
+     * @returns the updated `ExtendedActorRun` objects
      */
-    waitForBatchFinish: (batch: RunRecord | string[]) => Promise<RunRecord>;
+    waitForBatchFinish: (batch: ExtendedActorRun[] | string[]) => Promise<ExtendedActorRun[]>;
 
     /**
      * Stop all the Runs in progress started from this client.
      */
     abortAllRuns: () => Promise<void>;
+}
+
+export interface ExtendedActorStartOptions extends ActorStartOptions {
+    runName?: string;
+}
+
+export interface ExtendedActorCallOptions extends ActorCallOptions {
+    runName?: string;
 }
 
 /**
@@ -194,7 +207,7 @@ export interface ExtendedActorClient extends ActorClient {
      * Enqueues one or more requests for new Runs, and return immediately.
      *
      * @param runRequests the requests
-     * @returns the future names of the Runs
+     * @returns the future request IDs of the Runs
      */
     enqueue: (...runRequests: ActorRunRequest[]) => string[];
 
@@ -221,12 +234,12 @@ export interface ExtendedActorClient extends ActorClient {
     /**
      * @override
      */
-    start: (runName: string, input?: object, options?: ActorStartOptions) => Promise<ActorRun>;
+    start: (input?: object, options?: ExtendedActorStartOptions) => Promise<ExtendedActorRun>;
 
     /**
      * Starts one or more Runs, based on an array of requests.
      */
-    startRuns: (...runRequests: ActorRunRequest[]) => Promise<RunRecord>;
+    startRuns: (...runRequests: ActorRunRequest[]) => Promise<ExtendedActorRun[]>;
 
     /**
      * Starts one or more requests for new Runs, given the parameters to generate input batches.
@@ -238,7 +251,7 @@ export interface ExtendedActorClient extends ActorClient {
      * @param inputGenerator the function used to generate the input batches
      * @param overrideSplitRules the rules for splitting
      * @param options the options for starting the Runs
-     * @returns the future names of the Runs
+     * @returns the started Runs
      */
     startBatch: <T>(
         namePrefix: string,
@@ -246,17 +259,17 @@ export interface ExtendedActorClient extends ActorClient {
         inputGenerator: (chunk: T[]) => Dictionary,
         overrideSplitRules?: Partial<SplitRules>,
         options?: ActorStartOptions,
-    ) => Promise<RunRecord>;
+    ) => Promise<ExtendedActorRun[]>;
 
     /**
      * @override
      */
-    call: (runName: string, input?: object, options?: ActorCallOptions) => Promise<ActorRun>;
+    call: (input?: object, options?: ExtendedActorCallOptions) => Promise<ExtendedActorRun>;
 
     /**
      * Starts and waits for one or more Runs, based on an array of requests.
      */
-    callRuns: (...runRequests: ActorRunRequest[]) => Promise<RunRecord>;
+    callRuns: (...runRequests: ActorRunRequest[]) => Promise<ExtendedActorRun[]>;
 
     /**
      * Starts and waits for one or more requests for new Runs, given the parameters to generate input batches.
@@ -268,7 +281,7 @@ export interface ExtendedActorClient extends ActorClient {
      * @param inputGenerator the function used to generate the input batches
      * @param overrideSplitRules the rules for splitting
      * @param options the options for starting the Runs
-     * @returns the future names of the Runs
+     * @returns the finished Runs
      */
     callBatch: <T>(
         namePrefix: string,
@@ -276,7 +289,7 @@ export interface ExtendedActorClient extends ActorClient {
         inputGenerator: (chunk: T[]) => Dictionary,
         overrideSplitRules?: Partial<SplitRules>,
         options?: ActorStartOptions,
-    ) => Promise<RunRecord>;
+    ) => Promise<ExtendedActorRun[]>;
 
     /**
      * If it finds the Run it in the Runs records, it returns a `TrackedRunClient` instead of a `RunClient`,
@@ -285,6 +298,14 @@ export interface ExtendedActorClient extends ActorClient {
      * @override
      */
     lastRun: (options?: ActorLastRunOptions) => RunClient | ExtendedRunClient;
+}
+
+export interface ExtendedTaskStartOptions extends TaskStartOptions {
+    runName?: string;
+}
+
+export interface ExtendedTaskCallOptions extends TaskCallOptions {
+    runName?: string;
 }
 
 /**
@@ -324,12 +345,12 @@ export interface ExtendedTaskClient extends TaskClient {
     /**
      * @override
      */
-    start: (input?: Dictionary, options?: TaskStartOptions & { runName: string }) => Promise<ActorRun>;
+    start: (input?: Dictionary, options?: ExtendedTaskStartOptions) => Promise<ExtendedActorRun>;
 
     /**
      * Starts one or more Runs, based on an array of requests.
      */
-    startRuns: (...runRequests: TaskRunRequest[]) => Promise<RunRecord>;
+    startRuns: (...runRequests: TaskRunRequest[]) => Promise<ExtendedActorRun[]>;
 
     /**
      * Starts one or more requests for new Runs, given the parameters to generate input batches.
@@ -341,7 +362,7 @@ export interface ExtendedTaskClient extends TaskClient {
      * @param inputGenerator the function used to generate the input batches
      * @param overrideSplitRules the rules for splitting
      * @param options the options for starting the Runs
-     * @returns the future names of the Runs
+     * @returns the started Runs
      */
     startBatch: <T>(
         namePrefix: string,
@@ -349,17 +370,17 @@ export interface ExtendedTaskClient extends TaskClient {
         inputGenerator: (chunk: T[]) => Dictionary,
         overrideSplitRules?: Partial<SplitRules>,
         options?: TaskStartOptions,
-    ) => Promise<RunRecord>;
+    ) => Promise<ExtendedActorRun[]>;
 
     /**
      * @override
      */
-    call: (input?: Dictionary, options?: TaskCallOptions & { runName: string }) => Promise<ActorRun>;
+    call: (input?: Dictionary, options?: ExtendedTaskCallOptions) => Promise<ExtendedActorRun>;
 
     /**
      * Starts and waits for one or more Runs, based on an array of requests.
      */
-    callRuns: (...runRequests: TaskRunRequest[]) => Promise<RunRecord>;
+    callRuns: (...runRequests: TaskRunRequest[]) => Promise<ExtendedActorRun[]>;
 
     /**
      * Starts and waits for one or more requests for new Runs, given the parameters to generate input batches.
@@ -371,7 +392,7 @@ export interface ExtendedTaskClient extends TaskClient {
      * @param inputGenerator the function used to generate the input batches
      * @param overrideSplitRules the rules for splitting
      * @param options the options for starting the Runs
-     * @returns the future names of the Runs
+     * @returns the finished Runs
      */
     callBatch: <T>(
         namePrefix: string,
@@ -379,7 +400,7 @@ export interface ExtendedTaskClient extends TaskClient {
         inputGenerator: (chunk: T[]) => Dictionary,
         overrideSplitRules?: Partial<SplitRules>,
         options?: TaskStartOptions,
-    ) => Promise<RunRecord>;
+    ) => Promise<ExtendedActorRun[]>;
 
     /**
      * If it finds the Run it in the Runs records, it returns a `TrackedRunClient` instead of a `RunClient`,
@@ -471,7 +492,7 @@ export type PersistenceSupport = 'kvs' | 'none';
  * A request to be enqueued by the `QueuedActorClient`.
  */
 export interface ActorRunRequest {
-    runName: string;
+    runName?: string;
     input?: Dictionary;
     options?: ActorStartOptions;
 }
@@ -480,15 +501,14 @@ export interface ActorRunRequest {
  * A request to be enqueued by the `ExtTaskClient`.
  */
 export interface TaskRunRequest {
-    runName: string;
+    runName?: string;
     input?: Dictionary;
     options?: TaskStartOptions;
 }
 
-/**
- * A record of Runs, having their names as keys and their `ActorRun` objects as values.
- */
-export type RunRecord = Record<string, ActorRun>;
+export interface ExtendedActorRun extends ActorRun {
+    requestId: string;
+}
 
 /**
  * A generic definition of a dataset item.
@@ -529,8 +549,8 @@ export interface SplitRules {
 
 export type UpdateCallback = (
     report: Record<string, RunInfo>,
-    lastChangedRunName?: string,
-    lastChangedRun?: ActorRun,
+    lastChangedRunRequestId?: string,
+    lastChangedRun?: ExtendedActorRun,
 ) => unknown;
 
 export interface RunInfo {

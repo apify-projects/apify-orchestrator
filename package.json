@@ -43,7 +43,6 @@
         "@types/murmurhash-js": "^1.0.7",
         "@types/node": "^26.1.1",
         "@vitest/coverage-v8": "^4.1.10",
-        "apify-cli": "^1.7.1",
         "husky": "^9.1.7",
         "murmurhash-js": "^1.0.0",
         "oxfmt": "^0.60.0",

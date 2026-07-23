@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 
+import { ApifyClient } from 'apify-client';
 import { execSync } from 'node:child_process';
 import { cpSync, existsSync, renameSync, rmSync } from 'node:fs';
 import { exit } from 'node:process';
-
-import { ApifyClient } from 'apify-client';
 
 console.log('Starting end-to-end tests for Apify Orchestrator.\n');
 

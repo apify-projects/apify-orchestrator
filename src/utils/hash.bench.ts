@@ -1,6 +1,5 @@
-import { createHash } from 'node:crypto';
-
 import { murmur3 } from 'murmurhash-js';
+import { createHash } from 'node:crypto';
 import { afterAll, bench, describe } from 'vitest';
 
 // Shared sink that every benchmark callback writes its result into. Without this, a pure function

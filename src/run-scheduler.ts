@@ -9,8 +9,8 @@ import { TryGate } from './utils/concurrency/try-gate.js';
 import { TryLock } from './utils/concurrency/try-lock.js';
 import { synchronizedAttempt } from './utils/concurrency/try-sync.js';
 import { stringifyError } from './utils/errors.js';
-import { RequestOutcome } from './utils/request-management/request.js';
 import { RequestPool } from './utils/request-management/request-pool.js';
+import { RequestOutcome } from './utils/request-management/request.js';
 import { onActorShuttingDown } from './utils/run-lifecycle.js';
 import { isDefined } from './utils/typing.js';
 

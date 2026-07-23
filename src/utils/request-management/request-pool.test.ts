@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { RequestOutcome } from './request.js';
 import { RequestPool } from './request-pool.js';
+import { RequestOutcome } from './request.js';
 
 async function requestProcessor(data: string): Promise<RequestOutcome<number>> {
     const num = Number.parseInt(data, 10);

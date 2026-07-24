@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 
+import { ApifyClient } from 'apify-client';
 import { execSync } from 'node:child_process';
 import { cpSync, existsSync, renameSync, rmSync } from 'node:fs';
 import { exit } from 'node:process';
-
-import { ApifyClient } from 'apify-client';
 
 console.log('Starting end-to-end tests for Apify Orchestrator.\n');
 
@@ -14,10 +13,19 @@ if (!apifyToken) {
     exit(1);
 }
 
+console.log('Installing the Apify CLI.\n');
+
+try {
+    execSync('npm install -g apify-cli', { stdio: 'inherit' });
+} catch {
+    console.error('\nFailed to install the Apify CLI. Exiting.');
+    exit(1);
+}
+
 console.log('Logging in to Apify CLI with the provided token.\n');
 
 try {
-    execSync(`npx apify login --token "${apifyToken}"`, { stdio: 'inherit' });
+    execSync(`apify login --token "${apifyToken}"`, { stdio: 'inherit' });
 } catch {
     console.error('\nFailed to login to Apify CLI. Exiting.');
     exit(1);
@@ -29,7 +37,7 @@ const actorTemplate = 'ts_empty';
 console.log(`\nCreating actor: ${actorName}. Using template: ${actorTemplate}\n`);
 
 try {
-    execSync(`npx apify create "${actorName}" --template "${actorTemplate}" --skip-dependency-install`, {
+    execSync(`apify create "${actorName}" --template "${actorTemplate}" --skip-dependency-install`, {
         stdio: 'inherit',
     });
 } catch {
@@ -51,7 +59,7 @@ console.log('\nInstalling dependencies.\n');
 
 try {
     // Add the dependencies to package.json and package-lock.json, but avoid installing them locally.
-    const dependencies = ['apify-client', 'murmurhash-js', '@types/murmurhash-js'];
+    const dependencies = ['apify-client'];
     execSync(`npm install ${dependencies.join(' ')} --package-lock-only`, { cwd: actorName, stdio: 'inherit' });
 } catch {
     console.error('\nFailed to install dependencies. Exiting.');
@@ -77,7 +85,7 @@ console.log('\nPushing the actor to Apify Platform.\n');
 
 try {
     // Since the Actor was created through the client, we need to force the push.
-    execSync(`npx apify push "${actor.id}" --dir "${actorName}" --force`, { stdio: 'inherit' });
+    execSync(`apify push "${actor.id}" --dir "${actorName}" --force`, { stdio: 'inherit' });
 } catch {
     console.error('\nFailed to push the actor to Apify Platform. Exiting.');
     await deleteActor();

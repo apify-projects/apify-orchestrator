@@ -6,7 +6,7 @@ import { splitIntoChunksWithMaxSize, strBytes } from './bytes.js';
 describe('bytes utils', () => {
     describe('splitIntoChunksWithMaxSize', () => {
         it('correctly generates input batches', () => {
-            const sources = Array.from(new Array(1000).keys()); // [0, 1, 2, ..., 999]
+            const sources = Array.from({ length: 1000 }, (_, i) => i); // [0, 1, 2, ..., 999]
             interface Input extends Dictionary {
                 startUrls: { url: string }[];
             }

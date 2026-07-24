@@ -2,7 +2,7 @@ import { ACTOR_JOB_TERMINAL_STATUSES } from '@apify/consts';
 import { DatasetClient } from 'apify-client';
 
 import type { OrchestratorContext } from '../context/orchestrator-context.js';
-import type { DatasetItem, ExtendedDatasetClient, GreedyIterateOptions, IterateOptions } from '../types.js';
+import type { DatasetItem, ExtendedDatasetClient, GreedyIterateOptions } from '../types.js';
 import { isDefined } from '../utils/typing.js';
 
 export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> implements ExtendedDatasetClient<T> {
@@ -21,35 +21,6 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             params: datasetClient.params,
         });
         this.context = context;
-    }
-
-    async *iterate(options: IterateOptions = {}): AsyncGenerator<T, void, void> {
-        const { pageSize, ...listItemOptions } = options;
-        this.context.logger.info('Iterating Dataset', { pageSize }, { url: this.url });
-
-        let totalItems = 0;
-
-        if (pageSize) {
-            let offset = 0;
-            let currentPage = await super.listItems({ ...listItemOptions, offset, limit: pageSize });
-            while (currentPage.items.length > 0) {
-                totalItems += currentPage.items.length;
-                for (const item of currentPage.items) {
-                    yield item;
-                }
-
-                offset += pageSize;
-                currentPage = await super.listItems({ offset, limit: pageSize });
-            }
-        } else {
-            const itemList = await super.listItems(listItemOptions);
-            totalItems += itemList.items.length;
-            for (const item of itemList.items) {
-                yield item;
-            }
-        }
-
-        this.context.logger.info('Finished reading dataset', { totalItems }, { url: this.url });
     }
 
     async *greedyIterate(options: GreedyIterateOptions = {}): AsyncGenerator<T, void, void> {

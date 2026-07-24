@@ -190,27 +190,26 @@ const runs = await client.actor(actorId).callBatch(
     { respectApifyMaxPayloadSize: true }, // tell the Orchestrator to split the input respecting the API limit
 );
 
-// Create an iterator for reading all the default datasets together
-const datasetIterator = orchestrator.mergeDatasets(
-    ...runs.map(
-        (run) => client.dataset(run.defaultDatasetId),
-    )
-).iterate({
-    pageSize: 100,   // define a page size to use pagination and avoid exceeding the string limit
-    skipEmpty: true, // you can use the same options used with dataset.listItems
-})
+// Read the default dataset of each Run in order
+for (const run of runs) {
+    const datasetIterator = client.dataset(run.defaultDatasetId).listItems({
+        chunkSize: 100,  // define a chunk size to use pagination and avoid exceeding the string limit
+        skipEmpty: true, // you can use the same options accepted by dataset.listItems
+    });
 
-// Process the items
-for await (const item of datasetIterator) {
-    console.log(item.value);
+    // Process the items
+    for await (const item of datasetIterator) {
+        console.log(item.value);
+    }
 }
 ```
 
 Notice that `runs` is an array of `ExtendedActorRun` objects: regular `ActorRun` objects extended with a `requestId`
 property, which contains the name of the Run, e.g., `my-job-1/2`, or a hash generated from the Run's request.
 
-Also, notice the `for await` at the end: it is due to the fact that `datasetIterator` is an [`AsyncGenerator`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator),
-which fetches the first 100 items, iterates over them, then fetches another 100, and so on.
+Also, notice the `for await` at the end: it is due to the fact that `datasetIterator`, returned by `apify-client`'s
+`listItems`, is an [async iterable](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of)
+which fetches items in chunks of `chunkSize`, yielding them one by one, then fetches the next chunk, and so on.
 
 Be aware that, with the current implementation, input splitting may be quite slow.
 If you preferred to split the input yourself, you can do it like this:
@@ -224,23 +223,6 @@ const runs = await client.actor(actorId).callRuns(
     { runName: 'my-job-a', input: input1 },
     { runName: 'my-job-b', input: input2 },
 );
-```
-
-## How to iterate a locally generated dataset
-
-```js
-const myDataset = await Actor.openDataset('my-named-dataset');
-await myDataset.push(aVeryLargeArray);
-
-const client = await orchestrator.apifyClient();
-
-// Create an iterator using the ad-hoc Orchestrator method
-const datasetIterator = client.dataset(myDataset.id).iterate({ pageSize: 100 });
-
-// Process the items
-for await (const item of datasetIterator) {
-    console.log(item.value);
-}
 ```
 
 ## How to abort all the external Runs on timeout or normal abort

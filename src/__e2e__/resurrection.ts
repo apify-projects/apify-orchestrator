@@ -25,7 +25,7 @@ export async function runResurrectionTest(
     const runsBeforeResurrection: { [runName: string]: RunOutput } = {};
     const runsAfterResurrection: { [runName: string]: RunOutput } = {};
 
-    const outputIterator = client.dataset<RunOutput>(resurrectedRun.defaultDatasetId).iterate({ pageSize: 100 });
+    const outputIterator = client.dataset<RunOutput>(resurrectedRun.defaultDatasetId).listItems({ chunkSize: 100 });
     for await (const runOutput of outputIterator) {
         if (runOutput.resurrected) {
             runsAfterResurrection[runOutput.runName] = runOutput;

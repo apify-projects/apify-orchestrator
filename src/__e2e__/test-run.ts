@@ -18,7 +18,7 @@ export class TestRun {
     async getTotalOutput(): Promise<number> {
         let total = 0;
         try {
-            const outputIterator = this.client.dataset<Output>(this.run.defaultDatasetId).iterate({ pageSize: 100 });
+            const outputIterator = this.client.dataset<Output>(this.run.defaultDatasetId).listItems({ chunkSize: 100 });
             for await (const item of outputIterator) {
                 log.info(`Received output value from child ${this.runName}: ${item.value}`);
                 total += item.value;

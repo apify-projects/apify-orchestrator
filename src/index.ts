@@ -5,17 +5,8 @@ import { DEFAULT_ORCHESTRATOR_OPTIONS } from './constants.js';
 import { generateClientContext } from './context/client-context.js';
 import type { OrchestratorContext } from './context/orchestrator-context.js';
 import { generateOrchestratorContext } from './context/orchestrator-context.js';
-import { DatasetGroupClass } from './entities/dataset-group.js';
 import type { TrackedRuns } from './run-tracker.js';
-import type {
-    ApifyOrchestrator,
-    DatasetGroup,
-    DatasetItem,
-    ExtendedApifyClient,
-    ExtendedClientOptions,
-    ExtendedDatasetClient,
-    OrchestratorOptions,
-} from './types.js';
+import type { ApifyOrchestrator, ExtendedApifyClient, ExtendedClientOptions, OrchestratorOptions } from './types.js';
 import { makeNameUnique, makePrefixUnique } from './utils/naming.js';
 import type { Storage } from './utils/storage.js';
 import { buildStorage } from './utils/storage.js';
@@ -66,9 +57,5 @@ export class Orchestrator implements ApifyOrchestrator {
         const clientContext = generateClientContext(this.context, trackedRuns);
 
         return new ExtApifyClient(clientName, clientContext, superClientOptions);
-    }
-
-    mergeDatasets<T extends DatasetItem>(...datasets: ExtendedDatasetClient<T>[]): DatasetGroup<T> {
-        return new DatasetGroupClass(...datasets);
     }
 }

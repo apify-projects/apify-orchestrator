@@ -115,14 +115,6 @@ export interface ApifyOrchestrator {
      * @returns the `ScheduledApifyClient` object
      */
     apifyClient: (options?: ExtendedClientOptions) => Promise<ExtendedApifyClient>;
-
-    /**
-     * Group some datasets together, to be able to read all their items at one time.
-     *
-     * @param datasets the dataset clients, generated with `ExtendedApifyClient.dataset`
-     * @returns an object representing group of merged datasets
-     */
-    mergeDatasets: <T extends DatasetItem>(...datasets: ExtendedDatasetClient<T>[]) => DatasetGroup<T>;
 }
 
 export type ExtendedClientOptions = ApifyClientOptions & {
@@ -425,22 +417,6 @@ export type ExtendedRunClient = RunClient;
  */
 export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetClient<T> {
     /**
-     * Iterates over the items in the dataset.
-     *
-     * The option `pageSize` will help avoiding the JavaScript's string limit when deserializing the content.
-     *
-     * @param options includes all the options in `DatasetClientListItemOptions` and `pageSize`
-     * @returns an `AsyncGenerator` which iterates the items in the dataset
-     *
-     * @example
-     * const datasetIterator = datasetClient.iterate({ pageSize: 100 });
-     * for await (const item of datasetIterator) {
-     *     console.log(item.title);
-     * }
-     */
-    iterate: (options: IterateOptions) => AsyncGenerator<T, void, void>;
-
-    /**
      * Iterates over the items in the dataset as they become available, polling the run status
      * at a regular interval and yielding any new items found at each poll.
      *
@@ -463,23 +439,6 @@ export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetCli
      * }
      */
     greedyIterate: (options: GreedyIterateOptions) => AsyncGenerator<T, void, void>;
-}
-
-export interface DatasetGroup<T extends DatasetItem> {
-    /**
-     * The dataset clients in this group.
-     */
-    readonly datasets: ExtendedDatasetClient<T>[];
-
-    /**
-     * Iterate over all the items from all the dataset, in order, at one time.
-     *
-     * The option `pageSize` will help avoiding the JavaScript's string limit when deserializing the content.
-     *
-     * @param options includes all the options in `DatasetClientListItemOptions` and `pageSize`
-     * @returns an `AsyncGenerator` which iterates the items in the datasets
-     */
-    iterate: (options: IterateOptions) => AsyncGenerator<T, void, void>;
 }
 
 /**

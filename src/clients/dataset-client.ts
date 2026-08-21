@@ -2,7 +2,7 @@ import { ACTOR_JOB_TERMINAL_STATUSES } from '@apify/consts';
 import { DatasetClient } from 'apify-client';
 
 import type { OrchestratorContext } from '../context/orchestrator-context.js';
-import type { DatasetItem, ExtendedDatasetClient, GreedyIterateOptions } from '../types.js';
+import type { DatasetItem, ExtendedDatasetClient, GreedyListItemsOptions } from '../types.js';
 import { isDefined } from '../utils/typing.js';
 
 export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> implements ExtendedDatasetClient<T> {
@@ -23,9 +23,9 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
         this.context = context;
     }
 
-    async *greedyIterate(options: GreedyIterateOptions = {}): AsyncGenerator<T, void, void> {
-        const { pageSize = 100, pollIntervalSecs = 10, ...listItemOptions } = options;
-        this.context.logger.info('Greedily iterating Dataset', { pageSize }, { url: this.url });
+    async *greedyListItems(options: GreedyListItemsOptions = {}): AsyncGenerator<T, void, void> {
+        const { chunkSize = 100, pollIntervalSecs = 10, ...listItemOptions } = options;
+        this.context.logger.info('Greedily iterating Dataset', { chunkSize }, { url: this.url });
 
         let readItemsCount = 0;
 
@@ -46,7 +46,7 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             const itemList = await super.listItems({
                 ...listItemOptions,
                 offset: readItemsCount,
-                limit: pageSize,
+                limit: chunkSize,
             });
             readItemsCount += itemList.count;
             for (const item of itemList.items) {
@@ -69,7 +69,7 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             const itemList = await super.listItems({
                 ...listItemOptions,
                 offset: readItemsCount,
-                limit: pageSize,
+                limit: chunkSize,
             });
             if (itemList.count === 0) {
                 break;

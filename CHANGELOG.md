@@ -113,8 +113,8 @@
   Specifically, `vitest` >= 4, used for testing, requires Node.js >= 20.
   Since the newly introduced GitHub Actions run the test suite against various Node.js versions,
   from now on the library will only support versions that are fully testable.
-- Removed `ExtendedDatasetClient`'s method `iterate`: `apify-client`'s `listItems` now returns an async iterable itself,
-  so a separate method is no longer needed.
+- Removed `ExtendedDatasetClient.iterate` and `IterateOptions`: `DatasetClient.listItems` now returns an async iterable
+  itself, so a separate method is no longer needed.
   To fix existing code:
 
     ```ts
@@ -141,6 +141,17 @@
     for (const run of runs) {
         for await (const item of client.dataset(run.defaultDatasetId).listItems({ chunkSize: 100 })) { ... }
     }
+    ```
+
+- Renamed `ExtendedDatasetClient.greedyIterate` to `greedyListItems`, to be consistent with `listItems` and its `chunkSize` option.
+  To fix existing code:
+
+    ```ts
+    // Before:
+    for await (const item of dataset.greedyIterate({ pageSize: 100 })) { ... }
+
+    // After:
+    for await (const item of dataset.greedyListItems({ chunkSize: 100 })) { ... }
     ```
 
 ### Added

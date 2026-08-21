@@ -433,12 +433,12 @@ export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetCli
      * @returns an `AsyncGenerator` which iterates the items in the dataset
      *
      * @example
-     * const datasetIterator = datasetClient.greedyIterate({ pageSize: 100 });
+     * const datasetIterator = datasetClient.greedyListItems({ pageSize: 100 });
      * for await (const item of datasetIterator) {
      *     console.log(item.title);
      * }
      */
-    greedyIterate: (options: GreedyIterateOptions) => AsyncGenerator<T, void, void>;
+    greedyListItems: (options: GreedyListItemsOptions) => AsyncGenerator<T, void, void>;
 }
 
 /**
@@ -483,14 +483,7 @@ export interface ExtendedActorRun extends ActorRun {
  */
 export type DatasetItem = Record<string | number, unknown>;
 
-export type IterateOptions = DatasetClientListItemOptions & {
-    /**
-     * Value used for pagination. If omitted, all the items are downloaded together.
-     */
-    pageSize?: number;
-};
-
-export type GreedyIterateOptions = IterateOptions & {
+export type GreedyListItemsOptions = DatasetClientListItemOptions & {
     /**
      * Check the run's status regularly at the specified interval, in seconds.
      *

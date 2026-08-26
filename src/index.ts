@@ -11,6 +11,7 @@ import { makeNameUnique, makePrefixUnique } from './utils/naming.js';
 import type { Storage } from './utils/storage.js';
 import { buildStorage } from './utils/storage.js';
 
+export * from './constants.js';
 export * from './types.js';
 export * from './errors.js';
 

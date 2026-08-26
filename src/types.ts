@@ -1,6 +1,7 @@
 // This file contains all the public type definitions for the Apify Orchestrator package.
 // Private types should go elsewhere.
 
+import { ACTOR_JOB_STATUSES } from '@apify/consts';
 import type {
     ActorCallOptions,
     ActorClient,
@@ -18,6 +19,8 @@ import type {
     TaskLastRunOptions,
     TaskStartOptions,
 } from 'apify-client';
+
+import { FAIL_STATUSES, OK_STATUSES, ORCHESTRATOR_RUN_JOB_STATUSES, TERMINAL_STATUSES } from './constants.js';
 
 export interface OrchestratorOptions {
     /**
@@ -505,9 +508,26 @@ export type UpdateCallback = (
     lastChangedRun?: ExtendedActorRun,
 ) => unknown;
 
+/**
+ * Represents the status of a Run job on the Apify platform (`act2Builds` and `act2Runs`).
+ */
+export type PlatformRunJobStatus = (typeof ACTOR_JOB_STATUSES)[keyof typeof ACTOR_JOB_STATUSES];
+/**
+ * Represents the status of a Run job that exists only within the orchestrator context.
+ */
+export type OrchestratorRunStatus = (typeof ORCHESTRATOR_RUN_JOB_STATUSES)[keyof typeof ORCHESTRATOR_RUN_JOB_STATUSES];
+/**
+ * Represents any kind of Run job status, whether it belongs to the Apify platform or exists only within the orchestrator context.
+ */
+export type RunStatus = PlatformRunJobStatus | OrchestratorRunStatus;
+
+export type RunOkStatus = (typeof OK_STATUSES)[number];
+export type RunFailStatus = (typeof FAIL_STATUSES)[number];
+export type RunTerminalStatus = (typeof TERMINAL_STATUSES)[number];
+
 export interface RunInfo {
     runId: string;
     runUrl: string;
-    status: string;
+    status: RunStatus;
     startedAt: string;
 }

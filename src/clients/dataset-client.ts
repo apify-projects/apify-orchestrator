@@ -24,10 +24,10 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
     }
 
     async *greedyListItems(options: GreedyListItemsOptions = {}): AsyncGenerator<T, void, void> {
-        const { chunkSize = 100, pollIntervalSecs = 10, ...listItemOptions } = options;
+        const { offset = 0, limit, chunkSize = 100, pollIntervalSecs = 10, ...listItemOptions } = options;
         this.context.logger.info('Greedily iterating Dataset', { chunkSize }, { url: this.url });
 
-        let readItemsCount = 0;
+        let readItemsCount = offset;
 
         // Poll the run status and fetch newly available items at each interval.
         while (true) {

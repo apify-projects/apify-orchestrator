@@ -94,5 +94,31 @@ describe('ExtDatasetClient', () => {
             expect(listItemsSpy).toHaveBeenNthCalledWith(2, { offset: 1, limit: 0 });
             expect(listItemsSpy).toHaveBeenNthCalledWith(3, { offset: 2, limit: 0 });
         });
+
+        it('respects the initial offset', async () => {
+            vi.spyOn(DatasetClient.prototype, 'get').mockResolvedValue({ actRunId: 'test-run-id' } as never);
+            vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(createActorRunMock({ status: 'SUCCEEDED' }));
+
+            const listItemsSpy = vi
+                .spyOn(DatasetClient.prototype, 'listItems')
+                .mockResolvedValueOnce({
+                    items: [{ title: 'item-3' }],
+                    count: 1,
+                    total: 3,
+                    offset: 3,
+                    limit: 2,
+                    desc: false,
+                })
+                .mockResolvedValueOnce({ items: [], count: 0, total: 3, offset: 4, limit: 2, desc: false });
+
+            const items: TestItem[] = [];
+            for await (const item of datasetClient.greedyListItems({ offset: 3, chunkSize: 2 })) {
+                items.push(item);
+            }
+
+            expect(items).toEqual([{ title: 'item-3' }]);
+            expect(listItemsSpy).toHaveBeenNthCalledWith(1, { offset: 3, limit: 2 });
+            expect(listItemsSpy).toHaveBeenNthCalledWith(2, { offset: 4, limit: 2 });
+        });
     });
 });

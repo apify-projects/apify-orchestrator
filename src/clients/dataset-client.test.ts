@@ -53,9 +53,9 @@ describe('ExtDatasetClient', () => {
             await expect(nextItem).resolves.toEqual({ value: secondPage[0], done: false });
             await expect(iterator.next()).resolves.toEqual({ value: undefined, done: true });
 
-            expect(listItemsSpy).toHaveBeenNthCalledWith(1, { offset: 0, limit: 2 });
-            expect(listItemsSpy).toHaveBeenNthCalledWith(2, { offset: 2, limit: 2 });
-            expect(listItemsSpy).toHaveBeenNthCalledWith(3, { offset: 3, limit: 2 });
+            expect(listItemsSpy).toHaveBeenNthCalledWith(1, expect.objectContaining({ offset: 0, limit: 2 }));
+            expect(listItemsSpy).toHaveBeenNthCalledWith(2, expect.objectContaining({ offset: 2, limit: 2 }));
+            expect(listItemsSpy).toHaveBeenNthCalledWith(3, expect.objectContaining({ offset: 3, limit: 2 }));
         });
 
         it('iterates the items from the dataset as soon as new items are available, setting chunkSize to 0', async () => {
@@ -90,9 +90,9 @@ describe('ExtDatasetClient', () => {
             }
 
             expect(items).toEqual([{ title: 'available' }, { title: 'new' }]);
-            expect(listItemsSpy).toHaveBeenNthCalledWith(1, { offset: 0, limit: 0 });
-            expect(listItemsSpy).toHaveBeenNthCalledWith(2, { offset: 1, limit: 0 });
-            expect(listItemsSpy).toHaveBeenNthCalledWith(3, { offset: 2, limit: 0 });
+            expect(listItemsSpy).toHaveBeenNthCalledWith(1, expect.objectContaining({ offset: 0, limit: 0 }));
+            expect(listItemsSpy).toHaveBeenNthCalledWith(2, expect.objectContaining({ offset: 1, limit: 0 }));
+            expect(listItemsSpy).toHaveBeenNthCalledWith(3, expect.objectContaining({ offset: 2, limit: 0 }));
         });
 
         it('respects the initial offset', async () => {
@@ -112,13 +112,91 @@ describe('ExtDatasetClient', () => {
                 .mockResolvedValueOnce({ items: [], count: 0, total: 3, offset: 4, limit: 2, desc: false });
 
             const items: TestItem[] = [];
-            for await (const item of datasetClient.greedyListItems({ offset: 3, chunkSize: 2 })) {
+            for await (const item of datasetClient.greedyListItems({ offset: 3, chunkSize: 2, pollIntervalSecs: 0 })) {
                 items.push(item);
             }
 
             expect(items).toEqual([{ title: 'item-3' }]);
-            expect(listItemsSpy).toHaveBeenNthCalledWith(1, { offset: 3, limit: 2 });
-            expect(listItemsSpy).toHaveBeenNthCalledWith(2, { offset: 4, limit: 2 });
+            expect(listItemsSpy).toHaveBeenNthCalledWith(1, expect.objectContaining({ offset: 3, limit: 2 }));
+            expect(listItemsSpy).toHaveBeenNthCalledWith(2, expect.objectContaining({ offset: 4, limit: 2 }));
+        });
+
+        it('does not fetch more than the requested limit', async () => {
+            vi.spyOn(DatasetClient.prototype, 'get').mockResolvedValue({ actRunId: 'test-run-id' } as never);
+            vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(createActorRunMock({ status: 'RUNNING' }));
+
+            const page = [{ title: 'first' }, { title: 'second' }];
+            const listItemsSpy = vi.spyOn(DatasetClient.prototype, 'listItems').mockResolvedValueOnce({
+                items: page,
+                count: 2,
+                total: 5,
+                offset: 0,
+                limit: 2,
+                desc: false,
+            });
+
+            const items: TestItem[] = [];
+            for await (const item of datasetClient.greedyListItems({ limit: 2, chunkSize: 5 })) {
+                items.push(item);
+            }
+
+            expect(items).toEqual(page);
+            expect(listItemsSpy).toHaveBeenCalledOnce();
+            expect(listItemsSpy).toHaveBeenCalledWith(expect.objectContaining({ offset: 0, limit: 2 }));
+        });
+
+        it('applies the limit relative to the initial offset across pages', async () => {
+            vi.spyOn(DatasetClient.prototype, 'get').mockResolvedValue({ actRunId: 'test-run-id' } as never);
+            vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(createActorRunMock({ status: 'RUNNING' }));
+
+            const firstPage = [{ title: 'item-2' }, { title: 'item-3' }];
+            const secondPage = [{ title: 'item-4' }];
+            const listItemsSpy = vi
+                .spyOn(DatasetClient.prototype, 'listItems')
+                .mockResolvedValueOnce({ items: firstPage, count: 2, total: 6, offset: 1, limit: 2, desc: false })
+                .mockResolvedValueOnce({ items: secondPage, count: 1, total: 6, offset: 3, limit: 1, desc: false });
+
+            const items: TestItem[] = [];
+            for await (const item of datasetClient.greedyListItems({
+                offset: 1,
+                limit: 3,
+                chunkSize: 2,
+                pollIntervalSecs: 0,
+            })) {
+                items.push(item);
+            }
+
+            expect(items).toEqual([...firstPage, ...secondPage]);
+            expect(listItemsSpy).toHaveBeenNthCalledWith(1, expect.objectContaining({ offset: 1, limit: 2 }));
+            expect(listItemsSpy).toHaveBeenNthCalledWith(2, expect.objectContaining({ offset: 3, limit: 1 }));
+        });
+
+        it('uses the limit as page size when chunkSize is 0', async () => {
+            vi.spyOn(DatasetClient.prototype, 'get').mockResolvedValue({ actRunId: 'test-run-id' } as never);
+            vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(createActorRunMock({ status: 'RUNNING' }));
+
+            const page = [{ title: 'item-4' }, { title: 'item-5' }];
+            const listItemsSpy = vi.spyOn(DatasetClient.prototype, 'listItems').mockResolvedValueOnce({
+                items: page,
+                count: 2,
+                total: 6,
+                offset: 3,
+                limit: 2,
+                desc: false,
+            });
+
+            const items: TestItem[] = [];
+            for await (const item of datasetClient.greedyListItems({
+                offset: 3,
+                limit: 2,
+                chunkSize: 0,
+            })) {
+                items.push(item);
+            }
+
+            expect(items).toEqual(page);
+            expect(listItemsSpy).toHaveBeenCalledOnce();
+            expect(listItemsSpy).toHaveBeenCalledWith(expect.objectContaining({ offset: 3, limit: 2 }));
         });
     });
 });

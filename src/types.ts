@@ -432,7 +432,9 @@ export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetCli
      * Once the run reaches a terminal status, any remaining items are drained page-by-page until
      * no more are returned.
      *
-     * @param options includes all the options in `DatasetClientListItemOptions`, `pageSize`, and `pollIntervalSecs`
+     * The dataset can only be traversed in ascending order, from oldest to newest items.
+     *
+     * @param options the greedy listing options, including `pageSize` and `pollIntervalSecs`
      * @returns an `AsyncGenerator` which iterates the items in the dataset
      *
      * @example
@@ -441,7 +443,7 @@ export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetCli
      *     console.log(item.title);
      * }
      */
-    greedyListItems: (options: GreedyListItemsOptions) => AsyncGenerator<T, void, void>;
+    greedyListItems: (options?: GreedyListItemsOptions) => AsyncGenerator<T, void, void>;
 }
 
 /**
@@ -486,7 +488,11 @@ export interface ExtendedActorRun extends ActorRun {
  */
 export type DatasetItem = Record<string | number, unknown>;
 
-export type GreedyListItemsOptions = DatasetClientListItemOptions & {
+/**
+ * Options for to greedily list items from a dataset, with automatic pagination and polling for new items.
+ * The dataset can only be traversed in ascending order, from oldest to newest items.
+ */
+export type GreedyListItemsOptions = Omit<DatasetClientListItemOptions, 'desc'> & {
     /**
      * Check the run's status regularly at the specified interval, in seconds.
      *

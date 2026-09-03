@@ -4,7 +4,7 @@ import { ExtRunClient } from '../clients/run-client.js';
 import { RunScheduler } from '../run-scheduler.js';
 import type { TrackedRuns } from '../run-tracker.js';
 import { RunTracker } from '../run-tracker.js';
-import type { OrchestratorOptions, RunInfo } from '../types.js';
+import type { RunInfo } from '../types.js';
 import { mergeDictionaries } from '../utils/dictionaries.js';
 import { Outcome } from '../utils/outcome.js';
 import type { OrchestratorContext } from './orchestrator-context.js';
@@ -14,11 +14,6 @@ import type { OrchestratorContext } from './orchestrator-context.js';
  * We may be waiting for the Run to start, or we may have tracked information about the Run.
  */
 export class RunSearchOutcome extends Outcome<{ promise: () => Promise<ActorRun>; runInfo: RunInfo; notFound: true }> {}
-
-/**
- * The subset of the orchestrator's options which a single client is allowed to override.
- */
-export type ClientOptionsOverrides = Pick<OrchestratorOptions, 'maxConcurrency'>;
 
 /**
  * Represents the context available to an Apify Client and other derived clients.
@@ -34,25 +29,20 @@ export interface ClientContext extends OrchestratorContext {
 export function generateClientContext(
     orchestratorContext: OrchestratorContext,
     trackedRuns: TrackedRuns,
-    overrideOptions?: ClientOptionsOverrides,
 ): ClientContext {
-    // The client may override some of the orchestrator's options, e.g., to use its own concurrency limit.
-    const options = { ...orchestratorContext.options, ...overrideOptions };
-    const context: OrchestratorContext = { ...orchestratorContext, options };
+    const runTracker = new RunTracker(orchestratorContext, trackedRuns);
 
-    const runTracker = new RunTracker(context, trackedRuns);
-
-    const runScheduler = new RunScheduler(context, {
+    const runScheduler = new RunScheduler(orchestratorContext, {
         runRequestAdapter: (request) => ({
             ...request,
-            input: mergeDictionaries(options.fixedInput, request.input),
+            input: mergeDictionaries(orchestratorContext.options.fixedInput, request.input),
         }),
         onRunStarted: (runName, run) => runTracker.updateRun(runName, run),
         countActiveRuns: () => runTracker.countActiveRuns(),
     });
 
     return {
-        ...context,
+        ...orchestratorContext,
         runTracker,
         runScheduler,
 

@@ -4,11 +4,11 @@
 
 ### Added
 
-- New `maxConcurrency` option in `OrchestratorOptions`, which limits how many Runs are allowed to be active at the same
-  time. The limit applies to every Run started through a client, no matter which method was used, and it counts the
-  Runs restored through persistence as well. It can be overridden for a single client with the new `maxConcurrency`
-  option in `ExtendedClientOptions`. By default, the concurrency is still only limited by the resources available on
-  the account.
+- New `maxConcurrencyPerClient` option in `OrchestratorOptions`, which limits how many Runs a single client is allowed
+  to keep active at the same time. The limit applies to every Run started through a client, no matter which method was
+  used, and it counts the Runs restored through persistence as well. Each client counts its own Runs independently, as
+  it has its own scheduler. By default, the concurrency is still only limited by the resources available on the
+  account.
 
 ## 0.8.1
 

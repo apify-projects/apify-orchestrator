@@ -28,14 +28,14 @@ export interface RunSchedulerOptions {
     onRunStarted: (runName: string, run: ActorRun) => void;
 
     /**
-     * Reads how many Runs are currently active, used to enforce `OrchestratorOptions.maxConcurrency`.
+     * Reads how many Runs are currently active, used to enforce `OrchestratorOptions.maxConcurrencyPerClient`.
      */
     countActiveRuns: () => number;
 }
 
 /**
  * Schedules Run start requests, ensuring that only one Run with a given name is started at a time,
- * that no more than `maxConcurrency` Runs are active at the same time,
+ * that no more than `maxConcurrencyPerClient` Runs are active at the same time,
  * and providing retry capabilities with a cooldown in case of insufficient resources.
  *
  * The scheduler runs for the lifetime of the orchestrator and is stopped when the Actor is shutting down.
@@ -62,7 +62,7 @@ export class RunScheduler {
         this.options = options;
 
         this.requestSynchronizers = [this.shutdownGate, this.retryCooldown];
-        const { maxConcurrency } = context.options;
+        const maxConcurrency = context.options.maxConcurrencyPerClient;
         if (isDefined(maxConcurrency)) {
             // Runs which are already active take up capacity, so no more than `maxConcurrency` are ever started.
             this.requestSynchronizers.push(new TryCapacity(maxConcurrency, options.countActiveRuns));

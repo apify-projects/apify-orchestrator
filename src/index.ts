@@ -37,7 +37,7 @@ export class Orchestrator implements ApifyOrchestrator {
 
     constructor(options: Partial<OrchestratorOptions> = {}) {
         const fullOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...options };
-        validateMaxConcurrency(fullOptions.maxConcurrency);
+        validateMaxConcurrencyPerClient(fullOptions.maxConcurrencyPerClient);
         fullOptions.persistencePrefix = makePrefixUnique(fullOptions.persistencePrefix, takenPersistPrefixes);
         takenPersistPrefixes.add(fullOptions.persistencePrefix);
         this.options = fullOptions;
@@ -47,8 +47,7 @@ export class Orchestrator implements ApifyOrchestrator {
     }
 
     async apifyClient(options: ExtendedClientOptions = {}): Promise<ExtendedApifyClient> {
-        const { name, maxConcurrency, ...superClientOptions } = options;
-        validateMaxConcurrency(maxConcurrency);
+        const { name, ...superClientOptions } = options;
 
         const clientName = makeNameUnique(name ?? 'CLIENT', takenClientNames);
         takenClientNames.add(clientName);
@@ -66,9 +65,7 @@ export class Orchestrator implements ApifyOrchestrator {
         const trackedRuns =
             (await this.storage?.useState<TrackedRuns>(storageKey, defaultTrackedRuns)) ?? defaultTrackedRuns;
 
-        const clientContext = generateClientContext(this.context, trackedRuns, {
-            maxConcurrency: maxConcurrency ?? this.options.maxConcurrency,
-        });
+        const clientContext = generateClientContext(this.context, trackedRuns);
 
         return new ExtApifyClient(clientName, clientContext, superClientOptions);
     }
@@ -78,9 +75,9 @@ export class Orchestrator implements ApifyOrchestrator {
     }
 }
 
-function validateMaxConcurrency(maxConcurrency?: number): void {
+function validateMaxConcurrencyPerClient(maxConcurrency?: number): void {
     if (!isDefined(maxConcurrency)) return;
     if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1) {
-        throw new RangeError(`maxConcurrency must be a positive integer, but it was ${maxConcurrency}.`);
+        throw new RangeError(`maxConcurrencyPerClient must be a positive integer, but it was ${maxConcurrency}.`);
     }
 }

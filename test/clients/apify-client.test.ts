@@ -296,7 +296,7 @@ describe('ExtApifyClient', () => {
         });
 
         it('refreshes the statuses of the active Runs if a concurrency limit is set', async () => {
-            context = getClientContext({ maxConcurrency: 2 });
+            context = getClientContext({ maxConcurrencyPerClient: 2 });
             client = new ExtApifyClient('limited-client', context, {});
 
             context.runTracker.updateRun('test-run-1', createActorRunMock({ id: 'run-1-id', status: 'RUNNING' }));

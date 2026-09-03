@@ -72,7 +72,7 @@ describe('Apify Orchestrator', () => {
         expect(mergedDatasets.datasets).toEqual([dataset1, dataset2, dataset3]);
     });
 
-    describe('maxConcurrency', () => {
+    describe('maxConcurrencyPerClient', () => {
         function mockActorStart() {
             return vi
                 .spyOn(ActorClient.prototype, 'start')
@@ -81,7 +81,7 @@ describe('Apify Orchestrator', () => {
 
         it('limits how many Runs are started at the same time', async () => {
             const startSpy = mockActorStart();
-            const limitedOrchestrator = new Orchestrator({ enableLogs: false, maxConcurrency: 1 });
+            const limitedOrchestrator = new Orchestrator({ enableLogs: false, maxConcurrencyPerClient: 1 });
             const client = await limitedOrchestrator.apifyClient({ name: 'limited-client' });
 
             client.actor('test').enqueue({ runName: 'run-1' }, { runName: 'run-2' }, { runName: 'run-3' });
@@ -90,14 +90,17 @@ describe('Apify Orchestrator', () => {
             expect(startSpy).toHaveBeenCalledTimes(1);
         });
 
-        it('lets a single client override the limit', async () => {
+        it('applies the limit to each client separately', async () => {
             const startSpy = mockActorStart();
-            const limitedOrchestrator = new Orchestrator({ enableLogs: false, maxConcurrency: 1 });
-            const client = await limitedOrchestrator.apifyClient({ name: 'overriding-client', maxConcurrency: 2 });
+            const limitedOrchestrator = new Orchestrator({ enableLogs: false, maxConcurrencyPerClient: 1 });
+            const client1 = await limitedOrchestrator.apifyClient({ name: 'limited-client-1' });
+            const client2 = await limitedOrchestrator.apifyClient({ name: 'limited-client-2' });
 
-            client.actor('test').enqueue({ runName: 'run-1' }, { runName: 'run-2' }, { runName: 'run-3' });
+            client1.actor('test').enqueue({ runName: 'run-1' }, { runName: 'run-2' });
+            client2.actor('test').enqueue({ runName: 'run-3' }, { runName: 'run-4' });
             await vi.advanceTimersByTimeAsync(MAIN_LOOP_INTERVAL_MS * 3);
 
+            // Each client has its own scheduler, so each of them starts one Run.
             expect(startSpy).toHaveBeenCalledTimes(2);
         });
 
@@ -111,12 +114,9 @@ describe('Apify Orchestrator', () => {
             expect(startSpy).toHaveBeenCalledTimes(3);
         });
 
-        it('rejects a limit which is not a positive integer', async () => {
-            for (const maxConcurrency of [0, -1, 1.5, Number.NaN]) {
-                expect(() => new Orchestrator({ enableLogs: false, maxConcurrency })).toThrow(RangeError);
-                await expect(
-                    orchestrator.apifyClient({ name: `invalid-client-${maxConcurrency}`, maxConcurrency }),
-                ).rejects.toThrow(RangeError);
+        it('rejects a limit which is not a positive integer', () => {
+            for (const maxConcurrencyPerClient of [0, -1, 1.5, Number.NaN]) {
+                expect(() => new Orchestrator({ enableLogs: false, maxConcurrencyPerClient })).toThrow(RangeError);
             }
         });
     });

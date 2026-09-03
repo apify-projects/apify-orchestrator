@@ -34,7 +34,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
             Actor.on('aborting', this.abortAllRuns.bind(this));
         }
 
-        if (isDefined(context.options.maxConcurrency)) {
+        if (isDefined(context.options.maxConcurrencyPerClient)) {
             this.runStatusPoller = new RunStatusPoller(context, {
                 getActiveRuns: () => this.context.runTracker.getActiveRuns(),
                 refreshRun: this.refreshRunStatus.bind(this),

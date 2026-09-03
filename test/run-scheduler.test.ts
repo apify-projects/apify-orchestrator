@@ -299,9 +299,9 @@ describe('RunScheduler', () => {
         });
     });
 
-    describe('maxConcurrency', () => {
-        function buildLimitedRunScheduler(maxConcurrency?: number) {
-            context = getTestContext(getTestOptions({ retryOnInsufficientResources: true, maxConcurrency }));
+    describe('maxConcurrencyPerClient', () => {
+        function buildLimitedRunScheduler(maxConcurrencyPerClient?: number) {
+            context = getTestContext(getTestOptions({ retryOnInsufficientResources: true, maxConcurrencyPerClient }));
             // Count every Run which was started and not terminated yet, as the Run tracker would.
             return buildRunScheduler({
                 onRunStarted: (runName, run) => {

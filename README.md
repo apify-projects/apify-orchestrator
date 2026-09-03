@@ -290,9 +290,9 @@ to give a rate-limited Actor its own budget of concurrent Runs.
 Runs which were started by a previous execution of the same Actor, and restored through persistence,
 count towards the limit as well, as long as they are still active.
 
-Notice that the count of active Runs is refreshed periodically, so the limit is respected with an accuracy in the
-order of ten seconds, rather than exactly. To do so, the Orchestrator checks the status of each active Run every ten
-seconds: this only happens when a limit is set, and it involves one API call per active Run.
+To notice when a Run terminates, and free up its capacity, the Orchestrator asks the API to keep a request open
+until the Run finishes, instead of asking repeatedly: watching a Run costs about one API call per minute, and its
+termination is noticed as soon as it happens. This only happens when a limit is set.
 
 ## How to hide sensitive information from the user
 

@@ -8,7 +8,8 @@
   to keep active at the same time. The limit applies to every Run started through a client, no matter which method was
   used, and it counts the Runs restored through persistence as well. Each client counts its own Runs independently, as
   it has its own scheduler. By default, the concurrency is still only limited by the resources available on the
-  account.
+  account. To notice when a Run terminates, the Orchestrator asks the API to keep a request open until the Run
+  finishes, rather than polling it, which costs about one API call per minute per active Run.
 
 ## 0.8.1
 

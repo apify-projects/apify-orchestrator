@@ -115,8 +115,9 @@ export interface OrchestratorOptions {
      * Runs which were started by a previous execution of the same Actor and restored through persistence
      * count towards the limit as well, as long as they are still active.
      *
-     * Notice that the count of active Runs is refreshed periodically, so the limit is respected
-     * with an accuracy in the order of ten seconds, rather than exactly.
+     * A Run is noticed to have terminated as soon as it does, so its capacity is released right away.
+     * Starting to watch a newly started Run, on the other hand, may take a few seconds, which means the
+     * limit can be exceeded for that long by a Run which terminates almost immediately.
      *
      * If undefined, the number of concurrent Runs is only limited by the resources available on the account.
      *

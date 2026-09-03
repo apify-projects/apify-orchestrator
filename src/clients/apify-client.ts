@@ -3,7 +3,7 @@ import { type ActorRun, ApifyClient, type ApifyClientOptions, type RunClient } f
 
 import type { ClientContext } from '../context/client-context.js';
 import type { RunStartRequest } from '../run-scheduler.js';
-import { RunStatusPoller } from '../run-status-poller.js';
+import { RunWatcher } from '../run-watcher.js';
 import type { DatasetItem, ExtendedApifyClient, RunRecord } from '../types.js';
 import { isRunOkStatus } from '../utils/apify-client.js';
 import { isDefined } from '../utils/typing.js';
@@ -20,7 +20,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
      * Only needed to enforce a concurrency limit: it keeps the count of active Runs up to date
      * even when nobody is waiting for them.
      */
-    private readonly runStatusPoller?: RunStatusPoller;
+    private readonly runWatcher?: RunWatcher;
 
     /**
      * @internal
@@ -35,9 +35,9 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
         }
 
         if (isDefined(context.options.maxConcurrencyPerClient)) {
-            this.runStatusPoller = new RunStatusPoller(context, {
+            this.runWatcher = new RunWatcher(context, {
                 getActiveRuns: () => this.context.runTracker.getActiveRuns(),
-                refreshRun: this.refreshRunStatus.bind(this),
+                waitForRunToFinish: this.waitForRunToFinish.bind(this),
             });
         }
     }
@@ -121,10 +121,11 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     }
 
     /**
-     * Fetches the current state of a Run: the Run tracker is updated as a side effect.
+     * Waits for a Run to finish, for at most the given amount of seconds: the Run tracker is updated
+     * as a side effect, both when the Run terminates and when it turns out not to exist anymore.
      */
-    private async refreshRunStatus(runName: string, runId: string): Promise<void> {
-        await this.context.extendRunClient(runName, super.run(runId)).get();
+    private async waitForRunToFinish(runName: string, runId: string, waitSecs: number): Promise<ActorRun | undefined> {
+        return this.context.extendRunClient(runName, super.run(runId)).waitForFinish({ waitSecs });
     }
 
     /** @internal */

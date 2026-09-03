@@ -4,12 +4,19 @@ export const MAIN_LOOP_INTERVAL_MS = 1_000;
 export const MAIN_LOOP_COOLDOWN_MS = 10_000;
 
 /**
- * How often to refresh the status of the Runs which are known to be active.
+ * How often to look for active Runs which are not being watched yet.
  *
- * This is only needed to keep the count of active Runs reasonably up to date when a concurrency limit is set,
- * so the interval is deliberately coarse: the limit is respected within roughly this margin.
+ * A scan makes no API calls: it only reads the Runs which are already tracked, so it can be frequent.
  */
-export const RUN_STATUS_POLL_INTERVAL_MS = 10_000;
+export const RUN_WATCH_INTERVAL_MS = 10_000;
+
+/**
+ * How long a single request watching a Run may wait for it to finish.
+ *
+ * The API keeps the request open until the Run finishes or this time elapses, whichever comes first,
+ * so watching a Run costs about one request per minute. 60 seconds is the maximum accepted by the API.
+ */
+export const RUN_WATCH_SEGMENT_SECS = 60;
 
 export const DEFAULT_ORCHESTRATOR_OPTIONS: OrchestratorOptions = {
     enableLogs: true,

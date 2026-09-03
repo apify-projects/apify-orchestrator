@@ -20,10 +20,9 @@ export interface RunWatcherOptions {
     waitForRunToFinish: (runName: string, runId: string, waitSecs: number) => Promise<ActorRun | undefined>;
 
     /**
-     * Fetches the current state of a Run, which is expected to update the Run tracker as a side effect,
-     * marking the Run as lost if it does not exist anymore.
+     * Called when a Run could not be waited for: it is expected to stop counting the Run as active.
      */
-    refreshRun: (runName: string, runId: string) => Promise<void>;
+    onRunLost: (runName: string) => void;
 }
 
 /**
@@ -77,22 +76,15 @@ export class RunWatcher {
             // even if the API were to return immediately.
             await this.options.waitForRunToFinish(runName, runId, RUN_WATCH_SEGMENT_SECS);
         } catch (error) {
-            this.context.logger.prefixed(runName).warning('Could not watch Run.', { error: stringifyError(error) });
-            // Waiting fails both for a Run which cannot be reached and for one which does not exist anymore,
-            // and only the latter must stop being watched, or it would take up capacity forever.
-            await this.refreshLostRun(runName, runId);
-        } finally {
-            // A Run which terminated, or was found to be lost, is no longer active: it is not watched again.
-            this.watchedRunNames.delete(runName);
-        }
-    }
-
-    private async refreshLostRun(runName: string, runId: string): Promise<void> {
-        await this.options.refreshRun(runName, runId).catch((error) => {
-            // The Run could not be reached either: it keeps its last known status and is watched again.
+            // Waiting mainly fails for a Run which does not exist anymore, so the Run is given up on: keeping
+            // it would take up capacity forever, as nothing else would ever notice that it is over.
             this.context.logger
                 .prefixed(runName)
-                .warning('Could not tell whether the Run still exists.', { error: stringifyError(error) });
-        });
+                .warning('Could not watch Run: giving up on it.', { error: stringifyError(error) });
+            this.options.onRunLost(runName);
+        } finally {
+            // A Run which terminated, or was given up on, is no longer active: it is not watched again.
+            this.watchedRunNames.delete(runName);
+        }
     }
 }

@@ -14,10 +14,16 @@ export interface RunWatcherOptions {
     getActiveRuns: () => { [runName: string]: RunInfo };
 
     /**
-     * Waits for a Run to finish, for at most the given amount of seconds, and returns its last known state,
-     * or `undefined` if the Run could not be found. It is expected to update the Run tracker as a side effect.
+     * Waits for a Run to finish, for at most the given amount of seconds.
+     * It is expected to update the Run tracker as a side effect, and to throw if the Run cannot be fetched.
      */
     waitForRunToFinish: (runName: string, runId: string, waitSecs: number) => Promise<ActorRun | undefined>;
+
+    /**
+     * Fetches the current state of a Run, which is expected to update the Run tracker as a side effect,
+     * marking the Run as lost if it does not exist anymore.
+     */
+    refreshRun: (runName: string, runId: string) => Promise<void>;
 }
 
 /**
@@ -71,11 +77,22 @@ export class RunWatcher {
             // even if the API were to return immediately.
             await this.options.waitForRunToFinish(runName, runId, RUN_WATCH_SEGMENT_SECS);
         } catch (error) {
-            // The Run keeps its last known status, and it is watched again at the next scan.
             this.context.logger.prefixed(runName).warning('Could not watch Run.', { error: stringifyError(error) });
+            // Waiting fails both for a Run which cannot be reached and for one which does not exist anymore,
+            // and only the latter must stop being watched, or it would take up capacity forever.
+            await this.refreshLostRun(runName, runId);
         } finally {
-            // A Run which terminated, or could not be found, is no longer active: it will not be watched again.
+            // A Run which terminated, or was found to be lost, is no longer active: it is not watched again.
             this.watchedRunNames.delete(runName);
         }
+    }
+
+    private async refreshLostRun(runName: string, runId: string): Promise<void> {
+        await this.options.refreshRun(runName, runId).catch((error) => {
+            // The Run could not be reached either: it keeps its last known status and is watched again.
+            this.context.logger
+                .prefixed(runName)
+                .warning('Could not tell whether the Run still exists.', { error: stringifyError(error) });
+        });
     }
 }

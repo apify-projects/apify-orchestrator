@@ -16,6 +16,7 @@ describe('RunWatcher', () => {
     let activeRuns: { [runName: string]: RunInfo };
 
     const waitForRunToFinish = vi.fn();
+    const refreshRun = vi.fn();
 
     function buildRunInfo(runId: string): RunInfo {
         return { runId, runUrl: `https://test.com/${runId}`, status: 'RUNNING', startedAt: '2026-01-01T00:00:00.000Z' };
@@ -29,6 +30,7 @@ describe('RunWatcher', () => {
         const options: RunWatcherOptions = {
             getActiveRuns: () => activeRuns,
             waitForRunToFinish,
+            refreshRun,
             ...overrideOptions,
         };
         return new RunWatcher(context, options);
@@ -49,6 +51,7 @@ describe('RunWatcher', () => {
         context = getTestContext();
         activeRuns = {};
         mockRunStillRunning();
+        vi.mocked(refreshRun).mockResolvedValue(undefined);
     });
 
     afterEach(() => {
@@ -136,6 +139,47 @@ describe('RunWatcher', () => {
 
         await vi.advanceTimersByTimeAsync(RUN_WATCH_INTERVAL_MS);
         expect(waitForRunToFinish).toHaveBeenCalledTimes(2);
+    });
+
+    it('checks whether the run still exists when waiting for it fails', async () => {
+        setActiveRuns('run-1');
+        vi.mocked(waitForRunToFinish).mockRejectedValue(new Error('Not found'));
+
+        buildRunWatcher();
+
+        await vi.advanceTimersByTimeAsync(RUN_WATCH_INTERVAL_MS);
+
+        expect(refreshRun).toHaveBeenCalledExactlyOnceWith('run-1', 'run-1-id');
+    });
+
+    it('stops watching a run which does not exist anymore', async () => {
+        setActiveRuns('run-1');
+        // Waiting for a Run which was deleted fails, just like it does for a Run which cannot be reached.
+        vi.mocked(waitForRunToFinish).mockRejectedValue(new Error('Not found'));
+        // Refreshing it reveals that it is gone, so the Run tracker stops considering it active.
+        vi.mocked(refreshRun).mockImplementation(async () => {
+            activeRuns = {};
+        });
+
+        buildRunWatcher();
+
+        await vi.advanceTimersByTimeAsync(RUN_WATCH_INTERVAL_MS * 5);
+
+        // Without this, the Run would be watched again at every scan, and would take up capacity forever.
+        expect(waitForRunToFinish).toHaveBeenCalledTimes(1);
+        expect(refreshRun).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps watching a run when it cannot be told whether it still exists', async () => {
+        setActiveRuns('run-1');
+        vi.mocked(waitForRunToFinish).mockRejectedValue(new Error('Network error'));
+        vi.mocked(refreshRun).mockRejectedValue(new Error('Network error'));
+
+        buildRunWatcher();
+
+        await vi.advanceTimersByTimeAsync(RUN_WATCH_INTERVAL_MS * 3);
+
+        expect(waitForRunToFinish).toHaveBeenCalledTimes(3);
     });
 
     it('only watches the runs which are active at the time of the scan', async () => {

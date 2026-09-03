@@ -38,6 +38,7 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
             this.runWatcher = new RunWatcher(context, {
                 getActiveRuns: () => this.context.runTracker.getActiveRuns(),
                 waitForRunToFinish: this.waitForRunToFinish.bind(this),
+                refreshRun: this.refreshRunStatus.bind(this),
             });
         }
     }
@@ -126,6 +127,14 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
      */
     private async waitForRunToFinish(runName: string, runId: string, waitSecs: number): Promise<ActorRun | undefined> {
         return this.context.extendRunClient(runName, super.run(runId)).waitForFinish({ waitSecs });
+    }
+
+    /**
+     * Fetches the current state of a Run: the Run tracker is updated as a side effect, and the Run is
+     * marked as lost if the API does not know about it anymore.
+     */
+    private async refreshRunStatus(runName: string, runId: string): Promise<void> {
+        await this.context.extendRunClient(runName, super.run(runId)).get();
     }
 
     /** @internal */

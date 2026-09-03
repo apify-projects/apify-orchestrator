@@ -2,7 +2,7 @@ import type { ActorRun } from 'apify-client';
 
 import type { OrchestratorContext } from './context/orchestrator-context.js';
 import type { RunInfo } from './types.js';
-import { isRunFailStatus } from './utils/apify-client.js';
+import { isRunFailStatus, isRunTerminalStatus } from './utils/apify-client.js';
 import { getRunUrl } from './utils/apify-console.js';
 
 type RunInfoRecord = { [runName: string]: RunInfo };
@@ -24,6 +24,23 @@ export class RunTracker {
 
     getCurrentRuns(): { [runName: string]: RunInfo } {
         return cloneRunInfoRecord(this.trackedRuns.current);
+    }
+
+    /**
+     * @returns the currently tracked Runs which have not reached a terminal status yet.
+     *
+     * The statuses are only as fresh as the last time each Run was updated.
+     */
+    getActiveRuns(): RunInfoRecord {
+        return cloneRunInfoRecord(Object.fromEntries(this.activeRunEntries()));
+    }
+
+    /**
+     * @returns how many tracked Runs have not reached a terminal status yet.
+     */
+    countActiveRuns(): number {
+        // Avoid cloning the Runs' information, as this is called every time a Run start is attempted.
+        return this.activeRunEntries().length;
     }
 
     findRunByName(runName: string): RunInfo | undefined {
@@ -67,6 +84,10 @@ export class RunTracker {
         if (isRunFailStatus(runInfo.status)) {
             this.addOrUpdateFailedRun(runName, runInfo);
         }
+    }
+
+    private activeRunEntries(): [string, RunInfo][] {
+        return Object.entries(this.trackedRuns.current).filter(([, runInfo]) => !isRunTerminalStatus(runInfo.status));
     }
 
     private trackLostRun(runName: string): void {

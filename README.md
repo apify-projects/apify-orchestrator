@@ -35,6 +35,8 @@ Most of the following features are opt-in: you can use just the ones you need.
 
 - Automatic **resources' management**: start a Run when there is enough memory and Actor jobs available on the selected account.
 
+- Cap how many Runs are active at the same time with a **concurrency limit**, applied to every Run started through a client _(opt-in)_.
+
 - Store the Runs in progress in the Key Value Store and **resume** them after a resurrection, avoiding starting a new, redundant Run.
 
 - Abort all the Runs in progress, triggered by the orchestrator, when the latter is gracefully aborted _(opt-in)_.\
@@ -248,6 +250,48 @@ const orchestrator = new Orchestrator({
 ```
 
 The parameters defined in `fixedInput` will be added to _all_ the Runs triggered using the orchestrator object.
+
+## How to limit the number of concurrent Runs
+
+By default, the Orchestrator starts a Run as soon as the account has enough memory and Actor jobs available:
+the only limit is the one imposed by the platform, and it is discovered by attempting to start a Run and failing.
+
+If you need a lower limit of your own, for instance, to avoid hammering a rate-limited website, to pace your spending,
+or to leave some room on the account for other Actors, set `maxConcurrency`:
+
+```js
+import { Orchestrator } from './orchestrator/index.js';
+
+const orchestrator = new Orchestrator({
+    maxConcurrency: 5, // at most 5 Runs will be active at the same time
+});
+```
+
+The limit applies to _all_ the Runs started through a client, no matter which method was used:
+`start`, `call`, `enqueue`, and their batch counterparts.
+The requests exceeding it wait in the scheduler's queue, and are started as soon as the Runs which were
+started before them terminate. This means that a method waiting for a Run to start, such as `call`, may block
+for longer than it would without a limit.
+
+Runs which were started by a previous execution of the same Actor, and restored through persistence,
+count towards the limit as well, as long as they are still active.
+
+Notice that the count of active Runs is refreshed periodically, so the limit is respected with an accuracy in the
+order of ten seconds, rather than exactly. To do so, the Orchestrator checks the status of each active Run every ten
+seconds: this only happens when a limit is set, and it involves one API call per active Run.
+
+Each client counts its own Runs independently, so you can give a specific client a different limit,
+which overrides the Orchestrator's one:
+
+```js
+const orchestrator = new Orchestrator({ maxConcurrency: 5 });
+
+// Will start at most 5 Runs at the same time.
+const client = await orchestrator.apifyClient({ name: 'DEFAULT' });
+
+// Will start at most 1 Run at the same time, independently of the client above.
+const gentleClient = await orchestrator.apifyClient({ name: 'RATE-LIMITED', maxConcurrency: 1 });
+```
 
 ## How to hide sensitive information from the user
 

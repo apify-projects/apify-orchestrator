@@ -5,10 +5,11 @@ import type { OrchestratorContext } from './context/orchestrator-context.js';
 import { type RunSource, type RunStartOptions } from './entities/run-source.js';
 import { isInsufficientResourcesError } from './errors.js';
 import { Interval } from './utils/concurrency/interval.js';
+import { TryCapacity } from './utils/concurrency/try-capacity.js';
 import { TryCooldown } from './utils/concurrency/try-cooldown.js';
 import { TryGate } from './utils/concurrency/try-gate.js';
 import { TryLock } from './utils/concurrency/try-lock.js';
-import { synchronizedAttempt } from './utils/concurrency/try-sync.js';
+import { synchronizedAttempt, type TrySync } from './utils/concurrency/try-sync.js';
 import { stringifyError } from './utils/errors.js';
 import { RequestOutcome } from './utils/request-management/request.js';
 import { RequestPool } from './utils/request-management/request-pool.js';
@@ -25,10 +26,16 @@ export interface RunStartRequest {
 export interface RunSchedulerOptions {
     runRequestAdapter: (request: RunStartRequest) => RunStartRequest;
     onRunStarted: (runName: string, run: ActorRun) => void;
+
+    /**
+     * Reads how many Runs are currently active, used to enforce `OrchestratorOptions.maxConcurrency`.
+     */
+    countActiveRuns: () => number;
 }
 
 /**
  * Schedules Run start requests, ensuring that only one Run with a given name is started at a time,
+ * that no more than `maxConcurrency` Runs are active at the same time,
  * and providing retry capabilities with a cooldown in case of insufficient resources.
  *
  * The scheduler runs for the lifetime of the orchestrator and is stopped when the Actor is shutting down.
@@ -40,7 +47,12 @@ export class RunScheduler {
     private readonly shutdownGate = new TryGate(); // prevents starting new runs during shutdown
     private readonly retryCooldown = new TryCooldown(MAIN_LOOP_COOLDOWN_MS); // cooldown between retries
 
-    private readonly interval = new Interval(this.attemptProcessingAllRequests.bind(this), MAIN_LOOP_INTERVAL_MS);
+    /**
+     * The synchronizers which have to allow the execution before any single request is processed.
+     */
+    private readonly requestSynchronizers: TrySync[];
+
+    private readonly interval: Interval;
 
     private readonly context: OrchestratorContext;
     private readonly options: RunSchedulerOptions;
@@ -48,6 +60,14 @@ export class RunScheduler {
     constructor(context: OrchestratorContext, options: RunSchedulerOptions) {
         this.context = context;
         this.options = options;
+
+        this.requestSynchronizers = [this.shutdownGate, this.retryCooldown];
+        const { maxConcurrency } = context.options;
+        if (isDefined(maxConcurrency)) {
+            // Runs which are already active take up capacity, so no more than `maxConcurrency` are ever started.
+            this.requestSynchronizers.push(new TryCapacity(maxConcurrency, options.countActiveRuns));
+        }
+
         this.pool = new RequestPool<RunStartRequest, ActorRun>({
             onRequestAdded: (runName) => this.context.logger.prefixed(runName).info('Run start scheduled.'),
             onRequestSuccess: options.onRunStarted,
@@ -61,6 +81,8 @@ export class RunScheduler {
                 });
             },
         });
+
+        this.interval = new Interval(this.attemptProcessingAllRequests.bind(this), MAIN_LOOP_INTERVAL_MS);
 
         onActorShuttingDown(() => {
             this.interval.stop();
@@ -100,7 +122,7 @@ export class RunScheduler {
         // If the attempt fails, the scheduler will try again on the next tick, as usual.
         await synchronizedAttempt(
             async () => request.process(this.processRunRequest.bind(this)),
-            [this.exclusiveLock, this.shutdownGate, this.retryCooldown],
+            [this.exclusiveLock, ...this.requestSynchronizers],
         );
 
         return request.wait();
@@ -115,10 +137,16 @@ export class RunScheduler {
             for (const request of this.pool.getPendingRequests()) {
                 const syncOutcome = await synchronizedAttempt(
                     async () => request.process(this.processRunRequest.bind(this)),
-                    // Check for shutdown and retry cooldown between each request.
-                    [this.shutdownGate, this.retryCooldown],
+                    // Check for shutdown, retry cooldown, and available capacity between each request.
+                    this.requestSynchronizers,
                 );
-                const requestProcessed = syncOutcome.match({ executed: () => true, blocked: () => false });
+                const requestProcessed = syncOutcome.match({
+                    executed: () => true,
+                    blocked: (reason) => {
+                        this.context.logger.debug('Deferring Run starts.', { reason });
+                        return false;
+                    },
+                });
                 // If we get blocked by a synchronizer, we stop processing further requests in this attempt.
                 if (!requestProcessed) break;
             }

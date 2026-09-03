@@ -1,8 +1,10 @@
+import { Actor } from 'apify';
 import { RunClient } from 'apify-client';
 import { ExtActorClient } from 'src/clients/actor-client.js';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
 import { ExtDatasetClient } from 'src/clients/dataset-client.js';
 import { ExtRunClient } from 'src/clients/run-client.js';
+import { RUN_STATUS_POLL_INTERVAL_MS } from 'src/constants.js';
 import type { ClientContext } from 'src/context/client-context.js';
 import { RunSource } from 'src/entities/run-source.js';
 import { getClientContext } from 'test/_helpers/context.js';
@@ -272,6 +274,47 @@ describe('ExtApifyClient', () => {
             await expect(client.abortAllRuns()).resolves.not.toThrow();
 
             expect(abortSpy).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('run status polling', () => {
+        afterEach(() => {
+            // Stop the interval of the poller built by the test, which would otherwise keep ticking.
+            Actor.config.getEventManager().emit('exit');
+        });
+
+        it('does not poll the Runs statuses if no concurrency limit is set', async () => {
+            context.runTracker.updateRun('test-run-1', createActorRunMock({ id: 'run-1-id', status: 'RUNNING' }));
+
+            const getSpy = vi.spyOn(RunClient.prototype, 'get');
+
+            await vi.advanceTimersByTimeAsync(RUN_STATUS_POLL_INTERVAL_MS * 2);
+
+            // eslint-disable-next-line dot-notation
+            expect(client['runStatusPoller']).toBeUndefined();
+            expect(getSpy).not.toHaveBeenCalled();
+        });
+
+        it('refreshes the statuses of the active Runs if a concurrency limit is set', async () => {
+            context = getClientContext({ maxConcurrency: 2 });
+            client = new ExtApifyClient('limited-client', context, {});
+
+            context.runTracker.updateRun('test-run-1', createActorRunMock({ id: 'run-1-id', status: 'RUNNING' }));
+            expect(context.runTracker.countActiveRuns()).toBe(1);
+
+            const getSpy = vi
+                .spyOn(RunClient.prototype, 'get')
+                .mockResolvedValue(createActorRunMock({ id: 'run-1-id', status: 'SUCCEEDED' }));
+
+            await vi.advanceTimersByTimeAsync(RUN_STATUS_POLL_INTERVAL_MS);
+
+            expect(getSpy).toHaveBeenCalledTimes(1);
+            // The terminated Run does not take up capacity anymore.
+            expect(context.runTracker.countActiveRuns()).toBe(0);
+
+            // There is nothing left to refresh on the following ticks.
+            await vi.advanceTimersByTimeAsync(RUN_STATUS_POLL_INTERVAL_MS);
+            expect(getSpy).toHaveBeenCalledTimes(1);
         });
     });
 

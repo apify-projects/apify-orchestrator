@@ -1,6 +1,7 @@
 import { Actor } from 'apify';
 import { MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
 import type { OrchestratorContext } from 'src/context/orchestrator-context.js';
+import type { RunSource } from 'src/entities/run-source.js';
 import { InsufficientMemoryError } from 'src/errors.js';
 import type { RunSchedulerOptions, RunStartRequest } from 'src/run-scheduler.js';
 import { RunScheduler } from 'src/run-scheduler.js';
@@ -22,16 +23,20 @@ describe('RunScheduler', () => {
 
     const runMock = createActorRunMock();
 
+    let activeRunsCount = 0;
+
     function buildRunScheduler(overrideOptions?: Partial<RunSchedulerOptions>) {
         const options: RunSchedulerOptions = {
             runRequestAdapter: (request) => request,
             onRunStarted,
+            countActiveRuns: () => activeRunsCount,
             ...overrideOptions,
         };
         return new RunScheduler(context, options);
     }
 
     beforeEach(() => {
+        activeRunsCount = 0;
         context = getTestContext(getTestOptions({ retryOnInsufficientResources: true }));
     });
 
@@ -291,6 +296,104 @@ describe('RunScheduler', () => {
 
             expect(mockSource.start).not.toHaveBeenCalledWith({ key: 'value2' }, undefined);
             expect(mockSource.start).not.toHaveBeenCalledWith({ key: 'value3' }, undefined);
+        });
+    });
+
+    describe('maxConcurrency', () => {
+        function buildLimitedRunScheduler(maxConcurrency?: number) {
+            context = getTestContext(getTestOptions({ retryOnInsufficientResources: true, maxConcurrency }));
+            // Count every Run which was started and not terminated yet, as the Run tracker would.
+            return buildRunScheduler({
+                onRunStarted: (runName, run) => {
+                    activeRunsCount += 1;
+                    onRunStarted(runName, run);
+                },
+            });
+        }
+
+        function buildRunRequests(mockSource: RunSource, count: number): RunStartRequest[] {
+            return Array.from({ length: count }, (_, index) => ({
+                source: mockSource,
+                name: `run-${index + 1}`,
+                input: { key: `value${index + 1}` },
+            }));
+        }
+
+        it('starts no more runs than the limit allows', async () => {
+            const runScheduler = buildLimitedRunScheduler(2);
+            const mockSource = createMockRunSource(runMock);
+
+            for (const runRequest of buildRunRequests(mockSource, 3)) {
+                runScheduler.requestRunStart(runRequest);
+            }
+
+            const attemptProcessingAllRequests = getAttemptProcessingAllRequests(runScheduler);
+            await attemptProcessingAllRequests();
+
+            expect(mockSource.start).toHaveBeenCalledTimes(2);
+            expect(mockSource.start).toHaveBeenCalledWith({ key: 'value1' }, undefined);
+            expect(mockSource.start).toHaveBeenCalledWith({ key: 'value2' }, undefined);
+
+            // Further attempts change nothing while the started Runs are still active.
+            await attemptProcessingAllRequests();
+            expect(mockSource.start).toHaveBeenCalledTimes(2);
+
+            // As soon as one of the Runs terminates, the pending request is processed.
+            activeRunsCount -= 1;
+            await attemptProcessingAllRequests();
+
+            expect(mockSource.start).toHaveBeenCalledTimes(3);
+            expect(mockSource.start).toHaveBeenCalledWith({ key: 'value3' }, undefined);
+        });
+
+        it('counts the runs which were already active before scheduling', async () => {
+            const runScheduler = buildLimitedRunScheduler(2);
+            const mockSource = createMockRunSource(runMock);
+
+            // E.g., Runs restored through persistence, or started by another method.
+            activeRunsCount = 2;
+
+            runScheduler.requestRunStart(buildRunRequests(mockSource, 1)[0]);
+            await getAttemptProcessingAllRequests(runScheduler)();
+
+            expect(mockSource.start).not.toHaveBeenCalled();
+        });
+
+        it('defers an immediate run start until there is capacity', async () => {
+            const runScheduler = buildLimitedRunScheduler(1);
+            const mockSource = createMockRunSource(runMock);
+
+            activeRunsCount = 1;
+
+            const [runRequest] = buildRunRequests(mockSource, 1);
+            const runPromise = runScheduler.startRun(runRequest);
+
+            // Let the immediate attempt, which is expected to be blocked, complete.
+            await new Promise((resolve) => {
+                setTimeout(resolve, 0);
+            });
+            expect(mockSource.start).not.toHaveBeenCalled();
+
+            activeRunsCount = 0;
+            await getAttemptProcessingAllRequests(runScheduler)();
+
+            await expect(runPromise).resolves.toBe(runMock);
+            expect(mockSource.start).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not limit the concurrency if no limit is defined', async () => {
+            const runScheduler = buildLimitedRunScheduler(undefined);
+            const mockSource = createMockRunSource(runMock);
+
+            activeRunsCount = 100;
+
+            for (const runRequest of buildRunRequests(mockSource, 3)) {
+                runScheduler.requestRunStart(runRequest);
+            }
+
+            await getAttemptProcessingAllRequests(runScheduler)();
+
+            expect(mockSource.start).toHaveBeenCalledTimes(3);
         });
     });
 });

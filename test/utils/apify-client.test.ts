@@ -1,4 +1,4 @@
-import { isRunFailStatus, isRunOkStatus } from 'src/utils/apify-client.js';
+import { isRunFailStatus, isRunOkStatus, isRunTerminalStatus } from 'src/utils/apify-client.js';
 
 describe('utils/apify-client', () => {
     // getStartRunErrorType is tested in run-source.test.ts
@@ -16,6 +16,26 @@ describe('utils/apify-client', () => {
             for (const status of nonOkStatuses) {
                 expect(isRunOkStatus(status)).toBe(false);
             }
+        });
+    });
+
+    describe('isRunTerminalStatus', () => {
+        it('correctly identifies terminal statuses', () => {
+            const terminalStatuses = ['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'];
+            for (const status of terminalStatuses) {
+                expect(isRunTerminalStatus(status)).toBe(true);
+            }
+        });
+
+        it('does not consider a Run which is still taking up resources as terminal', () => {
+            const nonTerminalStatuses = ['READY', 'RUNNING', 'ABORTING', 'TIMING-OUT'];
+            for (const status of nonTerminalStatuses) {
+                expect(isRunTerminalStatus(status)).toBe(false);
+            }
+        });
+
+        it('does not consider an unknown status as terminal', () => {
+            expect(isRunTerminalStatus('UNKNOWN')).toBe(false);
         });
     });
 

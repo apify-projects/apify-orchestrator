@@ -19,6 +19,7 @@ import type {
 import { makeNameUnique, makePrefixUnique } from './utils/naming.js';
 import type { Storage } from './utils/storage.js';
 import { buildStorage } from './utils/storage.js';
+import { isDefined } from './utils/typing.js';
 
 export * from './types.js';
 export * from './errors.js';
@@ -36,6 +37,7 @@ export class Orchestrator implements ApifyOrchestrator {
 
     constructor(options: Partial<OrchestratorOptions> = {}) {
         const fullOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...options };
+        validateMaxConcurrency(fullOptions.maxConcurrency);
         fullOptions.persistencePrefix = makePrefixUnique(fullOptions.persistencePrefix, takenPersistPrefixes);
         takenPersistPrefixes.add(fullOptions.persistencePrefix);
         this.options = fullOptions;
@@ -45,7 +47,8 @@ export class Orchestrator implements ApifyOrchestrator {
     }
 
     async apifyClient(options: ExtendedClientOptions = {}): Promise<ExtendedApifyClient> {
-        const { name, ...superClientOptions } = options;
+        const { name, maxConcurrency, ...superClientOptions } = options;
+        validateMaxConcurrency(maxConcurrency);
 
         const clientName = makeNameUnique(name ?? 'CLIENT', takenClientNames);
         takenClientNames.add(clientName);
@@ -63,12 +66,21 @@ export class Orchestrator implements ApifyOrchestrator {
         const trackedRuns =
             (await this.storage?.useState<TrackedRuns>(storageKey, defaultTrackedRuns)) ?? defaultTrackedRuns;
 
-        const clientContext = generateClientContext(this.context, trackedRuns);
+        const clientContext = generateClientContext(this.context, trackedRuns, {
+            maxConcurrency: maxConcurrency ?? this.options.maxConcurrency,
+        });
 
         return new ExtApifyClient(clientName, clientContext, superClientOptions);
     }
 
     mergeDatasets<T extends DatasetItem>(...datasets: ExtendedDatasetClient<T>[]): DatasetGroup<T> {
         return new DatasetGroupClass(...datasets);
+    }
+}
+
+function validateMaxConcurrency(maxConcurrency?: number): void {
+    if (!isDefined(maxConcurrency)) return;
+    if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1) {
+        throw new RangeError(`maxConcurrency must be a positive integer, but it was ${maxConcurrency}.`);
     }
 }

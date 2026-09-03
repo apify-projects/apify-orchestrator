@@ -100,6 +100,26 @@ export interface OrchestratorOptions {
      * @default true
      */
     retryOnInsufficientResources: boolean;
+
+    /**
+     * The maximum number of Runs which are allowed to be active at the same time.
+     *
+     * The limit applies to every Run started through a client, no matter which method was used
+     * (`start`, `call`, `enqueue`, and their batch counterparts): requests exceeding it wait in the
+     * scheduler's queue and are started as soon as the previously started Runs terminate.
+     *
+     * Runs which were started by a previous execution of the same Actor and restored through persistence
+     * count towards the limit as well, as long as they are still active.
+     *
+     * Notice that the count of active Runs is refreshed periodically, so the limit is respected
+     * with an accuracy in the order of ten seconds, rather than exactly.
+     *
+     * If undefined, the number of concurrent Runs is only limited by the resources available on the account.
+     * Can be overridden for a single client through `ExtendedClientOptions.maxConcurrency`.
+     *
+     * @default undefined
+     */
+    maxConcurrency?: number;
 }
 
 /**
@@ -130,6 +150,14 @@ export type ExtendedClientOptions = ApifyClientOptions & {
      * Used to identify a client, for instance, when storing its Runs in the Key Value Store.
      */
     name?: string;
+
+    /**
+     * Overrides `OrchestratorOptions.maxConcurrency` for this client only.
+     *
+     * Each client counts its own Runs independently, so different clients can be given different limits,
+     * for instance, to run a rate-limited Actor with a lower concurrency than the others.
+     */
+    maxConcurrency?: number;
 };
 
 /**

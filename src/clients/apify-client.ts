@@ -3,6 +3,7 @@ import { type ActorRun, ApifyClient, type ApifyClientOptions, type RunClient } f
 
 import type { ClientContext } from '../context/client-context.js';
 import type { RunStartRequest } from '../run-scheduler.js';
+import { RunStatusPoller } from '../run-status-poller.js';
 import type { DatasetItem, ExtendedApifyClient, RunRecord } from '../types.js';
 import { isRunOkStatus } from '../utils/apify-client.js';
 import { isDefined } from '../utils/typing.js';
@@ -16,6 +17,12 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
     private readonly context: ClientContext;
 
     /**
+     * Only needed to enforce a concurrency limit: it keeps the count of active Runs up to date
+     * even when nobody is waiting for them.
+     */
+    private readonly runStatusPoller?: RunStatusPoller;
+
+    /**
      * @internal
      */
     constructor(clientName: string, context: ClientContext, superClientOptions: ApifyClientOptions) {
@@ -25,6 +32,13 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
 
         if (context.options.abortAllRunsOnGracefulAbort) {
             Actor.on('aborting', this.abortAllRuns.bind(this));
+        }
+
+        if (isDefined(context.options.maxConcurrency)) {
+            this.runStatusPoller = new RunStatusPoller(context, {
+                getActiveRuns: () => this.context.runTracker.getActiveRuns(),
+                refreshRun: this.refreshRunStatus.bind(this),
+            });
         }
     }
 
@@ -104,6 +118,13 @@ export class ExtApifyClient extends ApifyClient implements ExtendedApifyClient {
                 });
             }),
         );
+    }
+
+    /**
+     * Fetches the current state of a Run: the Run tracker is updated as a side effect.
+     */
+    private async refreshRunStatus(runName: string, runId: string): Promise<void> {
+        await this.context.extendRunClient(runName, super.run(runId)).get();
     }
 
     /** @internal */

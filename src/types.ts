@@ -1,6 +1,7 @@
 // This file contains all the public type definitions for the Apify Orchestrator package.
 // Private types should go elsewhere.
 
+import { ACTOR_JOB_STATUSES } from '@apify/consts';
 import type {
     ActorCallOptions,
     ActorClient,
@@ -18,6 +19,8 @@ import type {
     TaskLastRunOptions,
     TaskStartOptions,
 } from 'apify-client';
+
+import { FAIL_STATUSES, OK_STATUSES, ORCHESTRATOR_RUN_JOB_STATUSES, TERMINAL_STATUSES } from './constants.js';
 
 export interface OrchestratorOptions {
     /**
@@ -115,14 +118,6 @@ export interface ApifyOrchestrator {
      * @returns the `ScheduledApifyClient` object
      */
     apifyClient: (options?: ExtendedClientOptions) => Promise<ExtendedApifyClient>;
-
-    /**
-     * Group some datasets together, to be able to read all their items at one time.
-     *
-     * @param datasets the dataset clients, generated with `ExtendedApifyClient.dataset`
-     * @returns an object representing group of merged datasets
-     */
-    mergeDatasets: <T extends DatasetItem>(...datasets: ExtendedDatasetClient<T>[]) => DatasetGroup<T>;
 }
 
 export type ExtendedClientOptions = ApifyClientOptions & {
@@ -425,26 +420,10 @@ export type ExtendedRunClient = RunClient;
  */
 export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetClient<T> {
     /**
-     * Iterates over the items in the dataset.
-     *
-     * The option `pageSize` will help avoiding the JavaScript's string limit when deserializing the content.
-     *
-     * @param options includes all the options in `DatasetClientListItemOptions` and `pageSize`
-     * @returns an `AsyncGenerator` which iterates the items in the dataset
-     *
-     * @example
-     * const datasetIterator = datasetClient.iterate({ pageSize: 100 });
-     * for await (const item of datasetIterator) {
-     *     console.log(item.title);
-     * }
-     */
-    iterate: (options: IterateOptions) => AsyncGenerator<T, void, void>;
-
-    /**
      * Iterates over the items in the dataset as they become available, polling the run status
      * at a regular interval and yielding any new items found at each poll.
      *
-     * The option `pageSize` will help avoiding the JavaScript's string limit when deserializing the content.
+     * The option `chunkSize` will help avoiding the JavaScript's string limit when deserializing the content.
      * The default value is 100 items.
      *
      * The option `pollIntervalSecs` allows customizing how frequently to call the API to check for new items.
@@ -453,33 +432,18 @@ export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetCli
      * Once the run reaches a terminal status, any remaining items are drained page-by-page until
      * no more are returned.
      *
-     * @param options includes all the options in `DatasetClientListItemOptions`, `pageSize`, and `pollIntervalSecs`
+     * The dataset can only be traversed in ascending order, from oldest to newest items.
+     *
+     * @param options the greedy listing options, including `chunkSize` and `pollIntervalSecs`
      * @returns an `AsyncGenerator` which iterates the items in the dataset
      *
      * @example
-     * const datasetIterator = datasetClient.greedyIterate({ pageSize: 100 });
+     * const datasetIterator = datasetClient.greedyListItems({ chunkSize: 100 });
      * for await (const item of datasetIterator) {
      *     console.log(item.title);
      * }
      */
-    greedyIterate: (options: GreedyIterateOptions) => AsyncGenerator<T, void, void>;
-}
-
-export interface DatasetGroup<T extends DatasetItem> {
-    /**
-     * The dataset clients in this group.
-     */
-    readonly datasets: ExtendedDatasetClient<T>[];
-
-    /**
-     * Iterate over all the items from all the dataset, in order, at one time.
-     *
-     * The option `pageSize` will help avoiding the JavaScript's string limit when deserializing the content.
-     *
-     * @param options includes all the options in `DatasetClientListItemOptions` and `pageSize`
-     * @returns an `AsyncGenerator` which iterates the items in the datasets
-     */
-    iterate: (options: IterateOptions) => AsyncGenerator<T, void, void>;
+    greedyListItems: (options?: GreedyListItemsOptions) => AsyncGenerator<T, void, void>;
 }
 
 /**
@@ -524,14 +488,16 @@ export interface ExtendedActorRun extends ActorRun {
  */
 export type DatasetItem = Record<string | number, unknown>;
 
-export type IterateOptions = DatasetClientListItemOptions & {
-    /**
-     * Value used for pagination. If omitted, all the items are downloaded together.
-     */
-    pageSize?: number;
-};
+/**
+ * Options for listing items from a dataset in ascending order, omitting the `desc` option.
+ */
+export type DatasetClientListSortedItemOptions = Omit<DatasetClientListItemOptions, 'desc'>;
 
-export type GreedyIterateOptions = IterateOptions & {
+/**
+ * Options for to greedily list items from a dataset, with automatic pagination and polling for new items.
+ * The dataset can only be traversed in ascending order, from oldest to newest items.
+ */
+export type GreedyListItemsOptions = DatasetClientListSortedItemOptions & {
     /**
      * Check the run's status regularly at the specified interval, in seconds.
      *
@@ -553,9 +519,26 @@ export type UpdateCallback = (
     lastChangedRun?: ExtendedActorRun,
 ) => unknown;
 
+/**
+ * Represents the status of a Run job on the Apify platform (`act2Builds` and `act2Runs`).
+ */
+export type PlatformRunJobStatus = (typeof ACTOR_JOB_STATUSES)[keyof typeof ACTOR_JOB_STATUSES];
+/**
+ * Represents the status of a Run job that exists only within the orchestrator context.
+ */
+export type OrchestratorRunStatus = (typeof ORCHESTRATOR_RUN_JOB_STATUSES)[keyof typeof ORCHESTRATOR_RUN_JOB_STATUSES];
+/**
+ * Represents any kind of Run job status, whether it belongs to the Apify platform or exists only within the orchestrator context.
+ */
+export type RunStatus = PlatformRunJobStatus | OrchestratorRunStatus;
+
+export type RunOkStatus = (typeof OK_STATUSES)[number];
+export type RunFailStatus = (typeof FAIL_STATUSES)[number];
+export type RunTerminalStatus = (typeof TERMINAL_STATUSES)[number];
+
 export interface RunInfo {
     runId: string;
     runUrl: string;
-    status: string;
+    status: RunStatus;
     startedAt: string;
 }

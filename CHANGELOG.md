@@ -113,15 +113,45 @@
   Specifically, `vitest` >= 4, used for testing, requires Node.js >= 20.
   Since the newly introduced GitHub Actions run the test suite against various Node.js versions,
   from now on the library will only support versions that are fully testable.
-- Removed option `itemsThreshold` from `ExtendedDatasetClient`'s method `iterate`: the method now never relies on
-  `dataset.itemCount`, because it may be inaccurate, and instead always fetches the next batch of items until there are
-  no more items to fetch. This makes it unfeasible to support such option.
-  To fix existing code, simply remove the option:
+- Removed `ExtendedDatasetClient.iterate` and `IterateOptions`: `DatasetClient.listItems` now returns an async iterable
+  itself, so a separate method is no longer needed.
+  To fix existing code:
+
     ```ts
     // Before:
-    for await (const item of datasetClient.iterate({ pageSize: 100, itemsThreshold: 1_000 })) { ... }
-    // After:
     for await (const item of datasetClient.iterate({ pageSize: 100 })) { ... }
+
+    // After:
+    for await (const item of datasetClient.listItems({ chunkSize: 100 })) { ... }
+    ```
+
+- Removed `mergeDatasets` from the main Orchestrator object, along with the `DatasetGroup` type it used to return.
+  It was a thin wrapper iterating several datasets' `iterate` in order, and is no longer needed now that `iterate`
+  itself is gone: iterate the datasets yourself, one after another, using `listItems`.
+  To fix existing code:
+
+    ```ts
+    // Before:
+    const datasetIterator = orchestrator.mergeDatasets(
+        ...runs.map((run) => client.dataset(run.defaultDatasetId)),
+    ).iterate({ pageSize: 100 });
+    for await (const item of datasetIterator) { ... }
+
+    // After:
+    for (const run of runs) {
+        for await (const item of client.dataset(run.defaultDatasetId).listItems({ chunkSize: 100 })) { ... }
+    }
+    ```
+
+- Renamed `ExtendedDatasetClient.greedyIterate` to `greedyListItems`, to be consistent with `listItems` and its `chunkSize` option.
+  To fix existing code:
+
+    ```ts
+    // Before:
+    for await (const item of dataset.greedyIterate({ pageSize: 100 })) { ... }
+
+    // After:
+    for await (const item of dataset.greedyListItems({ chunkSize: 100 })) { ... }
     ```
 
 ### Added

@@ -4,7 +4,6 @@ import { ActorClient } from 'apify-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MAIN_LOOP_INTERVAL_MS } from './constants.js';
-import type { DatasetItem } from './index.js';
 import { Orchestrator } from './index.js';
 
 describe('Apify Orchestrator', () => {
@@ -59,18 +58,6 @@ describe('Apify Orchestrator', () => {
 
         expect(client1.clientName).toEqual('CLIENT');
         expect(client2.clientName).toEqual('CLIENT-2');
-    });
-
-    it('lets you create a dataset group', async () => {
-        interface Item extends DatasetItem {
-            title: string;
-        }
-        const client = await orchestrator.apifyClient();
-        const dataset1 = client.dataset<Item>('test-id1');
-        const dataset2 = client.dataset<Item>('test-id2');
-        const dataset3 = client.dataset<Item>('test-id3');
-        const mergedDatasets = orchestrator.mergeDatasets(dataset1, dataset2, dataset3);
-        expect(mergedDatasets.datasets).toEqual([dataset1, dataset2, dataset3]);
     });
 
     // TODO: test different configurations?

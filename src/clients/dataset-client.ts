@@ -58,7 +58,8 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
     }
 
     async *greedyListItems(options: GreedyListItemsOptions = {}): AsyncGenerator<T, void, void> {
-        const { limit = 0, chunkSize = DEFAULT_CHUNK_SIZE, pollIntervalSecs = DEFAULT_POLL_INTERVAL_SECS } = options;
+        const { pollIntervalSecs = DEFAULT_POLL_INTERVAL_SECS, ...listOptions } = options;
+        const { limit = 0, chunkSize = DEFAULT_CHUNK_SIZE } = listOptions;
         this.context.logger.info('Greedily iterating Dataset', { chunkSize }, { url: this.url });
 
         let readItemsCount = 0;
@@ -72,7 +73,7 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
                 isRunFinished = isRunTerminalStatus(run.status);
             }
 
-            const itemList = await this.listNextPage(options, readItemsCount);
+            const itemList = await this.listNextPage(listOptions, readItemsCount);
             readItemsCount += itemList.count;
             for (const item of itemList.items) {
                 yield item;

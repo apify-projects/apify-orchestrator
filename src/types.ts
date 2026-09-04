@@ -423,7 +423,7 @@ export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetCli
      * Iterates over the items in the dataset as they become available, polling the run status
      * at a regular interval and yielding any new items found at each poll.
      *
-     * The option `pageSize` will help avoiding the JavaScript's string limit when deserializing the content.
+     * The option `chunkSize` will help avoiding the JavaScript's string limit when deserializing the content.
      * The default value is 100 items.
      *
      * The option `pollIntervalSecs` allows customizing how frequently to call the API to check for new items.
@@ -434,11 +434,11 @@ export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetCli
      *
      * The dataset can only be traversed in ascending order, from oldest to newest items.
      *
-     * @param options the greedy listing options, including `pageSize` and `pollIntervalSecs`
+     * @param options the greedy listing options, including `chunkSize` and `pollIntervalSecs`
      * @returns an `AsyncGenerator` which iterates the items in the dataset
      *
      * @example
-     * const datasetIterator = datasetClient.greedyListItems({ pageSize: 100 });
+     * const datasetIterator = datasetClient.greedyListItems({ chunkSize: 100 });
      * for await (const item of datasetIterator) {
      *     console.log(item.title);
      * }

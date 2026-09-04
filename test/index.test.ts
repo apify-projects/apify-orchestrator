@@ -4,6 +4,7 @@ import { ActorClient } from 'apify-client';
 import { MAIN_LOOP_INTERVAL_MS } from 'src/constants.js';
 import type { DatasetItem } from 'src/index.js';
 import { Orchestrator } from 'src/index.js';
+import { createActorRunMock } from 'test/_helpers/mocks.js';
 
 describe('Apify Orchestrator', () => {
     let orchestrator: Orchestrator;
@@ -69,6 +70,55 @@ describe('Apify Orchestrator', () => {
         const dataset3 = client.dataset<Item>('test-id3');
         const mergedDatasets = orchestrator.mergeDatasets(dataset1, dataset2, dataset3);
         expect(mergedDatasets.datasets).toEqual([dataset1, dataset2, dataset3]);
+    });
+
+    describe('maxConcurrencyPerClient', () => {
+        function mockActorStart() {
+            return vi
+                .spyOn(ActorClient.prototype, 'start')
+                .mockImplementation(async () => createActorRunMock({ status: 'RUNNING' }));
+        }
+
+        it('limits how many Runs are started at the same time', async () => {
+            const startSpy = mockActorStart();
+            const limitedOrchestrator = new Orchestrator({ enableLogs: false, maxConcurrencyPerClient: 1 });
+            const client = await limitedOrchestrator.apifyClient({ name: 'limited-client' });
+
+            client.actor('test').enqueue({ runName: 'run-1' }, { runName: 'run-2' }, { runName: 'run-3' });
+            await vi.advanceTimersByTimeAsync(MAIN_LOOP_INTERVAL_MS * 3);
+
+            expect(startSpy).toHaveBeenCalledTimes(1);
+        });
+
+        it('applies the limit to each client separately', async () => {
+            const startSpy = mockActorStart();
+            const limitedOrchestrator = new Orchestrator({ enableLogs: false, maxConcurrencyPerClient: 1 });
+            const client1 = await limitedOrchestrator.apifyClient({ name: 'limited-client-1' });
+            const client2 = await limitedOrchestrator.apifyClient({ name: 'limited-client-2' });
+
+            client1.actor('test').enqueue({ runName: 'run-1' }, { runName: 'run-2' });
+            client2.actor('test').enqueue({ runName: 'run-3' }, { runName: 'run-4' });
+            await vi.advanceTimersByTimeAsync(MAIN_LOOP_INTERVAL_MS * 3);
+
+            // Each client has its own scheduler, so each of them starts one Run.
+            expect(startSpy).toHaveBeenCalledTimes(2);
+        });
+
+        it('does not limit the concurrency by default', async () => {
+            const startSpy = mockActorStart();
+            const client = await orchestrator.apifyClient({ name: 'unlimited-client' });
+
+            client.actor('test').enqueue({ runName: 'run-1' }, { runName: 'run-2' }, { runName: 'run-3' });
+            await vi.advanceTimersByTimeAsync(MAIN_LOOP_INTERVAL_MS);
+
+            expect(startSpy).toHaveBeenCalledTimes(3);
+        });
+
+        it('rejects a limit which is not a positive integer', () => {
+            for (const maxConcurrencyPerClient of [0, -1, 1.5, Number.NaN]) {
+                expect(() => new Orchestrator({ enableLogs: false, maxConcurrencyPerClient })).toThrow(RangeError);
+            }
+        });
     });
 
     // TODO: test different configurations?

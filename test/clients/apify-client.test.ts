@@ -1,8 +1,10 @@
+import { Actor } from 'apify';
 import { RunClient } from 'apify-client';
 import { ExtActorClient } from 'src/clients/actor-client.js';
 import { ExtApifyClient } from 'src/clients/apify-client.js';
 import { ExtDatasetClient } from 'src/clients/dataset-client.js';
 import { ExtRunClient } from 'src/clients/run-client.js';
+import { RUN_WATCH_INTERVAL_MS, RUN_WATCH_SEGMENT_SECS } from 'src/constants.js';
 import type { ClientContext } from 'src/context/client-context.js';
 import { RunSource } from 'src/entities/run-source.js';
 import { getClientContext } from 'test/_helpers/context.js';
@@ -272,6 +274,48 @@ describe('ExtApifyClient', () => {
             await expect(client.abortAllRuns()).resolves.not.toThrow();
 
             expect(abortSpy).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('run watching', () => {
+        afterEach(() => {
+            // Stop the interval of the watcher built by the test, which would otherwise keep scanning.
+            Actor.config.getEventManager().emit('exit');
+        });
+
+        it('does not watch the Runs if no concurrency limit is set', async () => {
+            context.runTracker.updateRun('test-run-1', createActorRunMock({ id: 'run-1-id', status: 'RUNNING' }));
+
+            const waitSpy = vi.spyOn(RunClient.prototype, 'waitForFinish');
+
+            await vi.advanceTimersByTimeAsync(RUN_WATCH_INTERVAL_MS * 2);
+
+            // eslint-disable-next-line dot-notation
+            expect(client['runWatcher']).toBeUndefined();
+            expect(waitSpy).not.toHaveBeenCalled();
+        });
+
+        it('waits for the active Runs to finish if a concurrency limit is set', async () => {
+            context = getClientContext({ maxConcurrencyPerClient: 2 });
+            client = new ExtApifyClient('limited-client', context, {});
+
+            context.runTracker.updateRun('test-run-1', createActorRunMock({ id: 'run-1-id', status: 'RUNNING' }));
+            expect(context.runTracker.countActiveRuns()).toBe(1);
+
+            const waitSpy = vi
+                .spyOn(RunClient.prototype, 'waitForFinish')
+                .mockResolvedValue(createActorRunMock({ id: 'run-1-id', status: 'SUCCEEDED' }));
+
+            await vi.advanceTimersByTimeAsync(RUN_WATCH_INTERVAL_MS);
+
+            // The API is asked to hold the request open, instead of being polled.
+            expect(waitSpy).toHaveBeenCalledExactlyOnceWith({ waitSecs: RUN_WATCH_SEGMENT_SECS });
+            // The terminated Run does not take up capacity anymore.
+            expect(context.runTracker.countActiveRuns()).toBe(0);
+
+            // There is nothing left to watch on the following scans.
+            await vi.advanceTimersByTimeAsync(RUN_WATCH_INTERVAL_MS * 2);
+            expect(waitSpy).toHaveBeenCalledTimes(1);
         });
     });
 

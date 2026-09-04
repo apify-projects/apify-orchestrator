@@ -40,3 +40,17 @@ export function isRunOkStatus(status: string): status is RunOkStatus {
 export function isRunFailStatus(status: string): status is RunFailStatus {
     return FAIL_STATUSES.includes(status as RunFailStatus);
 }
+
+// Statuses of Runs which have reached their end: such Runs no longer take up resources on the platform.
+// `ABORTING` and `TIMING-OUT` are intentionally excluded, as those Runs still occupy an Actor job.
+const TERMINAL_STATUSES = ['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'] as const;
+
+type RunTerminalStatus = (typeof TERMINAL_STATUSES)[number];
+
+/**
+ * Notice that an unknown status is never considered terminal: when in doubt, a Run is assumed
+ * to be still taking up resources.
+ */
+export function isRunTerminalStatus(status: string): status is RunTerminalStatus {
+    return TERMINAL_STATUSES.includes(status as RunTerminalStatus);
+}

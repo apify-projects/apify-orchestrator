@@ -71,6 +71,64 @@ describe('RunTracker', async () => {
         expect(tracker.getCurrentRuns()).toEqual({ [runName]: expect.objectContaining(expectedRunInfo) });
     });
 
+    describe('active Runs', () => {
+        function buildTrackerWithStatuses(statuses: Record<string, string>) {
+            const current = Object.fromEntries(
+                Object.entries(statuses).map(([name, status]) => [name, { ...runInfo, runId: `${name}-id`, status }]),
+            );
+            return new RunTracker(context, { current, failedHistory: {} });
+        }
+
+        it('counts only the Runs which have not reached a terminal status', () => {
+            const tracker = buildTrackerWithStatuses({
+                ready: 'READY',
+                running: 'RUNNING',
+                aborting: 'ABORTING',
+                succeeded: 'SUCCEEDED',
+                failed: 'FAILED',
+                aborted: 'ABORTED',
+                'timed-out': 'TIMED-OUT',
+            });
+
+            expect(tracker.countActiveRuns()).toBe(3);
+            expect(Object.keys(tracker.getActiveRuns()).sort()).toEqual(['aborting', 'ready', 'running']);
+        });
+
+        it('counts no Runs when none is tracked', () => {
+            const tracker = buildTrackerWithStatuses({});
+
+            expect(tracker.countActiveRuns()).toBe(0);
+            expect(tracker.getActiveRuns()).toEqual({});
+        });
+
+        it('stops counting a Run as active when it terminates', () => {
+            const tracker = buildTrackerWithStatuses({ [runName]: 'RUNNING' });
+            expect(tracker.countActiveRuns()).toBe(1);
+
+            tracker.updateRun(runName, createActorRunMock({ status: 'SUCCEEDED' }));
+
+            expect(tracker.countActiveRuns()).toBe(0);
+        });
+
+        it('stops counting a Run as active when it gets lost', () => {
+            const tracker = buildTrackerWithStatuses({ [runName]: 'RUNNING' });
+            expect(tracker.countActiveRuns()).toBe(1);
+
+            tracker.updateRun(runName, undefined);
+
+            expect(tracker.countActiveRuns()).toBe(0);
+        });
+
+        it('returns a copy of the tracked Run information', () => {
+            const tracker = buildTrackerWithStatuses({ [runName]: 'RUNNING' });
+
+            const activeRuns = tracker.getActiveRuns();
+            activeRuns[runName].status = 'SUCCEEDED';
+
+            expect(tracker.countActiveRuns()).toBe(1);
+        });
+    });
+
     it('calls the callback on updates', async () => {
         const onUpdateMock = vi.fn();
         const contextWithCallback = { ...context, options: { ...context.options, onUpdate: onUpdateMock } };

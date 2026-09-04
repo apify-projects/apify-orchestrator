@@ -38,6 +38,7 @@ export function generateClientContext(
             input: mergeDictionaries(orchestratorContext.options.fixedInput, request.input),
         }),
         onRunStarted: (runName, run) => runTracker.updateRun(runName, run),
+        countActiveRuns: () => runTracker.countActiveRuns(),
     });
 
     return {

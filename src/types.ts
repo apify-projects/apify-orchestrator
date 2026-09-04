@@ -100,6 +100,30 @@ export interface OrchestratorOptions {
      * @default true
      */
     retryOnInsufficientResources: boolean;
+
+    /**
+     * The maximum number of Runs which a single client is allowed to keep active at the same time.
+     *
+     * Each client counts its own Runs independently, as it has its own scheduler: with a limit of 5 and
+     * three clients, up to 15 Runs can be active at once. Create a single client if you need the limit
+     * to apply to all of your Runs together.
+     *
+     * The limit applies to every Run started through a client, no matter which method was used
+     * (`start`, `call`, `enqueue`, and their batch counterparts): requests exceeding it wait in the
+     * scheduler's queue and are started as soon as the previously started Runs terminate.
+     *
+     * Runs which were started by a previous execution of the same Actor and restored through persistence
+     * count towards the limit as well, as long as they are still active.
+     *
+     * A Run is noticed to have terminated as soon as it does, so its capacity is released right away.
+     * Starting to watch a newly started Run, on the other hand, may take a few seconds, which means the
+     * limit can be exceeded for that long by a Run which terminates almost immediately.
+     *
+     * If undefined, the number of concurrent Runs is only limited by the resources available on the account.
+     *
+     * @default undefined
+     */
+    maxConcurrencyPerClient?: number;
 }
 
 /**

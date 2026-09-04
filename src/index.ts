@@ -19,6 +19,7 @@ import type {
 import { makeNameUnique, makePrefixUnique } from './utils/naming.js';
 import type { Storage } from './utils/storage.js';
 import { buildStorage } from './utils/storage.js';
+import { isDefined } from './utils/typing.js';
 
 export * from './types.js';
 export * from './errors.js';
@@ -36,6 +37,7 @@ export class Orchestrator implements ApifyOrchestrator {
 
     constructor(options: Partial<OrchestratorOptions> = {}) {
         const fullOptions = { ...DEFAULT_ORCHESTRATOR_OPTIONS, ...options };
+        validateMaxConcurrencyPerClient(fullOptions.maxConcurrencyPerClient);
         fullOptions.persistencePrefix = makePrefixUnique(fullOptions.persistencePrefix, takenPersistPrefixes);
         takenPersistPrefixes.add(fullOptions.persistencePrefix);
         this.options = fullOptions;
@@ -70,5 +72,12 @@ export class Orchestrator implements ApifyOrchestrator {
 
     mergeDatasets<T extends DatasetItem>(...datasets: ExtendedDatasetClient<T>[]): DatasetGroup<T> {
         return new DatasetGroupClass(...datasets);
+    }
+}
+
+function validateMaxConcurrencyPerClient(maxConcurrency?: number): void {
+    if (!isDefined(maxConcurrency)) return;
+    if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1) {
+        throw new RangeError(`maxConcurrencyPerClient must be a positive integer, but it was ${maxConcurrency}.`);
     }
 }

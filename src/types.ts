@@ -489,10 +489,15 @@ export interface ExtendedActorRun extends ActorRun {
 export type DatasetItem = Record<string | number, unknown>;
 
 /**
+ * Options for listing items from a dataset in ascending order, omitting the `desc` option.
+ */
+export type DatasetClientListSortedItemOptions = Omit<DatasetClientListItemOptions, 'desc'>;
+
+/**
  * Options for to greedily list items from a dataset, with automatic pagination and polling for new items.
  * The dataset can only be traversed in ascending order, from oldest to newest items.
  */
-export type GreedyListItemsOptions = Omit<DatasetClientListItemOptions, 'desc'> & {
+export type GreedyListItemsOptions = DatasetClientListSortedItemOptions & {
     /**
      * Check the run's status regularly at the specified interval, in seconds.
      *

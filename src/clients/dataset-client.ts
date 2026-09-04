@@ -1,7 +1,12 @@
-import { ActorRun, DatasetClient, DatasetClientListItemOptions } from 'apify-client';
+import { ActorRun, DatasetClient } from 'apify-client';
 
 import type { OrchestratorContext } from '../context/orchestrator-context.js';
-import type { DatasetItem, ExtendedDatasetClient, GreedyListItemsOptions } from '../types.js';
+import type {
+    DatasetClientListSortedItemOptions,
+    DatasetItem,
+    ExtendedDatasetClient,
+    GreedyListItemsOptions,
+} from '../types.js';
 import { isRunTerminalStatus } from '../utils/apify-client.js';
 import { isDefined } from '../utils/typing.js';
 
@@ -42,7 +47,7 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
         return run;
     }
 
-    private async listNextPage(options: DatasetClientListItemOptions, readItemsCount: number) {
+    private async listNextPage(options: DatasetClientListSortedItemOptions, readItemsCount: number) {
         const { offset = 0, limit = 0, chunkSize = DEFAULT_CHUNK_SIZE } = options;
         const pageSize = computeNextPageSize(limit, chunkSize, readItemsCount);
         return super.listItems({

@@ -161,6 +161,17 @@
   `ExtendedRunClient`'s methods such as `get`, `abort`, `reboot`, `update`, and `resurrect`, and the `onUpdate` callback.
 - New `AmbiguousRunRequestError` (a subclass of `OrchestratorError`), thrown when the same
   auto-generated request ID is resolved twice in the same process with no resurrection in between - check the README for more insights.
+- New `ExtendedDatasetClient` methods `listItemsBatched` and `greedyListItemsBatched`: they work like `listItems`
+  and `greedyListItems`, but yield arrays of items of the desired size, instead of single items.
+  The size is defined by the new `batchSize` option (see the new `ListItemsBatchedOptions` and
+  `GreedyListItemsBatchedOptions` types): each batch contains exactly `batchSize` items, except the last one,
+  which may be smaller. `batchSize` is independent of `chunkSize`, which defines how many items are fetched with each
+  API call: when it is not provided, it defaults to `chunkSize`, or to 100 items.
+
+    ```ts
+    for await (const items of dataset.listItemsBatched({ batchSize: 50, chunkSize: 100 })) { ... }
+    for await (const items of dataset.greedyListItemsBatched({ batchSize: 50, chunkSize: 100 })) { ... }
+    ```
 
 ### Fixed
 

@@ -29,8 +29,13 @@ export class TestActorRunner {
         return new TestActorRunner(client, actorId, options);
     }
 
-    async start(index: number, numberToOutput?: number): Promise<TestRun | null> {
-        const childInput: Input = { role: 'child', waitSeconds: this.options.childWaitSeconds, numberToOutput };
+    async start(index: number, numberToOutput?: number, itemsToOutput?: number): Promise<TestRun | null> {
+        const childInput: Input = {
+            role: 'child',
+            waitSeconds: this.options.childWaitSeconds,
+            numberToOutput,
+            itemsToOutput,
+        };
         const childOptions: ActorCallOptions = { memory: this.options.childMemoryMbytes };
         const runName = `child-${index}`;
         try {
@@ -46,8 +51,8 @@ export class TestActorRunner {
         }
     }
 
-    async call(index: number, numberToOutput?: number): Promise<TestRun | null> {
-        const startedRun = await this.start(index, numberToOutput);
+    async call(index: number, numberToOutput?: number, itemsToOutput?: number): Promise<TestRun | null> {
+        const startedRun = await this.start(index, numberToOutput, itemsToOutput);
         if (!startedRun) return null;
         const finishedRun = await this.apifyClient.run(startedRun.run.id).waitForFinish();
         return new TestRun(this.apifyClient, finishedRun, startedRun.runName);

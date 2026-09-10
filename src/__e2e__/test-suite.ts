@@ -3,8 +3,12 @@ import { log } from 'apify';
 import type { TrackedRuns } from '../run-tracker.js';
 import { checkResurrectionTestOutputCompleteness, runResurrectionTest } from './resurrection.js';
 import { TestTransientTaskRunner } from './transient-task-runner.js';
-import type { TestResult } from './types.js';
+import type { Output, TestResult } from './types.js';
 import { generateActorTestRunner, getOrchestratorAndClient, getOrchestratorTrackedValue, testLog } from './utils.js';
+
+const BATCHED_ITEMS_COUNT = 5;
+const BATCH_SIZE = 2;
+const BATCHED_ITEM_VALUE = 2;
 
 type EndToEndTestOutput = { [testName: string]: TestResult };
 
@@ -14,6 +18,8 @@ export async function runEndToEndTestSuite(): Promise<EndToEndTestOutput> {
         childRunWithPlainPersistence,
         childRunWithEncryptedPersistence,
         childRunFromTask,
+        childRunWithBatchedDatasetReading,
+        childRunWithGreedyBatchedDatasetReading,
         resurrectedRunWithoutPersistence,
         resurrectedRunWithPlainPersistence,
         resurrectedRunWithEncryptedPersistence,
@@ -146,6 +152,64 @@ async function childRunFromTask(): Promise<TestResult> {
     const output = await run.getTotalOutput();
     if (output !== 50) {
         return { success: false, details: `Unexpected output: ${output}` };
+    }
+
+    return { success: true };
+}
+
+async function childRunWithBatchedDatasetReading(): Promise<TestResult> {
+    const { client } = await getOrchestratorAndClient({
+        persistenceSupport: 'none',
+        hideSensitiveInformation: false,
+    });
+
+    const runner = await generateActorTestRunner(client);
+
+    const run = await runner.call(1, BATCHED_ITEM_VALUE, BATCHED_ITEMS_COUNT);
+    if (!run) {
+        return { success: false, details: 'Run was not started successfully.' };
+    }
+
+    const batches = await run.getOutputBatches(BATCH_SIZE);
+    return checkOutputBatches(batches);
+}
+
+async function childRunWithGreedyBatchedDatasetReading(): Promise<TestResult> {
+    const { client } = await getOrchestratorAndClient({
+        persistenceSupport: 'none',
+        hideSensitiveInformation: false,
+    });
+
+    const runner = await generateActorTestRunner(client);
+
+    // Do not wait for the Run to finish: the items are read in batches as they become available.
+    const run = await runner.start(1, BATCHED_ITEM_VALUE, BATCHED_ITEMS_COUNT);
+    if (!run) {
+        return { success: false, details: 'Run was not started successfully.' };
+    }
+
+    const batches = await run.getGreedyOutputBatches(BATCH_SIZE);
+    return checkOutputBatches(batches);
+}
+
+/**
+ * Checks that the batches have the expected sizes, and that they contain all the expected items:
+ * every batch is expected to have exactly `BATCH_SIZE` items, except the last one, which may be smaller.
+ */
+function checkOutputBatches(batches: Output[][]): TestResult {
+    const expectedSizes = [];
+    for (let count = BATCHED_ITEMS_COUNT; count > 0; count -= BATCH_SIZE) {
+        expectedSizes.push(Math.min(BATCH_SIZE, count));
+    }
+
+    const sizes = batches.map((batch) => batch.length);
+    if (sizes.join(',') !== expectedSizes.join(',')) {
+        return { success: false, details: `Unexpected batch sizes: [${sizes}], expected [${expectedSizes}]` };
+    }
+
+    const items = batches.flat();
+    if (items.some(({ value }) => value !== BATCHED_ITEM_VALUE)) {
+        return { success: false, details: `Unexpected item values: ${items.map(({ value }) => value)}` };
     }
 
     return { success: true };

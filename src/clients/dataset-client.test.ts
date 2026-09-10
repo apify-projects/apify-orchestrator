@@ -1,3 +1,4 @@
+import type { PaginatedList } from 'apify-client';
 import { DatasetClient, RunClient } from 'apify-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,6 +10,26 @@ import type { ExtDatasetClient } from './dataset-client.js';
 
 interface TestItem extends DatasetItem {
     title: string;
+}
+
+/**
+ * Mocks the value returned by `DatasetClient.listItems`, which is both a `Promise` of a
+ * `PaginatedList` and an `AsyncIterable` yielding the items one by one.
+ */
+function mockListItemsResult(items: TestItem[]) {
+    const paginatedList: PaginatedList<TestItem> = {
+        items,
+        count: items.length,
+        total: items.length,
+        offset: 0,
+        limit: items.length,
+        desc: false,
+    };
+    const result = Promise.resolve(paginatedList) as Promise<PaginatedList<TestItem>> & AsyncIterable<TestItem>;
+    result[Symbol.asyncIterator] = async function* asyncIterator() {
+        yield* items;
+    };
+    return result;
 }
 
 describe('ExtDatasetClient', () => {
@@ -197,6 +218,174 @@ describe('ExtDatasetClient', () => {
             expect(items).toEqual(page);
             expect(listItemsSpy).toHaveBeenCalledOnce();
             expect(listItemsSpy).toHaveBeenCalledWith(expect.objectContaining({ offset: 3, limit: 2 }));
+        });
+    });
+
+    describe('listItemsBatched', () => {
+        it('yields the items in batches of the requested size, ending with a smaller batch', async () => {
+            const items = [
+                { title: 'first' },
+                { title: 'second' },
+                { title: 'third' },
+                { title: 'fourth' },
+                { title: 'fifth' },
+            ];
+            const listItemsSpy = vi
+                .spyOn(DatasetClient.prototype, 'listItems')
+                .mockReturnValue(mockListItemsResult(items) as never);
+
+            const batches: TestItem[][] = [];
+            for await (const batch of datasetClient.listItemsBatched({ batchSize: 2, chunkSize: 100 })) {
+                batches.push(batch);
+            }
+
+            expect(batches).toEqual([[items[0], items[1]], [items[2], items[3]], [items[4]]]);
+            expect(listItemsSpy).toHaveBeenCalledExactlyOnceWith({ chunkSize: 100 });
+        });
+
+        it('uses the chunk size as the default batch size', async () => {
+            const items = [{ title: 'first' }, { title: 'second' }, { title: 'third' }];
+            vi.spyOn(DatasetClient.prototype, 'listItems').mockReturnValue(mockListItemsResult(items) as never);
+
+            const batches: TestItem[][] = [];
+            for await (const batch of datasetClient.listItemsBatched({ chunkSize: 2 })) {
+                batches.push(batch);
+            }
+
+            expect(batches).toEqual([[items[0], items[1]], [items[2]]]);
+        });
+
+        it('yields nothing if the dataset is empty', async () => {
+            vi.spyOn(DatasetClient.prototype, 'listItems').mockReturnValue(mockListItemsResult([]) as never);
+
+            const batches: TestItem[][] = [];
+            for await (const batch of datasetClient.listItemsBatched({ batchSize: 2 })) {
+                batches.push(batch);
+            }
+
+            expect(batches).toEqual([]);
+        });
+
+        it('falls back to the default batch size when the chunk size is zero', async () => {
+            const items = Array.from({ length: 101 }, (_, index) => ({ title: `item-${index}` }));
+            vi.spyOn(DatasetClient.prototype, 'listItems').mockReturnValue(mockListItemsResult(items) as never);
+
+            const batches: TestItem[][] = [];
+            for await (const batch of datasetClient.listItemsBatched({ chunkSize: 0 })) {
+                batches.push(batch);
+            }
+
+            expect(batches.map((batch) => batch.length)).toEqual([100, 1]);
+        });
+
+        it('throws if the batch size is not a positive integer', async () => {
+            const iterator = datasetClient.listItemsBatched({ batchSize: 0 });
+            await expect(iterator.next()).rejects.toThrow('The batch size must be a positive integer.');
+        });
+    });
+
+    describe('greedyListItemsBatched', () => {
+        it('yields batches of the requested size, buffering the items across pages', async () => {
+            vi.spyOn(DatasetClient.prototype, 'get').mockResolvedValue({ actRunId: 'test-run-id' } as never);
+            vi.spyOn(RunClient.prototype, 'get')
+                .mockResolvedValueOnce(createActorRunMock({ status: 'RUNNING' }))
+                .mockResolvedValueOnce(createActorRunMock({ status: 'RUNNING' }))
+                .mockResolvedValueOnce(createActorRunMock({ status: 'SUCCEEDED' }));
+
+            const firstPage = [{ title: 'first' }];
+            const secondPage = [{ title: 'second' }, { title: 'third' }];
+            const listItemsSpy = vi
+                .spyOn(DatasetClient.prototype, 'listItems')
+                .mockResolvedValueOnce({ items: firstPage, count: 1, total: 3, offset: 0, limit: 2, desc: false })
+                .mockResolvedValueOnce({ items: secondPage, count: 2, total: 3, offset: 1, limit: 2, desc: false })
+                .mockResolvedValueOnce({ items: [], count: 0, total: 3, offset: 3, limit: 2, desc: false });
+
+            const batches: TestItem[][] = [];
+            for await (const batch of datasetClient.greedyListItemsBatched({
+                batchSize: 2,
+                chunkSize: 2,
+                pollIntervalSecs: 0,
+            })) {
+                batches.push(batch);
+            }
+
+            expect(batches).toEqual([[firstPage[0], secondPage[0]], [secondPage[1]]]);
+            expect(listItemsSpy).toHaveBeenNthCalledWith(1, expect.objectContaining({ offset: 0, limit: 2 }));
+            expect(listItemsSpy).toHaveBeenNthCalledWith(2, expect.objectContaining({ offset: 1, limit: 2 }));
+            expect(listItemsSpy).toHaveBeenNthCalledWith(3, expect.objectContaining({ offset: 3, limit: 2 }));
+            expect(listItemsSpy).not.toHaveBeenCalledWith(expect.objectContaining({ batchSize: expect.anything() }));
+        });
+
+        it('yields a batch as soon as it is complete, without waiting for the run to finish', async () => {
+            vi.useFakeTimers();
+            vi.spyOn(DatasetClient.prototype, 'get').mockResolvedValue({ actRunId: 'test-run-id' } as never);
+            vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(createActorRunMock({ status: 'RUNNING' }));
+
+            const firstPage = [{ title: 'first' }, { title: 'second' }];
+            const secondPage = [{ title: 'third' }, { title: 'fourth' }];
+            vi.spyOn(DatasetClient.prototype, 'listItems')
+                .mockResolvedValueOnce({ items: firstPage, count: 2, total: 4, offset: 0, limit: 2, desc: false })
+                .mockResolvedValueOnce({ items: secondPage, count: 2, total: 4, offset: 2, limit: 2, desc: false });
+
+            const iterator = datasetClient.greedyListItemsBatched({
+                batchSize: 2,
+                chunkSize: 2,
+                pollIntervalSecs: 1,
+            });
+
+            await expect(iterator.next()).resolves.toEqual({ value: firstPage, done: false });
+
+            const nextBatch = iterator.next();
+            await vi.advanceTimersByTimeAsync(1000);
+            await expect(nextBatch).resolves.toEqual({ value: secondPage, done: false });
+        });
+
+        it('does not fetch more than the requested limit', async () => {
+            vi.spyOn(DatasetClient.prototype, 'get').mockResolvedValue({ actRunId: 'test-run-id' } as never);
+            vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(createActorRunMock({ status: 'RUNNING' }));
+
+            const firstPage = [{ title: 'first' }, { title: 'second' }];
+            const secondPage = [{ title: 'third' }];
+            const listItemsSpy = vi
+                .spyOn(DatasetClient.prototype, 'listItems')
+                .mockResolvedValueOnce({ items: firstPage, count: 2, total: 5, offset: 0, limit: 2, desc: false })
+                .mockResolvedValueOnce({ items: secondPage, count: 1, total: 5, offset: 2, limit: 1, desc: false });
+
+            const batches: TestItem[][] = [];
+            for await (const batch of datasetClient.greedyListItemsBatched({
+                batchSize: 2,
+                chunkSize: 2,
+                limit: 3,
+                pollIntervalSecs: 0,
+            })) {
+                batches.push(batch);
+            }
+
+            expect(batches).toEqual([firstPage, secondPage]);
+            expect(listItemsSpy).toHaveBeenCalledTimes(2);
+            expect(listItemsSpy).toHaveBeenNthCalledWith(2, expect.objectContaining({ offset: 2, limit: 1 }));
+        });
+
+        it('uses the chunk size as the default batch size', async () => {
+            vi.spyOn(DatasetClient.prototype, 'get').mockResolvedValue({ actRunId: 'test-run-id' } as never);
+            vi.spyOn(RunClient.prototype, 'get').mockResolvedValue(createActorRunMock({ status: 'SUCCEEDED' }));
+
+            const page = [{ title: 'first' }, { title: 'second' }, { title: 'third' }];
+            vi.spyOn(DatasetClient.prototype, 'listItems')
+                .mockResolvedValueOnce({ items: page, count: 3, total: 3, offset: 0, limit: 3, desc: false })
+                .mockResolvedValueOnce({ items: [], count: 0, total: 3, offset: 3, limit: 3, desc: false });
+
+            const batches: TestItem[][] = [];
+            for await (const batch of datasetClient.greedyListItemsBatched({ chunkSize: 2, pollIntervalSecs: 0 })) {
+                batches.push(batch);
+            }
+
+            expect(batches).toEqual([[page[0], page[1]], [page[2]]]);
+        });
+
+        it('throws if the batch size is not a positive integer', async () => {
+            const iterator = datasetClient.greedyListItemsBatched({ batchSize: -1 });
+            await expect(iterator.next()).rejects.toThrow('The batch size must be a positive integer.');
         });
     });
 });

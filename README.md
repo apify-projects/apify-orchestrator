@@ -211,6 +211,24 @@ Also, notice the `for await` at the end: it is due to the fact that `datasetIter
 `listItems`, is an [async iterable](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of)
 which fetches items in chunks of `chunkSize`, yielding them one by one, then fetches the next chunk, and so on.
 
+If you would rather process the items in groups, e.g., to send them to an API which accepts multiple items at once,
+you can use `listItemsBatched`, which yields arrays of items instead of single items:
+
+```js
+const datasetIterator = client.dataset(run.defaultDatasetId).listItemsBatched({
+    batchSize: 50, // each batch contains 50 items, except the last one, which may be smaller
+    chunkSize: 100, // how many items are fetched with each API call: it is independent of the batch size
+});
+
+for await (const items of datasetIterator) {
+    await sendItemsToMyApi(items);
+}
+```
+
+The Orchestrator also provides `greedyListItems` and `greedyListItemsBatched`, which read the items of a Run's dataset
+as soon as they become available, without waiting for the Run to finish: they poll the Run's status every
+`pollIntervalSecs` seconds, and yield any new item found, one by one or in batches of `batchSize`.
+
 Be aware that, with the current implementation, input splitting may be quite slow.
 If you preferred to split the input yourself, you can do it like this:
 

@@ -15,6 +15,38 @@ export class TestRun {
         this.runName = runName;
     }
 
+    /**
+     * Reads the output of the Run in batches of the given size, using `listItemsBatched`.
+     * The Run is expected to have finished already.
+     */
+    async getOutputBatches(batchSize: number): Promise<Output[][]> {
+        const batches: Output[][] = [];
+        const outputIterator = this.client
+            .dataset<Output>(this.run.defaultDatasetId)
+            .listItemsBatched({ batchSize, chunkSize: 100 });
+        for await (const batch of outputIterator) {
+            log.info(`Received a batch of ${batch.length} items from child ${this.runName}`);
+            batches.push(batch);
+        }
+        return batches;
+    }
+
+    /**
+     * Reads the output of the Run in batches of the given size, as it becomes available,
+     * using `greedyListItemsBatched`. The Run may still be running.
+     */
+    async getGreedyOutputBatches(batchSize: number): Promise<Output[][]> {
+        const batches: Output[][] = [];
+        const outputIterator = this.client
+            .dataset<Output>(this.run.defaultDatasetId)
+            .greedyListItemsBatched({ batchSize, chunkSize: 100, pollIntervalSecs: 1 });
+        for await (const batch of outputIterator) {
+            log.info(`Received a greedy batch of ${batch.length} items from child ${this.runName}`);
+            batches.push(batch);
+        }
+        return batches;
+    }
+
     async getTotalOutput(): Promise<number> {
         let total = 0;
         try {

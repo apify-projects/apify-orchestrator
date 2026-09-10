@@ -5,6 +5,12 @@ export interface Input {
     orchestratorOptions?: Record<string, unknown>;
     waitSeconds?: number;
     numberToOutput?: number;
+    /**
+     * How many items the child Run should push to its default dataset, one at a time.
+     *
+     * @default 1
+     */
+    itemsToOutput?: number;
 }
 
 export interface Output extends DatasetItem {

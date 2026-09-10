@@ -420,6 +420,27 @@ export type ExtendedRunClient = RunClient;
  */
 export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetClient<T> {
     /**
+     * Iterates over the items in the dataset, yielding them in batches of the desired size,
+     * instead of one by one as `listItems` does.
+     *
+     * Every batch contains exactly `batchSize` items, except the last one, which may be smaller.
+     * The default batch size is the value of `chunkSize`, or 100 items.
+     *
+     * The option `chunkSize` defines how many items are fetched with each API call, and will help
+     * avoiding the JavaScript's string limit when deserializing the content: it is independent of `batchSize`.
+     *
+     * @param options the listing options, including `batchSize` and `chunkSize`
+     * @returns an `AsyncGenerator` which iterates the batches of items in the dataset
+     *
+     * @example
+     * const datasetIterator = datasetClient.listItemsBatched({ batchSize: 10 });
+     * for await (const items of datasetIterator) {
+     *     console.log(items.length);
+     * }
+     */
+    listItemsBatched: (options?: ListItemsBatchedOptions) => AsyncGenerator<T[], void, void>;
+
+    /**
      * Iterates over the items in the dataset as they become available, polling the run status
      * at a regular interval and yielding any new items found at each poll.
      *
@@ -444,6 +465,29 @@ export interface ExtendedDatasetClient<T extends DatasetItem> extends DatasetCli
      * }
      */
     greedyListItems: (options?: GreedyListItemsOptions) => AsyncGenerator<T, void, void>;
+
+    /**
+     * Iterates over the items in the dataset as they become available, as `greedyListItems` does,
+     * but yields them in batches of the desired size, instead of one by one.
+     *
+     * Every batch contains exactly `batchSize` items, except the last one, which may be smaller:
+     * a partial batch is only yielded once the dataset is exhausted or the `limit` is reached.
+     * The default batch size is the value of `chunkSize`, or 100 items.
+     *
+     * The options `chunkSize` and `pollIntervalSecs` work as in `greedyListItems`.
+     *
+     * The dataset can only be traversed in ascending order, from oldest to newest items.
+     *
+     * @param options the greedy listing options, including `batchSize`, `chunkSize` and `pollIntervalSecs`
+     * @returns an `AsyncGenerator` which iterates the batches of items in the dataset
+     *
+     * @example
+     * const datasetIterator = datasetClient.greedyListItemsBatched({ batchSize: 10 });
+     * for await (const items of datasetIterator) {
+     *     console.log(items.length);
+     * }
+     */
+    greedyListItemsBatched: (options?: GreedyListItemsBatchedOptions) => AsyncGenerator<T[], void, void>;
 }
 
 /**
@@ -498,6 +542,34 @@ export type DatasetClientListSortedItemOptions = Omit<DatasetClientListItemOptio
  * The dataset can only be traversed in ascending order, from oldest to newest items.
  */
 export type GreedyListItemsOptions = DatasetClientListSortedItemOptions & {
+    /**
+     * Check the run's status regularly at the specified interval, in seconds.
+     *
+     * @default 10
+     */
+    pollIntervalSecs?: number;
+};
+
+/**
+ * Options to list items from a dataset in batches of the desired size, with automatic pagination.
+ * The dataset can only be traversed in ascending order, from oldest to newest items.
+ */
+export type ListItemsBatchedOptions = DatasetClientListSortedItemOptions & {
+    /**
+     * The number of items in each yielded batch: every batch will have this exact size,
+     * except the last one, which may be smaller.
+     *
+     * @default the value of `chunkSize`, if greater than zero, or 100
+     */
+    batchSize?: number;
+};
+
+/**
+ * Options to greedily list items from a dataset in batches of the desired size,
+ * with automatic pagination and polling for new items.
+ * The dataset can only be traversed in ascending order, from oldest to newest items.
+ */
+export type GreedyListItemsBatchedOptions = ListItemsBatchedOptions & {
     /**
      * Check the run's status regularly at the specified interval, in seconds.
      *

@@ -5,9 +5,12 @@ import type {
     DatasetClientListSortedItemOptions,
     DatasetItem,
     ExtendedDatasetClient,
+    GreedyListItemsBatchedOptions,
     GreedyListItemsOptions,
+    ListItemsBatchedOptions,
 } from '../types.js';
 import { isRunTerminalStatus } from '../utils/apify-client.js';
+import { iterateBatches } from '../utils/iterators.js';
 import { isDefined } from '../utils/typing.js';
 
 const DEFAULT_CHUNK_SIZE = 100;
@@ -90,6 +93,30 @@ export class ExtDatasetClient<T extends DatasetItem> extends DatasetClient<T> im
             }
         }
     }
+
+    async *listItemsBatched(options: ListItemsBatchedOptions = {}): AsyncGenerator<T[], void, void> {
+        const { batchSize, ...listOptions } = options;
+        const itemsPerBatch = computeBatchSize(batchSize, listOptions.chunkSize);
+        this.context.logger.info('Iterating Dataset in batches', { batchSize: itemsPerBatch }, { url: this.url });
+
+        for await (const batch of iterateBatches(super.listItems(listOptions), itemsPerBatch)) {
+            yield batch;
+        }
+    }
+
+    async *greedyListItemsBatched(options: GreedyListItemsBatchedOptions = {}): AsyncGenerator<T[], void, void> {
+        const { batchSize, ...greedyOptions } = options;
+        const itemsPerBatch = computeBatchSize(batchSize, greedyOptions.chunkSize);
+        this.context.logger.info(
+            'Greedily iterating Dataset in batches',
+            { batchSize: itemsPerBatch },
+            { url: this.url },
+        );
+
+        for await (const batch of iterateBatches(this.greedyListItems(greedyOptions), itemsPerBatch)) {
+            yield batch;
+        }
+    }
 }
 
 function computeNextPageSize(limit: number, chunkSize: number, readItemsCount: number): number {
@@ -98,4 +125,11 @@ function computeNextPageSize(limit: number, chunkSize: number, readItemsCount: n
     const remainingCount = limit - readItemsCount;
     if (chunkSize === 0) return remainingCount;
     return Math.min(chunkSize, remainingCount);
+}
+
+function computeBatchSize(batchSize: number | undefined, chunkSize: number | undefined): number {
+    // A chunk size of 0 means no pagination, so it cannot be used as a batch size.
+    const size = batchSize ?? (chunkSize || DEFAULT_CHUNK_SIZE);
+    if (!Number.isInteger(size) || size <= 0) throw new Error('The batch size must be a positive integer.');
+    return size;
 }
